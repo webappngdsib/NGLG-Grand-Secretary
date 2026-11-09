@@ -6,7 +6,10 @@ import { esc } from './util.js';
 import { seal, unseal, readSeal, strongEnough } from './seal.js';
 
 const KEY = 'nglg-connection';
-export const DEFAULT_REPO = 'NGLG-GSEC/nglg-grammateia-data';
+export const DEFAULT_REPO = 'webappngdsib/nglg-grammateia-data';
+// Το αποθετήριο μεταφέρθηκε (Νοέμβριος 2026): οι παλιές αποθηκευμένες συνδέσεις/προσκλήσεις δείχνουν στο νέο
+const MOVED = { 'nglg-gsec/nglg-grammateia-data': DEFAULT_REPO };
+export const currentRepo = (r) => MOVED[String(r || '').toLowerCase()] || String(r || DEFAULT_REPO);
 export function savedConnection() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } }
 function saveConnection(c) { try { if (c) localStorage.setItem(KEY, JSON.stringify(c)); else localStorage.removeItem(KEY); } catch { /* */ } }
 
@@ -21,7 +24,7 @@ export function backendFor(c) {
   if (!c) return null;
   if (c.kind === 'local') return new LocalBackend();
   if (c.kind === 'sealed') c = { repo: c.repo, token: sessionToken() };
-  const [owner, repo] = String(c.repo || DEFAULT_REPO).split('/');
+  const [owner, repo] = currentRepo(c.repo).split('/');
   return new GitHubBackend({ owner, repo, token: c.token, api: c.api });
 }
 

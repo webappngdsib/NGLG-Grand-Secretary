@@ -363,7 +363,7 @@ def test_import_old_backup_and_visits_payload(app, tmp_path):
 def connect_github(app, gh, token='good-token'):
     app.page.route('https://api.github.com/**', gh.handle)
     app.page.goto(app.base)
-    app.page.fill('[name=repo]', 'NGLG-GSEC/nglg-grammateia-data')
+    app.page.fill('[name=repo]', 'webappngdsib/nglg-grammateia-data')
     app.page.fill('[name=token]', token)
     app.page.locator('#ghForm button').click()
 
@@ -414,7 +414,7 @@ def test_github_errors(app):
     app.page.wait_for_selector('text=Πώς να μπείτε από αυτή τη συσκευή')
     t = app.text()
     assert 'λογαριασμό GitHub «dskiad-gh»' in t and 'Πρόσκληση χρήστη' in t and 'Να μένω συνδεδεμένος' in t, t
-    assert app.page.locator('a[href*="personal-access-tokens/new"][href*="target_name=NGLG-GSEC"]').count() == 1
+    assert app.page.locator('a[href*="personal-access-tokens/new"][href*="target_name=webappngdsib"]').count() == 1
     app.errors.clear()
     connect_github(app, MockGitHub(visible=False, login='NGLG-GSEC', token='github_pat_x'), token='github_pat_x')
     app.page.wait_for_selector('text=δεν του δόθηκε πρόσβαση')
@@ -3976,7 +3976,7 @@ def test_lodge_portal_admin_login_otp_and_google(app):
     app.page.evaluate("async () => { const {db} = await import('./core/store.js'); await db.save('x', (tx) => tx.setting('google_client_id', 'test.apps.googleusercontent.com')); }")
     app.go('/lodge-portal')
     # λάθος τιμή (όνομα αποθετηρίου) → σαφές μήνυμα
-    app.page.fill('#pcfg [name=url]', 'NGLG-GSEC/nglg-grammateia-data')
+    app.page.fill('#pcfg [name=url]', 'webappngdsib/nglg-grammateia-data')
     app.page.click('#pcfg button.primary')
     app.page.wait_for_selector('text=όχι όνομα αποθετηρίου')
     app.page.fill('#pcfg [name=url]', API)

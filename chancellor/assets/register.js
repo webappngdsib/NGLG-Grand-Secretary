@@ -28,8 +28,11 @@
   var START = 1201;
   var PATH = 'chancellor/register.json';
   var KEY = 'gc-register-conn';
-  var DEFAULT_REPO = 'NGLG-GSEC/nglg-grammateia-data';
+  var DEFAULT_REPO = 'webappngdsib/nglg-grammateia-data';
   var API = 'https://api.github.com';
+
+  /* the data repository moved from NGLG-GSEC to webappngdsib (November 2026) */
+  function moved(r){ return /^nglg-gsec\/nglg-grammateia-data$/i.test(r || '') ? DEFAULT_REPO : (r || DEFAULT_REPO); }
 
   function store(){ try { return window.localStorage; } catch (e) { return null; } }
 
@@ -37,10 +40,10 @@
     var s = store(), c = null;
     if (!s) return null;
     try { c = JSON.parse(s.getItem(KEY) || 'null'); } catch (e) {}
-    if (c && c.token) return c;
+    if (c && c.token) { c.repo = moved(c.repo); return c; }
     try {
       var m = JSON.parse(s.getItem('nglg-connection') || 'null');
-      if (m && m.kind === 'github' && m.token) return { repo: m.repo || DEFAULT_REPO, token: m.token };
+      if (m && m.kind === 'github' && m.token) return { repo: moved(m.repo), token: m.token };
     } catch (e) {}
     return null;
   }

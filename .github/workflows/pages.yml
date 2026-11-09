@@ -36,7 +36,7 @@ jobs:
         # Δημοσιεύεται μόνο το files/public/programme.json που γράφει η εφαρμογή (ημερομηνία, Στοά, Επαρχία, εκπρόσωπος).
         env:
           DATA_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
-          DATA_REPO: ${{ vars.DATA_REPO || 'NGLG-GSEC/nglg-grammateia-data' }}
+          DATA_REPO: ${{ vars.DATA_REPO || 'webappngdsib/nglg-grammateia-data' }}
         run: |
           if [ -z "$DATA_TOKEN" ]; then echo "Δεν έχει οριστεί το DATA_REPO_TOKEN — η σελίδα programme/ μένει χωρίς δεδομένα."; exit 0; fi
           curl -fsSL -H "Authorization: Bearer $DATA_TOKEN" -H "Accept: application/vnd.github.raw" \
@@ -56,7 +56,7 @@ jobs:
       - name: Πύλη Γραμματέων Στοών (διεύθυνση του Apps Script)
         env:
           DATA_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
-          DATA_REPO: ${{ vars.DATA_REPO || 'NGLG-GSEC/nglg-grammateia-data' }}
+          DATA_REPO: ${{ vars.DATA_REPO || 'webappngdsib/nglg-grammateia-data' }}
         run: |
           if [ -z "$DATA_TOKEN" ]; then exit 0; fi
           # Μόνο η διεύθυνση /exec και αριθμός/όνομα Στοών (όχι κωδικοί ή δεδομένα μελών): {"api_url": "...", "lodges": [{number, name}]}

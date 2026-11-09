@@ -72,7 +72,7 @@ The same unchanged patent keeps its number; changing any field makes it a new
 document with a new number.
 
 The register is one shared file, `chancellor/register.json`, in the private data
-repository (`NGLG-GSEC/nglg-grammateia-data`). Numbers are taken with GitHub's
+repository (`webappngdsib/nglg-grammateia-data`). Numbers are taken with GitHub's
 compare-and-swap, so two people can never be given the same one. Connect once per
 browser with a GitHub token that has *Contents: Read and write* on that repository
 (the form and the archive both show a small panel for it; if the Grand Secretary

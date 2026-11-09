@@ -2538,7 +2538,8 @@ def test_gm_decisions_in_app_with_declarations(app):
     dump = app.page.evaluate("async () => { const {db} = await import('./core/store.js'); return [db.head, db.all('member_registry').map((m) => m.id + ':' + m.surname)]; }")
     assert any(x.endswith(':Διαβάτης') for x in dump[1]), dump
     app.go(f'/members/{dmid}')
-    t = app.text('.mv-card')
+    # παλιές μόνο εκπροσωπήσεις → η ενότητα είναι κλειστή (details)· διαβάζουμε όλο το περιεχόμενο, ανεξάρτητα από τη σημερινή ημερομηνία
+    t = app.page.locator('.mv-card').text_content()
     assert 'Εκπροσωπήσεις του Μεγάλου Διδασκάλου' in t and 'ΑΤΛΑΣ' in t and 'ΑΚΡΟΠΟΛΙΣ' in t, t
     # η σελίδα Δηλώσεων παίρνει τις Εργασίες από τις Επισκέψεις (κοινός κωδικός)
     ms = app.page.evaluate("async () => (await import('./modules/visits.js')).publicMeetings('2026-10-24').map((m) => m.id + ' ' + m.date)")
@@ -4357,11 +4358,14 @@ def test_kanonismos_date_editable_and_synced_with_stamp(app):
 def test_declarations_tick_in_app_with_old_apps_script(app):
     # ✓ στη σελίδα Δηλώσεων μέσα στην εφαρμογή, με παλιό Code.gs (χωρίς «decide»): η απόφαση γράφεται απευθείας στην Επίσκεψη
     import json as _j
+    # μελλοντική Εργασία (η Αναφορά δείχνει μόνο ό,τι δεν έχει περάσει): ημερομηνία σχετική με τη σημερινή
+    fut = date.today() + timedelta(days=10)
+    mid, vdate = f"l118_{fut:%Y%m%d}", fut.isoformat()
     app.connect_local()
     def api(route):
         b = _j.loads(route.request.post_data or '{}')
         if b.get('action') == 'report':
-            return route.fulfill(json={'ok': b.get('key') == 'test-key', 'decisions': {}, 'data': {'l118_20261103': [{'officer': 'Διαβάτης Χρήστος (Βοηθός Μέγας Γραμματεύς)', 'rank': 283}]}})
+            return route.fulfill(json={'ok': b.get('key') == 'test-key', 'decisions': {}, 'data': {mid: [{'officer': 'Διαβάτης Χρήστος (Βοηθός Μέγας Γραμματεύς)', 'rank': 283}]}})
         if b.get('action') == 'decisions':
             return route.fulfill(json={'ok': True, 'decisions': {}})
         return route.fulfill(json={'ok': False, 'error': 'unknown_action'})
@@ -4373,7 +4377,7 @@ def test_declarations_tick_in_app_with_old_apps_script(app):
     app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
       await db.save('x', (tx) => { tx.replace('visits', []);
         tx.insert('reps', { name: 'Χρήστος', surname: 'Διαβάτης', office: 'Βοηθός Μέγας Γραμματεύς', email: '', mobile: '' });
-        tx.insert('visits', { visit_date: '2026-11-03', lodge: 'ΑΤΛΑΣ', lodge_number: '118', location: '', province: 'ΕπΜΣτ. Πειραιώς', rep_id: null, notes: '' }); }); }""")
+        tx.insert('visits', { visit_date: '__VDATE__', lodge: 'ΑΤΛΑΣ', lodge_number: '118', location: '', province: 'ΕπΜΣτ. Πειραιώς', rep_id: null, notes: '' }); }); }""".replace('__VDATE__', vdate))
     app.go('/declarations?view=report')
     fr = app.page.frame_locator('#declFrame')
     fr.locator('#auth-alt').evaluate("d => d.open = true")

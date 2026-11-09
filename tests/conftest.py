@@ -88,6 +88,8 @@ class App:
 def app(browser, base_url):
     ctx = browser.new_context(viewport={'width': 1280, 'height': 900}, accept_downloads=True)
     page = ctx.new_page()
+    # Εξωτερικό latest.json (πλακίδιο ΣΓΥ, dskiad.github.io): χωρίς δίκτυο στα τεστ — απάντηση 404 με CORS, οπότε μένουν οι προεπιλογές
+    page.route('https://dskiad.github.io/**', lambda r: r.fulfill(status=404, body='', headers={'Access-Control-Allow-Origin': '*'}))
     a = App(page, base_url)
     yield a
     ctx.close()

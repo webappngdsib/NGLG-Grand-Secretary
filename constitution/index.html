@@ -63,6 +63,19 @@ html,body{max-width:100%;overflow-x:hidden}
 @media print{html,body{overflow:visible}}
 .pdf-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 0}.pdf-btn{display:inline-block;padding:9px 16px;border-radius:10px;border:1px solid var(--gold);color:#fff;background:rgba(200,162,74,.16);text-decoration:none;font:600 14px/1.2 system-ui,-apple-system,Segoe UI,sans-serif}.pdf-btn:hover{background:rgba(200,162,74,.32)}
 @media print{.pdf-actions{display:none!important}}
+.ai-btn{border:1px solid var(--gold);background:linear-gradient(180deg,#d9b866,#c8a24a);color:#1c1608;border-radius:10px;padding:12px 15px;cursor:pointer;font-weight:700;white-space:nowrap}.ai-btn:hover{filter:brightness(1.05)}.ai-btn:disabled{opacity:.6;cursor:wait}
+.ai-panel{margin-top:20px;padding:22px;background:#fff;border:1px solid #e6dcc3;border-left:5px solid var(--gold);border-radius:16px;box-shadow:0 10px 30px rgba(7,20,38,.08)}
+.ai-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.ai-panel h3{margin:6px 0 12px;font-size:20px;overflow-wrap:anywhere}
+.ai-panel h4{margin:16px 0 8px;font:700 13px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;text-transform:uppercase;letter-spacing:.07em;color:#6b5420}
+.ai-summary p{margin:0 0 10px;line-height:1.65;font-size:16px}
+.ai-options{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}.ai-option{border:1px solid #e3e7ee;border-radius:12px;padding:12px 14px;background:#fbfaf6}.ai-option strong{display:block;margin-bottom:5px}.ai-option p{margin:0 0 8px;line-height:1.55;font-size:15px}
+.ai-rules{margin:0;padding-left:0;list-style:none;display:grid;gap:6px}.ai-rules li{line-height:1.5;font-size:15px}
+.rule-link{border:1px solid #d9c690;background:#f8f1de;color:#4a3a12;border-radius:999px;padding:1px 9px;margin:0 4px 2px 0;cursor:pointer;font:600 13px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}.rule-link:hover{background:#f1e2b8}
+.ai-notes{background:#f4f6f9;border-radius:10px;padding:10px 12px;line-height:1.55;font-size:15px}.ai-disclaimer{margin:14px 0 0;font-size:13px;color:#6b7280}
+.ai-loading{display:flex;align-items:center;gap:10px;color:#4d5968}.ai-spin{width:18px;height:18px;border:3px solid #eadfbf;border-top-color:var(--gold);border-radius:50%;animation:aispin 0.9s linear infinite}@keyframes aispin{to{transform:rotate(360deg)}}
+.ai-error{color:#8a1c1c;background:#fdf0f0;border-radius:10px;padding:10px 12px}
+@media print{.ai-btn,#aiClose{display:none!important}}
+.article-text mark{background:#f6e3a8;color:inherit;border-radius:3px;padding:0 1px}
 </style>
 </head>
 <body>
@@ -85,7 +98,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <div>
         <span class="badge">Επίσημη βάση κειμένου · Αθήναι 2025</span>
         <h2>Άμεση εύρεση Κανόνων και θεμάτων</h2>
-        <p>Επιλέξτε βασικό θέμα, κεφάλαιο ή συγκεκριμένο αριθμό Κανόνα. Η ελεύθερη αναζήτηση ελέγχει τίτλους και πλήρες κείμενο.</p>
+        <p>Επιλέξτε βασικό θέμα, κεφάλαιο ή συγκεκριμένο αριθμό Κανόνα. Η ελεύθερη αναζήτηση ελέγχει τίτλους και πλήρες κείμενο· για σύνθετο ερώτημα πατήστε «✨ Περίληψη με AI» για περιληπτική άποψη και επιλογές.</p>
       </div>
       <div class="stats" aria-label="Στατιστικά ευρετηρίου">
         <div><strong id="statArticles">—</strong><span>καταχωρίσεις</span></div>
@@ -104,6 +117,7 @@ html,body{max-width:100%;overflow-x:hidden}
             <kbd>/</kbd>
           </div>
         </label>
+        <button id="aiBtn" class="ai-btn" type="button" title="Περιληπτική άποψη και επιλογές από τους σχετικούς Κανόνες">✨ Περίληψη με AI</button>
         <button id="clearBtn" class="secondary-btn" type="button">Καθαρισμός</button>
       </div>
 
@@ -123,6 +137,16 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
 
       <div id="activeContext" class="context-note" hidden></div>
+    </section>
+
+    <section id="aiPanel" class="ai-panel" aria-live="polite" hidden>
+      <div class="ai-head">
+        <span class="panel-kicker">✨ Περίληψη με AI</span>
+        <button id="aiClose" class="icon-btn" type="button" aria-label="Κλείσιμο">✕</button>
+      </div>
+      <h3 id="aiQuestion"></h3>
+      <div id="aiBody"></div>
+      <p class="ai-disclaimer">Βοηθητική περίληψη από AI με βάση τους Κανόνες που εντοπίστηκαν· μπορεί να περιέχει λάθη. Υπερισχύει πάντοτε το πρωτότυπο κείμενο και η ερμηνεία των αρμοδίων οργάνων.</p>
     </section>
 
     <section class="content-grid">
@@ -201,7 +225,38 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
   const articleMap = new Map(DATA.articles.map(a => [a.number, a]));
   const topicMap = new Map(DATA.topics.map(t => [t.id, t]));
   const topicRules = new Map(DATA.topics.map(t => [t.id, new Set(t.rules)]));
+  // Αναζήτηση ανεκτική στη γλώσσα του κειμένου (καθαρεύουσα, κολλημένες λέξεις):
+  // κάθε λέξη της αναζήτησης γίνεται ρίζα (π.χ. «παραίτηση» → «παραιτησ», βρίσκει «παραίτησις»)
+  // και ελέγχεται στο κείμενο χωρίς κενά.
+  const ENDINGS = ['ουσ','εωσ','εισ','ησ','ισ','ασ','οσ','εσ','υσ','ων','ου','οι','ον','αι','α','η','ε','ο','ι','υ','ω','σ'];
+  const stem = (w) => {
+    if(/\d/.test(w) || w.length<=4) return w;
+    for(const e of ENDINGS){ if(w.endsWith(e) && w.length-e.length>=4) return w.slice(0,-e.length); }
+    return w;
+  };
+  const compact = (s) => s.replace(/[^0-9a-z\u03b1-\u03c9]/g,'');
+  const INDEX = new Map(DATA.articles.map(a => [a.number, {
+    title: compact(normalize(`${a.number} ${a.title}`)),
+    all: compact(normalize(`${a.number} ${a.title} ${a.chapter} ${a.text}`))
+  }]));
+  const ruleQuery = () => { const m=normalize(els.search.value).match(/^(?:κανον\S*|κ\.)?\s*(\d+[a-zα-ω]?)$/); return m ? m[1].toUpperCase() : ''; };
+  const queryTerms = () => ruleQuery() ? [compact(ruleQuery().toLowerCase())] : normalize(els.search.value).split(' ').map(w => compact(stem(compact(w)))).filter(Boolean);
   let visible = [...DATA.articles];
+  let lastQuery = '';
+  let partial = false;
+
+  // Βαθμολόγηση για σύνθετα ερωτήματα (π.χ. «παραίτηση σεβασμίου ενεργού»): μετρούν οι λέξεις που ταιριάζουν,
+  // περισσότερο στον τίτλο. Χρησιμοποιείται όταν κανένας Κανόνας δεν έχει ΟΛΕΣ τις λέξεις, και για την περίληψη με AI.
+  const STOP = new Set(['και','του','τησ','των','τον','την','το','τα','τι','για','με','σε','στο','στη','στην','στον','απο','που','ποιοσ','ποια','ποιεσ','ποιο','πωσ','οταν','αν','να','θα','ειναι','μπορει','πρεπει','οι','ο','η','ενα','ενασ','μια']);
+  const rankTerms = () => ruleQuery() ? queryTerms() : normalize(els.search.value).split(' ').filter(w => !STOP.has(compact(w))).map(w => compact(stem(compact(w)))).filter(w => w.length >= 3);
+  function ranked(terms){
+    const count=(hay,w)=>{ let n=0,k=hay.indexOf(w); while(k!==-1 && n<6){ n++; k=hay.indexOf(w,k+w.length); } return n; };
+    return DATA.articles.map(a=>{
+      const ix=INDEX.get(a.number); let hit=0, score=0;
+      for(const w of terms){ const c=count(ix.all,w); if(c){ hit++; score+=c + (ix.title.includes(w)?8:0); } }
+      return {a, hit, score: hit*20 + score};
+    }).filter(x=>x.hit).sort((x,y)=>y.score-x.score || naturalRuleCompare(x.a,y.a));
+  }
   let selected = null;
 
   function naturalRuleCompare(a,b){
@@ -221,20 +276,35 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
   }
 
   function filterArticles(){
-    const q=normalize(els.search.value);
+    const terms=queryTerms();
+    const ruleQ=ruleQuery(), qText=normalize(els.search.value), newQuery=qText!==lastQuery; lastQuery=qText;
     const topic=els.topic.value;
     const chapter=els.chapter.value;
     const allowed=topic ? topicRules.get(topic) : null;
     visible=DATA.articles.filter(a=>{
       if(allowed && !allowed.has(a.number)) return false;
       if(chapter && a.chapter!==chapter) return false;
-      if(q){
-        const hay=normalize(`${a.number} ${a.title} ${a.chapter} ${a.text}`);
-        const words=q.split(' ').filter(Boolean);
-        if(!words.every(w=>hay.includes(w))) return false;
+      if(terms.length){
+        const hay=INDEX.get(a.number).all;
+        if(!terms.every(w=>hay.includes(w))) return false;
       }
       return true;
     }).sort(naturalRuleCompare);
+    partial=false;
+    if(terms.length>1 && !visible.length){
+      const allowedArt=a=>(!allowed || allowed.has(a.number)) && (!chapter || a.chapter===chapter);
+      visible=ranked(rankTerms()).map(x=>x.a).filter(allowedArt).slice(0,40);
+      partial=visible.length>0;
+    }
+    if(terms.length && !partial){
+      // πρώτα ο Κανόνας με τον αριθμό που γράφτηκε, μετά όσοι ταιριάζουν στον τίτλο, μετά οι υπόλοιποι
+      const rank=a=>ruleQ && compact(normalize(a.number))===compact(normalize(ruleQ)) ? 0 : (terms.every(w=>INDEX.get(a.number).title.includes(w)) ? 1 : 2);
+      visible.sort((x,y)=>rank(x)-rank(y) || naturalRuleCompare(x,y));
+    }
+    if(terms.length){
+      if(visible.length && (newQuery || !visible.some(a=>a.number===selected))) showArticle(visible[0].number,false,false);
+      else if(selected) showArticle(selected,false,false);
+    } else if(selected) showArticle(selected,false,false);
     renderResults();
     renderContext();
   }
@@ -250,7 +320,7 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
     els.results.innerHTML='';
     els.count.textContent=visible.length;
     const t=topicMap.get(els.topic.value);
-    els.heading.textContent=t ? t.name : (els.chapter.value || (els.search.value.trim() ? 'Αποτελέσματα αναζήτησης' : 'Όλοι οι Κανόνες'));
+    els.heading.textContent=t ? t.name : (els.chapter.value || (partial ? 'Πιο σχετικοί Κανόνες (μερικό ταίριασμα)' : els.search.value.trim() ? 'Αποτελέσματα αναζήτησης' : 'Όλοι οι Κανόνες'));
     if(!visible.length){ els.results.innerHTML='<div class="no-results">Δεν βρέθηκαν Κανόνες με τα επιλεγμένα κριτήρια.</div>'; return; }
     const frag=document.createDocumentFragment();
     visible.forEach(a=>{
@@ -263,11 +333,26 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
 
   function relatedTopics(number){ return DATA.topics.filter(t=>t.rules.includes(number)); }
 
-  function showArticle(number, updateHash=false){
+  function highlight(text){
+    const terms=(partial ? rankTerms() : queryTerms()).filter(w=>w.length>=2);
+    if(!terms.length) return escapeHTML(text);
+    // ταίριασμα πάνω στο κανονικοποιημένο κείμενο, με αντιστοίχιση θέσεων στο πρωτότυπο
+    let norm='', map=[];
+    for(let i=0;i<text.length;i++){ const n=compact(normalize(text[i])); for(const ch of n){ norm+=ch; map.push(i); } }
+    const marks=[];
+    for(const w of terms){ let k=norm.indexOf(w); while(k!==-1){ marks.push([map[k], map[k+w.length-1]+1]); k=norm.indexOf(w,k+w.length); } }
+    if(!marks.length) return escapeHTML(text);
+    marks.sort((x,y)=>x[0]-y[0]);
+    let out='', pos=0;
+    for(const [s,e] of marks){ if(e<=pos) continue; const st=Math.max(s,pos); out+=escapeHTML(text.slice(pos,st))+'<mark>'+escapeHTML(text.slice(st,e))+'</mark>'; pos=e; }
+    return out+escapeHTML(text.slice(pos));
+  }
+
+  function showArticle(number, updateHash=false, scroll=true){
     const a=articleMap.get(number); if(!a) return;
     selected=number; els.article.value=number;
     els.empty.hidden=true; els.view.hidden=false;
-    els.number.textContent=`Κανόνας ${a.number}`; els.title.textContent=a.title; els.chapterLabel.textContent=a.chapter; els.text.textContent=a.text;
+    els.number.textContent=`Κανόνας ${a.number}`; els.title.textContent=a.title; els.chapterLabel.textContent=a.chapter; els.text.innerHTML=highlight(a.text);
     els.topics.innerHTML='';
     const rel=relatedTopics(number);
     if(rel.length){
@@ -277,17 +362,89 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
     if(a.source_note){ els.note.hidden=false; els.note.textContent=a.source_note; } else { els.note.hidden=true; els.note.textContent=''; }
     document.querySelectorAll('.result-item').forEach(x=>x.classList.toggle('active',x.dataset.rule===number));
     if(updateHash) history.replaceState(null,'',`#rule=${encodeURIComponent(number)}`);
-    if(window.innerWidth<900) $('articlePanel').scrollIntoView({behavior:'smooth',block:'start'});
+    if(scroll){ const m=els.text.querySelector('mark'); if(m) setTimeout(()=>m.scrollIntoView({block:'nearest'}),0); }
+    if(scroll && window.innerWidth<900) $('articlePanel').scrollIntoView({behavior:'smooth',block:'start'});
   }
 
-  function escapeHTML(s=''){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-  function clearAll(){ els.search.value=''; els.topic.value=''; els.chapter.value=''; els.article.value=''; selected=null; history.replaceState(null,'',location.pathname+location.search); filterArticles(); els.empty.hidden=false; els.view.hidden=true; }
+  function escapeHTML(s=''){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  // ── Περίληψη με AI: ο server (Apps Script) καλεί το Claude με τα κείμενα των σχετικών Κανόνων ──
+  const AI_URL = 'https://script.google.com/macros/s/AKfycbzG0goa-k_Vf_zdd7K39rZvv9iyDlrm52XfL2V7jTMNwSylVoRDjuBf__673yTmX30IfA/exec';
+  const AI_RULES = 15;
+  const AI_ERRORS = {
+    ai_not_configured: 'Η περίληψη με AI δεν έχει ενεργοποιηθεί ακόμη (λείπει το κλειδί στις ρυθμίσεις του server).',
+    daily_limit: 'Συμπληρώθηκε το ημερήσιο όριο ερωτημάτων AI. Δοκιμάστε ξανά αύριο.',
+    no_rules: 'Δεν βρέθηκαν σχετικοί Κανόνες για το ερώτημα. Δοκιμάστε άλλες λέξεις.',
+    bad_question: 'Γράψτε ένα ερώτημα έως 500 χαρακτήρες.',
+    unknown_action: 'Ο server δεν έχει ακόμη την έκδοση με την περίληψη AI (χρειάζεται νέα ανάπτυξη του Apps Script).',
+    ai_refusal: 'Το AI δεν απάντησε σε αυτό το ερώτημα. Διατυπώστε το διαφορετικά.'
+  };
+  const el = (tag, cls, text) => { const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; };
+  function ruleButton(n){
+    const num=String(n).replace(/^\D+/,'').trim();
+    const key=[...articleMap.keys()].find(k=>compact(normalize(k))===compact(normalize(num)));
+    if(!key) return el('span','rule-link',num);
+    const b=el('button','rule-link',`Κανόνας ${key}`); b.type='button';
+    b.addEventListener('click',()=>{ showArticle(key,true,false); $('articlePanel').scrollIntoView({behavior:'smooth',block:'start'}); });
+    return b;
+  }
+  function aiRules(){
+    const picked=[];
+    if(selected && articleMap.has(selected) && visible.some(a=>a.number===selected)) picked.push(selected);
+    for(const x of ranked(rankTerms())){ if(picked.length>=AI_RULES) break; if(!picked.includes(x.a.number)) picked.push(x.a.number); }
+    const t=topicMap.get(els.topic.value);
+    if(t) for(const n of t.rules){ if(picked.length>=AI_RULES) break; if(!picked.includes(n)) picked.push(n); }
+    return picked;
+  }
+  async function askAI(){
+    const question=els.search.value.replace(/\s+/g,' ').trim();
+    const panel=$('aiPanel'), body=$('aiBody');
+    panel.hidden=false; $('aiQuestion').textContent=question || '—'; body.innerHTML='';
+    if(question.length<3){ body.appendChild(el('div','ai-error','Γράψτε πρώτα το ερώτημα στο πεδίο αναζήτησης (π.χ. «παραίτηση σεβασμίου εν ενεργεία»).')); els.search.focus(); return; }
+    const rules=aiRules();
+    if(!rules.length){ body.appendChild(el('div','ai-error',AI_ERRORS.no_rules)); return; }
+    const load=el('div','ai-loading'); load.append(el('span','ai-spin'), el('span',null,`Ανάλυση ${rules.length} σχετικών Κανόνων… (λίγα δευτερόλεπτα)`)); body.appendChild(load);
+    const btn=$('aiBtn'); btn.disabled=true;
+    panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+    try{
+      const res=await fetch(AI_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'ask',question:question.slice(0,500),rules})});
+      if(!res.ok) throw new Error('http_'+res.status);
+      const r=await res.json();
+      body.innerHTML='';
+      if(!r.ok){ body.appendChild(el('div','ai-error',AI_ERRORS[r.error] || `Η περίληψη δεν ήταν δυνατή (${r.error || 'σφάλμα'}). Δοκιμάστε ξανά.`)); return; }
+      renderAI(r.answer || {}, r.rules || rules);
+    }catch(err){
+      body.innerHTML=''; body.appendChild(el('div','ai-error','Δεν ήταν δυνατή η σύνδεση με τον server. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.'));
+    }finally{ btn.disabled=false; }
+  }
+  function renderAI(a, sent){
+    const body=$('aiBody');
+    body.appendChild(el('h4',null,'Περιληπτική άποψη'));
+    const sum=el('div','ai-summary'); String(a.summary||'').split(/\n+/).filter(x=>x.trim()).forEach(p=>sum.appendChild(el('p',null,p.trim()))); body.appendChild(sum);
+    if(Array.isArray(a.options) && a.options.length){
+      body.appendChild(el('h4',null,'Επιλογές / διαδικασίες'));
+      const g=el('div','ai-options');
+      a.options.forEach(o=>{ const c=el('div','ai-option'); c.appendChild(el('strong',null,o.title||'')); c.appendChild(el('p',null,o.description||'')); (o.rules||[]).forEach(n=>c.appendChild(ruleButton(n))); g.appendChild(c); });
+      body.appendChild(g);
+    }
+    if(Array.isArray(a.rules) && a.rules.length){
+      body.appendChild(el('h4',null,'Σχετικοί Κανόνες'));
+      const ul=el('ul','ai-rules');
+      a.rules.forEach(x=>{ const li=el('li'); li.appendChild(ruleButton(x.number)); li.appendChild(document.createTextNode(' '+(x.relevance||''))); ul.appendChild(li); });
+      body.appendChild(ul);
+    }
+    if(a.notes && String(a.notes).trim()){ body.appendChild(el('h4',null,'Επιφυλάξεις')); body.appendChild(el('div','ai-notes',a.notes)); }
+    body.appendChild(el('p','ai-disclaimer',`Εξετάστηκαν οι Κανόνες: ${sent.join(', ')}.`));
+  }
+
+  function clearAll(){ $('aiPanel').hidden=true; els.search.value=''; els.topic.value=''; els.chapter.value=''; els.article.value=''; selected=null; history.replaceState(null,'',location.pathname+location.search); filterArticles(); els.empty.hidden=false; els.view.hidden=true; }
 
   els.search.addEventListener('input',filterArticles);
   els.topic.addEventListener('change',filterArticles);
   els.chapter.addEventListener('change',filterArticles);
   els.article.addEventListener('change',e=>{ if(e.target.value) showArticle(e.target.value,true); });
   els.clear.addEventListener('click',clearAll);
+  $('aiBtn').addEventListener('click',askAI);
+  $('aiClose').addEventListener('click',()=>{ $('aiPanel').hidden=true; });
   els.copy.addEventListener('click',async()=>{
     if(!selected) return; const a=articleMap.get(selected); const value=`Κανόνας ${a.number} — ${a.title}\n\n${a.text}`;
     try{ await navigator.clipboard.writeText(value); els.copy.textContent='Αντιγράφηκε ✓'; setTimeout(()=>els.copy.textContent='Αντιγραφή',1300); }catch{ alert('Δεν ήταν δυνατή η αντιγραφή.'); }
@@ -295,6 +452,7 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
   els.print.addEventListener('click',()=>window.print());
   els.top.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
   document.addEventListener('keydown',e=>{ if(e.key==='/' && document.activeElement!==els.search){ e.preventDefault(); els.search.focus(); } });
+  els.search.addEventListener('keydown',e=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); askAI(); } });
 
   fillSelects(); filterArticles();
   const hash=new URLSearchParams(location.hash.replace(/^#/,''));

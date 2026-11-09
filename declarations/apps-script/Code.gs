@@ -24,7 +24,7 @@ const MAX_OFFICER_LENGTH = 200;
 const MAX_RANK = 10000;
 
 // Έκδοση του κώδικα: φαίνεται ανοίγοντας το URL /exec στον browser
-const VERSION = 4;
+const VERSION = 5;
 
 // Έλεγχος εγκατάστασης: ανοίξτε το URL /exec στον browser.
 // Δείχνει μόνο αν υπάρχουν οι ρυθμίσεις, όχι τις τιμές τους.
@@ -34,7 +34,8 @@ function doGet() {
     version: VERSION,
     googleClientId: prop_('GOOGLE_CLIENT_ID') ? 'ρυθμίστηκε' : 'ΛΕΙΠΕΙ',
     adminKey: prop_('ADMIN_KEY') ? 'ρυθμίστηκε' : 'ΛΕΙΠΕΙ',
-    adminEmails: adminEmails_().length
+    adminEmails: adminEmails_().length,
+    ai: prop_('ANTHROPIC_API_KEY') ? 'ρυθμίστηκε' : 'ΛΕΙΠΕΙ'
   });
 }
 
@@ -52,6 +53,7 @@ function doPost(e) {
   if (body.action === 'config') return config_();
   if (body.action === 'decide') return decide_(body);
   if (body.action === 'decisions') return json_({ ok: true, decisions: readDecisions_() });
+  if (body.action === 'ask') return ask_(body);
   return json_({ ok: false, error: 'unknown_action' });
 }
 
@@ -257,4 +259,163 @@ function normalize_(s) {
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Βοηθός Συντάγματος: περίληψη με AI (Claude) για ερώτημα της σελίδας constitution/
+// Η σελίδα στέλνει το ερώτημα και τους αριθμούς των σχετικών Κανόνων· τα ΚΕΙΜΕΝΑ των Κανόνων
+// τα φορτώνει ο server από τη δημόσια σελίδα (όχι από τον browser), ώστε να απαντά μόνο για το Σύνταγμα.
+// Script Properties: ANTHROPIC_API_KEY (υποχρεωτικό), προαιρετικά AI_DAILY_LIMIT (προεπιλογή 50 ερωτήματα/ημέρα),
+// AI_MODEL (προεπιλογή claude-opus-5-5), AI_EFFORT (low | medium | high, προεπιλογή low για γρήγορη απάντηση).
+const CONSTITUTION_URL = 'https://nglg-gsec.github.io/NGLG-Grand-Secretary/constitution/';
+const AI_MAX_RULES = 20;
+const AI_MAX_QUESTION = 500;
+const RULE_PATTERN = /^\d{1,3}[A-Za-zΑ-Ωα-ω]?$/;
+
+const AI_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'options', 'rules', 'notes'],
+  properties: {
+    summary: { type: 'string' },
+    options: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'description', 'rules'],
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          rules: { type: 'array', items: { type: 'string' } }
+        }
+      }
+    },
+    rules: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['number', 'relevance'],
+        properties: { number: { type: 'string' }, relevance: { type: 'string' } }
+      }
+    },
+    notes: { type: 'string' }
+  }
+};
+
+const AI_SYSTEM = [
+  'Είσαι βοηθός για τους «Γενικούς Νόμους και Κανονισμούς» (Σύνταγμα) της Εθνικής Μεγάλης Στοάς της Ελλάδος.',
+  'Απαντάς σε ερωτήματα Γραμματέων και αξιωματικών ΜΟΝΟ με βάση τους Κανόνες που σου δίνονται στο μήνυμα.',
+  'Γράφε στα νέα ελληνικά, καθαρά και σύντομα. Παράθετε πάντα τον αριθμό του Κανόνα (π.χ. «Κανόνας 183»).',
+  'summary: περιληπτική άποψη επί του θέματος σε 1–3 παραγράφους.',
+  'options: οι επιλογές ή οι διαδικασίες που προβλέπονται (π.χ. ποιος αποφασίζει, προθεσμίες, τι ακολουθεί), καθεμία με τους Κανόνες της.',
+  'rules: οι πιο σχετικοί Κανόνες, με μία πρόταση για το τι ορίζει ο καθένας για το ερώτημα.',
+  'notes: επιφυλάξεις — τι δεν καλύπτεται από τους Κανόνες που δόθηκαν ή τι χρειάζεται απόφαση/ερμηνεία από τα αρμόδια όργανα.',
+  'Μην επινοείς Κανόνες ή διατάξεις. Αν οι Κανόνες δεν απαντούν στο ερώτημα, πες το καθαρά στο summary.',
+  'Αν το ερώτημα δεν αφορά το Σύνταγμα, απάντησε μόνο ότι ο βοηθός απαντά σε ερωτήματα για το Σύνταγμα.'
+].join('\n');
+
+function ask_(body) {
+  const key = prop_('ANTHROPIC_API_KEY');
+  if (!key) return json_({ ok: false, error: 'ai_not_configured' });
+  const question = String(body.question || '').replace(/\s+/g, ' ').trim();
+  if (!question || question.length > AI_MAX_QUESTION) return json_({ ok: false, error: 'bad_question' });
+  const wanted = (Array.isArray(body.rules) ? body.rules : []).map(String)
+    .filter(r => RULE_PATTERN.test(r)).slice(0, AI_MAX_RULES);
+  if (!wanted.length) return json_({ ok: false, error: 'no_rules' });
+
+  // ημερήσιο όριο (προστασία κόστους: η σελίδα είναι δημόσια)
+  const limit = Number(prop_('AI_DAILY_LIMIT')) || 50;
+  const day = Utilities.formatDate(new Date(), 'Europe/Athens', 'yyyy-MM-dd');
+  const allowed = withLock_(() => {
+    const props = PropertiesService.getScriptProperties();
+    const k = 'AI_COUNT_' + day;
+    const n = Number(props.getProperty(k)) || 0;
+    if (n >= limit) return false;
+    props.setProperty(k, String(n + 1));
+    return true;
+  });
+  if (!allowed) return json_({ ok: false, error: 'daily_limit' });
+
+  let articles;
+  try {
+    articles = constitutionArticles_();
+  } catch (err) {
+    return json_({ ok: false, error: 'source_unavailable' });
+  }
+  const byNumber = {};
+  articles.forEach(a => { byNumber[normalizeRule_(a.number)] = a; });
+  const picked = wanted.map(r => byNumber[normalizeRule_(r)]).filter(Boolean);
+  if (!picked.length) return json_({ ok: false, error: 'no_rules' });
+
+  const context = picked.map(a =>
+    '<kanonas arithmos="' + a.number + '" kefalaio="' + a.chapter + '">\n' + a.title + '\n' + a.text + '\n</kanonas>'
+  ).join('\n\n');
+
+  const req = {
+    model: prop_('AI_MODEL') || 'claude-opus-5-5',
+    max_tokens: 8000,
+    system: AI_SYSTEM,
+    output_config: {
+      effort: prop_('AI_EFFORT') || 'low',
+      format: { type: 'json_schema', schema: AI_SCHEMA }
+    },
+    // σε περίπτωση άρνησης από τα φίλτρα ασφαλείας, ο server ξαναδοκιμάζει με προτεινόμενο μοντέλο
+    fallbacks: 'default',
+    messages: [{
+      role: 'user',
+      content: 'Κανόνες του Συντάγματος:\n\n' + context + '\n\nΕρώτημα: ' + question
+    }]
+  };
+
+  let res;
+  try {
+    res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2026-10-21',
+        'anthropic-beta': 'server-side-fallback-2026-07-01'
+      },
+      payload: JSON.stringify(req),
+      muteHttpExceptions: true
+    });
+  } catch (err) {
+    return json_({ ok: false, error: 'ai_unreachable' });
+  }
+  if (res.getResponseCode() !== 200) {
+    let detail = '';
+    try { detail = JSON.parse(res.getContentText()).error.type; } catch (e) { /* χωρίς λεπτομέρειες */ }
+    return json_({ ok: false, error: 'ai_error', status: res.getResponseCode(), detail: detail });
+  }
+  const msg = JSON.parse(res.getContentText());
+  if (msg.stop_reason === 'refusal') return json_({ ok: false, error: 'ai_refusal' });
+  if (msg.stop_reason === 'max_tokens') return json_({ ok: false, error: 'ai_truncated' });
+  const text = (msg.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  let answer;
+  try {
+    answer = JSON.parse(text);
+  } catch (err) {
+    return json_({ ok: false, error: 'ai_bad_output' });
+  }
+  return json_({ ok: true, answer: answer, rules: picked.map(a => a.number), model: msg.model });
+}
+
+// Τα άρθρα του Συντάγματος από τη δημόσια σελίδα (ενσωματωμένο JSON window.CONSTITUTION_DATA)
+function constitutionArticles_() {
+  const html = UrlFetchApp.fetch(CONSTITUTION_URL, { muteHttpExceptions: false }).getContentText('UTF-8');
+  const start = html.indexOf('window.CONSTITUTION_DATA = ');
+  if (start < 0) throw new Error('no_data');
+  const from = start + 'window.CONSTITUTION_DATA = '.length;
+  const end = html.indexOf('</script>', from);
+  const raw = html.slice(from, end).trim().replace(/;$/, '');
+  return JSON.parse(raw).articles;
+}
+
+// «183Α» (ελληνικό) και «183A» (λατινικό) είναι ο ίδιος Κανόνας
+function normalizeRule_(r) {
+  return String(r).trim().toUpperCase().replace(/Α/g, 'A');
 }

@@ -2417,6 +2417,41 @@ def test_declarations_constitution_helper_and_decree_signature(app):
     w = cp.evaluate("() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]")
     assert w[0] <= w[1] + 1, w  # χωρίς οριζόντια υπερχείλιση
     assert cp.locator('a[href*="#/"]').count() == 0  # χωρίς συνδέσμους προς την εφαρμογή
+    # Αναζήτηση: δημοτική λέξη βρίσκει την καθαρεύουσα («παραίτηση» → «παραίτησις»), επισημαίνεται, «Κανόνας 12» φέρνει πρώτο τον 12
+    cp.fill('#searchInput', 'παραίτηση')
+    assert int(cp.text_content('#resultCount')) > 0 and cp.locator('.result-item .mini-number').first.text_content() == '183'
+    assert cp.text_content('#articleNumber') == 'Κανόνας 183' and cp.locator('#articleText mark').count() > 0
+    cp.fill('#searchInput', 'Κανόνας 12')
+    assert cp.locator('.result-item .mini-number').first.text_content() == '12' and cp.text_content('#articleNumber') == 'Κανόνας 12'
+    # σύνθετο ερώτημα χωρίς Κανόνα με ΟΛΕΣ τις λέξεις: οι πιο σχετικοί (μερικό ταίριασμα), όχι 0
+    cp.fill('#searchInput', 'παραίτηση σεβασμίου ενεργού')
+    assert 'μερικό ταίριασμα' in cp.text_content('#resultsHeading') and int(cp.text_content('#resultCount')) > 0
+    # Περίληψη με AI: η σελίδα στέλνει ερώτημα + αριθμούς Κανόνων στο Apps Script (όχι κείμενα) και δείχνει περίληψη, επιλογές, Κανόνες
+    import json as _j
+    sent = []
+    def ai(route):
+        sent.append(_j.loads(route.request.post_data))
+        route.fulfill(json={'ok': True, 'rules': sent[-1]['rules'], 'answer': {
+            'summary': 'Ο Σεβάσμιος δύναται να παραιτηθεί.', 'notes': 'Επιφύλαξη.',
+            'options': [{'title': 'Γραπτή παραίτηση', 'description': 'Προς τον Γραμματέα.', 'rules': ['183']}],
+            'rules': [{'number': '106', 'relevance': 'Αδυναμία του Σεβασμίου.'}]}})
+    cp.route('https://script.google.com/**', ai)
+    cp.click('#aiBtn')
+    cp.locator('.ai-option').wait_for()
+    b = sent[0]
+    assert b['action'] == 'ask' and b['question'] == 'παραίτηση σεβασμίου ενεργού' and '183' in b['rules'] and 0 < len(b['rules']) <= 15 and 'text' not in b
+    t = cp.inner_text('#aiPanel')
+    assert 'Ο Σεβάσμιος δύναται να παραιτηθεί.' in t and 'Γραπτή παραίτηση' in t and 'Επιφύλαξη.' in t
+    cp.locator('.ai-rules .rule-link').click()
+    assert cp.text_content('#articleNumber') == 'Κανόνας 106'
+    cp.unroute('https://script.google.com/**')
+    cp.route('https://script.google.com/**', lambda r: r.fulfill(json={'ok': False, 'error': 'ai_not_configured'}))
+    cp.click('#aiBtn')
+    cp.locator('.ai-error').wait_for()
+    assert 'δεν έχει ενεργοποιηθεί' in cp.inner_text('#aiPanel')
+    cp.fill('#searchInput', 'xyzq')
+    assert cp.text_content('#resultCount') == '0'
+    cp.fill('#searchInput', '')
     # PDF του Συντάγματος: προβολή και λήψη
     assert cp.locator('a.pdf-btn[href="constitution.pdf"][target=_blank]').count() == 1 and cp.locator('a.pdf-btn[download]').count() == 1
     assert (ROOT / 'constitution' / 'constitution.pdf').read_bytes()[:5] == b'%PDF-'
@@ -2529,7 +2564,8 @@ def test_gm_decisions_in_app_with_declarations(app):
     dump = app.page.evaluate("async () => { const {db} = await import('./core/store.js'); return [db.head, db.all('member_registry').map((m) => m.id + ':' + m.surname)]; }")
     assert any(x.endswith(':Διαβάτης') for x in dump[1]), dump
     app.go(f'/members/{dmid}')
-    t = app.page.locator('.mv-card').text_content()  # περασμένες εκπροσωπήσεις: η ενότητα κλειστή (μόνο με μελλοντικές ανοίγει)
+    # παλιές μόνο εκπροσωπήσεις → η ενότητα είναι κλειστή (details)· διαβάζουμε όλο το περιεχόμενο, ανεξάρτητα από τη σημερινή ημερομηνία
+    t = app.page.locator('.mv-card').text_content()
     assert 'Εκπροσωπήσεις του Μεγάλου Διδασκάλου' in t and 'ΑΤΛΑΣ' in t and 'ΑΚΡΟΠΟΛΙΣ' in t, t
     # η σελίδα Δηλώσεων παίρνει τις Εργασίες από τις Επισκέψεις (κοινός κωδικός)
     ms = app.page.evaluate("async () => (await import('./modules/visits.js')).publicMeetings('2026-10-24').map((m) => m.id + ' ' + m.date)")
@@ -4347,8 +4383,10 @@ def test_kanonismos_date_editable_and_synced_with_stamp(app):
 
 def test_declarations_tick_in_app_with_old_apps_script(app):
     # ✓ στη σελίδα Δηλώσεων μέσα στην εφαρμογή, με παλιό Code.gs (χωρίς «decide»): η απόφαση γράφεται απευθείας στην Επίσκεψη
-    d = (date.today() + timedelta(days=10)).isoformat(); mid = 'l118_' + d.replace('-', '')  # Εργασία σε 10 ημέρες
     import json as _j
+    # μελλοντική Εργασία (η Αναφορά δείχνει μόνο ό,τι δεν έχει περάσει): ημερομηνία σχετική με τη σημερινή
+    fut = date.today() + timedelta(days=10)
+    mid, vdate = f"l118_{fut:%Y%m%d}", fut.isoformat()
     app.connect_local()
     def api(route):
         b = _j.loads(route.request.post_data or '{}')
@@ -4365,7 +4403,7 @@ def test_declarations_tick_in_app_with_old_apps_script(app):
     app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
       await db.save('x', (tx) => { tx.replace('visits', []);
         tx.insert('reps', { name: 'Χρήστος', surname: 'Διαβάτης', office: 'Βοηθός Μέγας Γραμματεύς', email: '', mobile: '' });
-        tx.insert('visits', { visit_date: '""" + d + """', lodge: 'ΑΤΛΑΣ', lodge_number: '118', location: '', province: 'ΕπΜΣτ. Πειραιώς', rep_id: null, notes: '' }); }); }""")
+        tx.insert('visits', { visit_date: '__VDATE__', lodge: 'ΑΤΛΑΣ', lodge_number: '118', location: '', province: 'ΕπΜΣτ. Πειραιώς', rep_id: null, notes: '' }); }); }""".replace('__VDATE__', vdate))
     app.go('/declarations?view=report')
     fr = app.page.frame_locator('#declFrame')
     fr.locator('#auth-alt').evaluate("d => d.open = true")

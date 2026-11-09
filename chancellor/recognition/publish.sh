@@ -10,7 +10,7 @@
 set -euo pipefail
 
 REPO="$HOME/Grand-Chancellor"
-SITE="https://nglg-gsec.github.io/Grand-Chancellor"
+SITE="https://webappngdsib.github.io/Grand-Chancellor"
 DEFAULT_TARGET="recognition/regularity-2026august.html"
 DOWNLOADS="$HOME/Downloads"
 
@@ -109,7 +109,7 @@ step "Waiting for GitHub Pages to rebuild…"
 if command -v gh >/dev/null 2>&1; then
   i=0
   while [ "$i" -lt 20 ]; do
-    s=$(gh api repos/NGLG-GSEC/Grand-Chancellor/pages/builds/latest 2>/dev/null \
+    s=$(gh api repos/webappngdsib/Grand-Chancellor/pages/builds/latest 2>/dev/null \
         | python3 -c 'import sys,json;print(json.load(sys.stdin).get("status",""))' 2>/dev/null || true)
     [ "$s" = "built" ] && break
     [ "$s" = "errored" ] && die "Pages build errored — check the repo's Actions tab."

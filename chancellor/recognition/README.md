@@ -12,9 +12,9 @@ Two standalone HTML files — no build step, no dependencies.
 
 Published with GitHub Pages:
 
-- Landing: `https://nglg-gsec.github.io/Grand-Chancellor/recognition/`
-- Builder: `https://nglg-gsec.github.io/Grand-Chancellor/recognition/builder.html`
-- Preview: `https://nglg-gsec.github.io/Grand-Chancellor/recognition/regularity-2026august.html`
+- Landing: `https://webappngdsib.github.io/Grand-Chancellor/recognition/`
+- Builder: `https://webappngdsib.github.io/Grand-Chancellor/recognition/builder.html`
+- Preview: `https://webappngdsib.github.io/Grand-Chancellor/recognition/regularity-2026august.html`
 
 ## Running locally
 

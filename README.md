@@ -252,13 +252,13 @@ The Office of the Grand Chancellor has its own distinct page in this repository 
 | Honorary Grand Officer patent | [honorary-grand-officer](https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/patents/honorary-grand-officer.html) |
 | Recognition builder (NGLG Regularity, Globe of Amity) | [recognition](https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/recognition/) |
 
-Also available from the standalone repository [`Grand-Chancellor`](https://github.com/dskiad/Grand-Chancellor).
+Also available from the standalone repository [`Grand-Chancellor`](https://github.com/webappngdsib/Grand-Chancellor).
 
 ## The three offices
 
 | Office | Body | Repository |
 | --- | --- | --- |
-| Grand Chancellor | National Grand Lodge of Greece | [`chancellor/`](chancellor/) in this repository · standalone: [`Grand-Chancellor`](https://github.com/dskiad/Grand-Chancellor) |
+| Grand Chancellor | National Grand Lodge of Greece | [`chancellor/`](chancellor/) in this repository · standalone: [`Grand-Chancellor`](https://github.com/webappngdsib/Grand-Chancellor) |
 | Grand Secretary | National Grand Lodge of Greece | this repository |
 | Grand Secretary | Masonic Order of Athelstan | [`ATHELSTAN-GRAND-SECRETARY`](https://github.com/dskiad/ATHELSTAN-GRAND-SECRETARY) |
 

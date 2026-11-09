@@ -2423,6 +2423,32 @@ def test_declarations_constitution_helper_and_decree_signature(app):
     assert cp.text_content('#articleNumber') == 'Κανόνας 183' and cp.locator('#articleText mark').count() > 0
     cp.fill('#searchInput', 'Κανόνας 12')
     assert cp.locator('.result-item .mini-number').first.text_content() == '12' and cp.text_content('#articleNumber') == 'Κανόνας 12'
+    # σύνθετο ερώτημα χωρίς Κανόνα με ΟΛΕΣ τις λέξεις: οι πιο σχετικοί (μερικό ταίριασμα), όχι 0
+    cp.fill('#searchInput', 'παραίτηση σεβασμίου ενεργού')
+    assert 'μερικό ταίριασμα' in cp.text_content('#resultsHeading') and int(cp.text_content('#resultCount')) > 0
+    # Περίληψη με AI: η σελίδα στέλνει ερώτημα + αριθμούς Κανόνων στο Apps Script (όχι κείμενα) και δείχνει περίληψη, επιλογές, Κανόνες
+    import json as _j
+    sent = []
+    def ai(route):
+        sent.append(_j.loads(route.request.post_data))
+        route.fulfill(json={'ok': True, 'rules': sent[-1]['rules'], 'answer': {
+            'summary': 'Ο Σεβάσμιος δύναται να παραιτηθεί.', 'notes': 'Επιφύλαξη.',
+            'options': [{'title': 'Γραπτή παραίτηση', 'description': 'Προς τον Γραμματέα.', 'rules': ['183']}],
+            'rules': [{'number': '106', 'relevance': 'Αδυναμία του Σεβασμίου.'}]}})
+    cp.route('https://script.google.com/**', ai)
+    cp.click('#aiBtn')
+    cp.locator('.ai-option').wait_for()
+    b = sent[0]
+    assert b['action'] == 'ask' and b['question'] == 'παραίτηση σεβασμίου ενεργού' and '183' in b['rules'] and 0 < len(b['rules']) <= 15 and 'text' not in b
+    t = cp.inner_text('#aiPanel')
+    assert 'Ο Σεβάσμιος δύναται να παραιτηθεί.' in t and 'Γραπτή παραίτηση' in t and 'Επιφύλαξη.' in t
+    cp.locator('.ai-rules .rule-link').click()
+    assert cp.text_content('#articleNumber') == 'Κανόνας 106'
+    cp.unroute('https://script.google.com/**')
+    cp.route('https://script.google.com/**', lambda r: r.fulfill(json={'ok': False, 'error': 'ai_not_configured'}))
+    cp.click('#aiBtn')
+    cp.locator('.ai-error').wait_for()
+    assert 'δεν έχει ενεργοποιηθεί' in cp.inner_text('#aiPanel')
     cp.fill('#searchInput', 'xyzq')
     assert cp.text_content('#resultCount') == '0'
     cp.fill('#searchInput', '')

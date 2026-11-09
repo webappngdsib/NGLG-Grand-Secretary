@@ -301,7 +301,7 @@
       const r = await call({ action: 'lodge_lookup', lodge: n });
       if (n !== lookN) return;
       if (!r.ok) found(errText(r.error), true);
-      else if (!r.found) found(`Δεν βρέθηκε Στοά με αριθμό ${n}.`, true);
+      else if (!r.found) found(`Δεν βρέθηκε Στοά με αριθμό ${n} στην Πύλη — το Μητρώο της δεν έχει δημοσιευτεί ακόμη από τη Μεγάλη Γραμματεία. Επικοινωνήστε με τη Μεγάλη Γραμματεία.`, true);
       else if (!r.has_email) found(`Η Στοά «${r.name}» Αρ. ${r.lodge} δεν έχει καταχωρισμένο email — επικοινωνήστε με τη Μεγάλη Γραμματεία.`, true);
       else { found(`Υπάρχει καταχωρισμένο email για τη Στοά «${r.name}» Αρ. ${r.lodge} (${r.masked}) — εκεί θα σταλεί ο κωδικός εισόδου.`); $('#lbtn').disabled = false; }
     } catch (err) { found(err.message || String(err), true); }

@@ -67,6 +67,8 @@ export function lodgeTitle(x) {
   return t;
 }
 export const lodgeEmail = (x) => String(x.email || '').trim() || String(x.secretary_email || '').trim();
+// Γραμματέας της Στοάς (ονοματεπώνυμο): νέα πεδία επώνυμο/όνομα, αλλιώς το παλιό «Γραμματέας»
+export const lodgeSecretaryName = (l) => { const t = (v) => String(v ?? '').replace(/\s+/g, ' ').trim(); return [t(l && l.secretary_last), t(l && l.secretary_first)].filter(Boolean).join(' ') || t(l && l.secretary); };
 export const lodgeByNumber = (n) => db.all('lodges').find((l) => lodgeNoKey(l.number) === lodgeNoKey(n)) || null;
 let countsMemo = { head: null, v: null };
 export function lodgeMemberCounts() {

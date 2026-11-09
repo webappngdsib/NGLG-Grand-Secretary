@@ -3535,8 +3535,8 @@ def test_lodge_portal_admin_codes_push_and_apply(app):
     assert _re.fullmatch(r'[A-Z2-9]{4}-[A-Z2-9]{4}', code)
     push = [c for c in calls if c['action'] == 'admin_push'][-1]
     assert push['codes']['2'] == hashlib.sha256(f'nglg-lodge|2|{code}'.encode()).hexdigest()
-    L = push['lodges'][0]
-    assert L['meta']['number'] == '2' and L['meta']['name'] == 'ΑΚΡΟΠΟΛΙΣ'
+    L = [x for x in push['lodges'] if x['meta']['number'] == '2'][0]
+    assert L['meta']['name'] == 'ΑΚΡΟΠΟΛΙΣ' and len(push['lodges']) > 1  # όλες οι ενεργές Στοές (και χωρίς email)
     m = [x for x in L['members'] if x['surname'] == 'Αλφαίος'][0]
     assert m['mobile'] == '6944000001' and m['lodge']['member_status'] == '1. ΤΑΚΤΙΚΟ' and m['ro']['registry'].startswith('M') and 'other_emails' not in m
     # λήψη αλλαγών → Μητρώο
@@ -4065,6 +4065,34 @@ def test_member_deregistered_in_one_lodge_active_elsewhere(app):
     app.go(f'/members/card?ids={mid}')
     app.page.wait_for_selector('.mc-dereg-note')
     assert 'Διαγραμμένος από: ΘΕΜΙΣΤΟΚΛΗΣ 96' in app.text('.mc-dereg-note') and 'ΑΚΡΟΠΟΛΙΣ 2' in app.text('.mc-dereg-note')
+
+
+def test_lodge_search_summary_and_lodge_archive(app):
+    # Αναζήτηση ανά Στοά: ενεργά μέλη, ενεργός Γραμματέας, email Στοάς· «Αρχείο Στοών» με Excel/PDF
+    app.connect_local()
+    add_member(app, surname='Ενεργός', first='Πέτρος', email='en@example.com', mobile='6944000092', lodges='ΘΕΜΙΣΤΟΚΛΗΣ | 96 | 1. ΤΑΚΤΙΚΟ')
+    add_member(app, surname='Φευγάτος', first='Ιωάννης', email='fv@example.com', mobile='6944000093', lodges='ΘΕΜΙΣΤΟΚΛΗΣ | 96 | ΔΙΑΓΡΑΦΕΝ')
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js'); const l = db.all('lodges').find((x) => x.number === '96');
+      await db.save('t', (tx) => tx.update('lodges', l.id, { email: 'lodge96@example.com', secretary: 'Ενεργός Πέτρος', secretary_email: 'sec96@example.com' })); }""")
+    app.go('/members?field=lodge&q=' + '96 · ΘΕΜΙΣΤΟΚΛΗΣ')
+    app.page.wait_for_selector('.msl-active')
+    t = app.text('.msresult')
+    assert 'Βρέθηκαν 2 μέλη' in t and 'ενεργά μέλη: 1' in t, t
+    assert 'Ενεργός Γραμματέας: Ενεργός Πέτρος' in t and 'sec96@example.com' in t and 'Email Στοάς: lodge96@example.com' in t, t
+    # Αρχείο Στοών (υπομενού Μητρώου)
+    assert app.page.locator('#mainnav a[href="#/members/lodges"]').count() == 1
+    app.go('/members/lodges')
+    app.page.wait_for_selector('#labody tr')
+    app.page.fill('#laq', 'lodge96')
+    app.page.wait_for_function("document.querySelectorAll('#labody tr').length === 1")
+    row = app.text('#labody')
+    assert '96' in row and 'ΘΕΜΙΣΤΟΚΛΗΣ' in row and 'lodge96@example.com' in row and 'Ενεργός Πέτρος' in row and 'sec96@example.com' in row, row
+    with app.page.expect_download() as d:
+        app.page.click('[data-act=xlsx]')
+    assert d.value.suggested_filename.startswith('ARXEIO_STOON_') and d.value.suggested_filename.endswith('.xlsx')
+    with app.page.expect_download(timeout=60000) as d:
+        app.page.click('[data-act=pdf]')
+    assert d.value.suggested_filename.endswith('.pdf')
 
 
 def test_treasury_fees_by_member_lodge_province_and_scope(app):

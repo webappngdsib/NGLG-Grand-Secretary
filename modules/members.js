@@ -5,7 +5,7 @@ import { db } from '../core/store.js';
 import { module, onSubmit, go, flash, bind, confirmDo, table, notice, pager, toast } from '../core/app.js';
 import { esc, fold, sortBy, readXlsx, XLSX, parsePasted, fmtDate, today } from '../core/util.js';
 import { memberVisits } from './visits.js';
-import { lodgeNoKey, lodgesAll, lodgeByNumber } from './lodges.js';
+import { lodgeNoKey, lodgesAll, lodgeByNumber, lodgeMemberCounts, lodgeSecretaryName } from './lodges.js';
 import { provincialChoices } from './provinces.js';
 import { noContact, NO_CONTACT } from '../core/pickers.js';
 import { epeteiridaOf, highestOfficeText } from './epeteirida-table.js';
@@ -14,6 +14,7 @@ import { lodgeFeeTotal, euro } from './treasury.js';
 import { identify, canonicalId, person, digits10, sameNameGroups, regCode, matchesCode, codeKey } from '../core/people.js';
 import { isSealed } from '../core/connect.js';
 import { smallLodgesPage } from './small-lodges.js';
+import { lodgeArchivePage } from './lodge-archive.js';
 import { diplomasPage } from './diplomas.js';
 import { memberCardPage } from './member-card.js';
 import { diplomaIssuePage } from './diploma.js';
@@ -255,6 +256,14 @@ function deregisteredPage({ query }) {
     },
   };
 }
+// Αναζήτηση ανά Στοά: ενεργά μέλη της Στοάς, ο Γραμματέας της, το email της Στοάς και η Επαρχία
+function lodgeInfoLine(l) {
+  const n = lodgeMemberCounts()[lodgeNoKey(l.number)] || 0, sec = lodgeSecretaryName(l), se = String(l.secretary_email || '').trim(), le = String(l.email || '').trim();
+  const mail = (e) => `<a href="mailto:${esc(e)}">${esc(e)}</a>`;
+  return ` <span class="msl-active">· Στοά <b>${esc(l.name)} ${esc(l.number)}</b> — ενεργά μέλη: <b>${n}</b></span>
+<span class="msl-info"><br>✍ Ενεργός Γραμματέας: ${sec ? `<b>${esc(sec)}</b>` : '<span class="muted">— δεν έχει καταχωριστεί</span>'}${se ? ` (${mail(se)})` : ''}
+· ✉ Email Στοάς: ${le ? mail(le) : '<span class="muted">—</span>'}${l.provincial ? ` · 🏛 ${esc(l.provincial)}` : ''} · <a href="#/lodges/edit/${l.id}">Στοιχεία Στοάς →</a></span>`;
+}
 function listPage({ query }) {
   const { field, q, status, all, xs } = memberResults(query), pg = Math.max(1, Number(query.p) || 1), byM = lodgesByMember();
   const shown = xs.slice((pg - 1) * PAGE, pg * PAGE);
@@ -281,14 +290,15 @@ function listPage({ query }) {
 <small class="muted">${a.full} πλήρεις (1η Στοά) ${euro(a.fullSum)} · ${a.extra} επιπλέον Στοές ${euro(a.extraSum)} · ${a.exempt} απαλλαγές</small> <a class="btn small" href="#/treasury/members?lodge=${encodeURIComponent(feeLodge.number)}">Ανά μέλος →</a></div>`; })() : '';
   const [qlabel, ph, itype] = HINTS[field];
   const flabel = Object.fromEntries(MEMBER_FIELDS)[field];
-  const summary = q ? `${xs.length === 1 ? 'Βρέθηκε <b>1</b> μέλος' : `Βρέθηκαν <b>${xs.length}</b> μέλη`} για «<b>${esc(q)}</b>» σε: <b>${esc(flabel)}</b>` : `Σύνολο <b>${xs.length}</b> μελών`;
+  const summary = (q ? `${xs.length === 1 ? 'Βρέθηκε <b>1</b> μέλος' : `Βρέθηκαν <b>${xs.length}</b> μέλη`} για «<b>${esc(q)}</b>» σε: <b>${esc(flabel)}</b>` : `Σύνολο <b>${xs.length}</b> μελών`)
+    + (feeLodge ? lodgeInfoLine(feeLodge) : '');
   const mk = (p) => '#/members?' + new URLSearchParams({ q, field, p, ...(status ? { status } : {}) });
   const cnt = Object.fromEntries(MEMBER_STATUS.map(([k]) => [k, k ? all.filter((x) => statusOf(x) === k).length : all.length]));
   const stBar = `<div class="toolbar mstatus">${MEMBER_STATUS.map(([k, l]) => `<a class="btn small${k === status ? ' primary' : ''}${k === 'dereg' ? ' danger' : ''}" href="#/members?${new URLSearchParams({ q, field, ...(k ? { status: k } : {}) })}">${l} <b>${cnt[k]}</b></a>`).join('')}
 ${status === 'dereg' ? `<a class="btn small primary" href="#/members/deregistered?${new URLSearchParams({ q, field })}">🖨 Λίστα Διαγραμμένων (PDF)</a>` : ''}</div>`;
   return {
     title: 'Μητρώο Μελών',
-    html: `<h1>Μητρώο Μελών</h1>${notice(query.msg)}<div class="toolbar"><a class="btn primary" href="#/members/new">+ Προσθήκη Μέλους</a>${(() => { const n = sameNameGroups().length; return n ? `<a class="btn" href="#/members/duplicates">Διπλές εγγραφές (${n})</a>` : ''; })()}<button class="btn" data-act="export" title="Όλο το Μητρώο">⬇ Excel (όλο)</button><a class="btn" href="#/members/diplomas">🎓 Διπλώματα Διδασκάλου</a><a class="btn" href="#/members/small-lodges">🏛 Στοές με &lt; 12 κύρια μέλη</a></div>
+    html: `<h1>Μητρώο Μελών</h1>${notice(query.msg)}<div class="toolbar"><a class="btn primary" href="#/members/new">+ Προσθήκη Μέλους</a>${(() => { const n = sameNameGroups().length; return n ? `<a class="btn" href="#/members/duplicates">Διπλές εγγραφές (${n})</a>` : ''; })()}<button class="btn" data-act="export" title="Όλο το Μητρώο">⬇ Excel (όλο)</button><a class="btn" href="#/members/diplomas">🎓 Διπλώματα Διδασκάλου</a><a class="btn" href="#/members/small-lodges">🏛 Στοές με &lt; 12 κύρια μέλη</a><a class="btn" href="#/members/lodges">📇 Αρχείο Στοών</a></div>
 <div class="mc-cta"><a class="btn mc-cta-btn" href="#/members/card">🪪 <b>ΚΑΡΤΑ ΜΕΛΟΥΣ</b><small>αναζήτηση μέλους · προβολή · εκτύπωση · αποστολή με email</small></a><a class="btn mc-cta-btn" href="#/members/sgy">🏛 <b>ΜΗΤΡΩΟ ΜΕΛΩΝ ΣΓΥ</b><small>Συμβούλιο Γενικών Υποθέσεων · επιστολή · email · WhatsApp</small></a></div>
 <div class="card member-search"><h3 style="margin-top:0">Αναζήτηση μέλους</h3><form class="msearch" id="ms"><fieldset class="msfield"><legend>1. Τι θα δώσετε;</legend>
 ${MEMBER_FIELDS.map(([k, v]) => `<label class="chip"><input type="radio" name="field" value="${k}"${k === field ? ' checked' : ''}><span>${esc(v)}</span></label>`).join('')}</fieldset>
@@ -743,6 +753,7 @@ module({
     '/members/new': () => formPage(null),
     '/members/duplicates': duplicatesPage,
     '/members/small-lodges': smallLodgesPage,
+    '/members/lodges': lodgeArchivePage,
     '/members/diplomas': diplomasPage,
     '/members/card': memberCardPage,
     '/members/diploma': diplomaIssuePage,

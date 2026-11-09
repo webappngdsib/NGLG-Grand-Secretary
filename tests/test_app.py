@@ -1377,7 +1377,7 @@ def test_letter_sender_choice_and_preview_before_send(app):
     app.page.route('https://accounts.google.com/gsi/client', lambda r: r.fulfill(body=GSI_FAKE, content_type='text/javascript'))
     app.page.route('https://gmail.googleapis.com/**', gmail)
     tid = app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
-      return db.save('x', (tx) => { tx.setting('google_client_id', 'test.apps.googleusercontent.com');
+      return db.save('x', (tx) => { tx.setting('google_client_id', 'test.apps.googleusercontent.com'); tx.setting('mail_from_official', 'grand.secretary@nglgreece.gr'); // όλα από info@ — εδώ ρητά άλλος λογαριασμός για τη δοκιμή επιλογής
         return tx.insert('letter_templates', { name: 'Έγκριση Κανονισμού', active: 1, subject: 'Έγκριση Κανονισμού', body: 'Εγκρίνεται ο Κανονισμός.', mail_kind: 'general' }).id; }); }""")
     app.go(f'/templates/edit/{tid}')
     assert app.page.input_value('[name=mail_kind]') == 'general'
@@ -2529,7 +2529,7 @@ def test_gm_decisions_in_app_with_declarations(app):
     dump = app.page.evaluate("async () => { const {db} = await import('./core/store.js'); return [db.head, db.all('member_registry').map((m) => m.id + ':' + m.surname)]; }")
     assert any(x.endswith(':Διαβάτης') for x in dump[1]), dump
     app.go(f'/members/{dmid}')
-    t = app.text('.mv-card')
+    t = app.page.locator('.mv-card').text_content()  # περασμένες εκπροσωπήσεις: η ενότητα κλειστή (μόνο με μελλοντικές ανοίγει)
     assert 'Εκπροσωπήσεις του Μεγάλου Διδασκάλου' in t and 'ΑΤΛΑΣ' in t and 'ΑΚΡΟΠΟΛΙΣ' in t, t
     # η σελίδα Δηλώσεων παίρνει τις Εργασίες από τις Επισκέψεις (κοινός κωδικός)
     ms = app.page.evaluate("async () => (await import('./modules/visits.js')).publicMeetings('2026-10-24').map((m) => m.id + ' ' + m.date)")
@@ -4347,12 +4347,13 @@ def test_kanonismos_date_editable_and_synced_with_stamp(app):
 
 def test_declarations_tick_in_app_with_old_apps_script(app):
     # ✓ στη σελίδα Δηλώσεων μέσα στην εφαρμογή, με παλιό Code.gs (χωρίς «decide»): η απόφαση γράφεται απευθείας στην Επίσκεψη
+    d = (date.today() + timedelta(days=10)).isoformat(); mid = 'l118_' + d.replace('-', '')  # Εργασία σε 10 ημέρες
     import json as _j
     app.connect_local()
     def api(route):
         b = _j.loads(route.request.post_data or '{}')
         if b.get('action') == 'report':
-            return route.fulfill(json={'ok': b.get('key') == 'test-key', 'decisions': {}, 'data': {'l118_20261103': [{'officer': 'Διαβάτης Χρήστος (Βοηθός Μέγας Γραμματεύς)', 'rank': 283}]}})
+            return route.fulfill(json={'ok': b.get('key') == 'test-key', 'decisions': {}, 'data': {mid: [{'officer': 'Διαβάτης Χρήστος (Βοηθός Μέγας Γραμματεύς)', 'rank': 283}]}})
         if b.get('action') == 'decisions':
             return route.fulfill(json={'ok': True, 'decisions': {}})
         return route.fulfill(json={'ok': False, 'error': 'unknown_action'})
@@ -4364,7 +4365,7 @@ def test_declarations_tick_in_app_with_old_apps_script(app):
     app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
       await db.save('x', (tx) => { tx.replace('visits', []);
         tx.insert('reps', { name: 'Χρήστος', surname: 'Διαβάτης', office: 'Βοηθός Μέγας Γραμματεύς', email: '', mobile: '' });
-        tx.insert('visits', { visit_date: '2026-11-03', lodge: 'ΑΤΛΑΣ', lodge_number: '118', location: '', province: 'ΕπΜΣτ. Πειραιώς', rep_id: null, notes: '' }); }); }""")
+        tx.insert('visits', { visit_date: '""" + d + """', lodge: 'ΑΤΛΑΣ', lodge_number: '118', location: '', province: 'ΕπΜΣτ. Πειραιώς', rep_id: null, notes: '' }); }); }""")
     app.go('/declarations?view=report')
     fr = app.page.frame_locator('#declFrame')
     fr.locator('#auth-alt').evaluate("d => d.open = true")
@@ -4590,3 +4591,10 @@ def test_deacon_dove_wins_over_template_office_image(app):
     html = app.page.evaluate("""async () => { const m = await import('./modules/decrees.js');
       return m.officeImage('ως\\n<b>ΔΕΥΤΕΡΟΝ ΜΕΓΑΝ ΔΙΑΚΟΝΟΝ</b> \\nτον Αδελφόν', {}, {}); }""")
     assert 'diakonos-peristeri.jpg' in html and '<span class="dec-office">ΔΕΥΤΕΡΟΝ ΜΕΓΑΝ ΔΙΑΚΟΝΟΝ</span>' in html, html
+
+
+def test_all_mail_from_info(app):
+    # Όλα τα email της εφαρμογής (Επιστολές και Διατάγματα) φεύγουν από το info@nglgreece.gr
+    app.connect_local()
+    r = app.page.evaluate("async () => { const m = await import('./core/mail.js'); return [m.senderFor('official'), m.senderFor('general')]; }")
+    assert r == ['info@nglgreece.gr', 'info@nglgreece.gr'], r

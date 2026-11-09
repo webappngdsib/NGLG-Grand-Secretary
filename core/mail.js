@@ -1,18 +1,19 @@
 // Email: όλα τα μηνύματα ανοίγουν έτοιμα στο Gmail (παραλήπτες, θέμα, κείμενο) από τον σωστό λογαριασμό·
 // ο χρήστης πατά «Αποστολή». Δύο λογαριασμοί αποστολής (Ρυθμίσεις):
-//   official → Διατάγματα (grand.secretary@nglgreece.gr)
-//   general  → όλες οι Επιστολές και τα υπόλοιπα (info@nglgreece.gr)
+//   official → Διατάγματα · general → Επιστολές και όλα τα υπόλοιπα — και τα δύο από το info@nglgreece.gr (αλλάζει στις Ρυθμίσεις)
 import { db } from './store.js';
 import { esc, EMAIL_RE, splitEmails } from './util.js';
 import { richPlain } from './rich.js';
 
 export const MAIL_SENDERS = {
-  official: { key: 'mail_from_official', def: 'grand.secretary@nglgreece.gr', label: 'Επιστολές & Διατάγματα' },
+  official: { key: 'mail_from_official', def: 'info@nglgreece.gr', label: 'Διατάγματα' },
   general: { key: 'mail_from_general', def: 'info@nglgreece.gr', label: 'Γενικά εξερχόμενα' },
 };
 // Κανόνες κοινοποίησης επιστολών: όταν ένα email είναι στους παραλήπτες (Προς/Κοιν.), μπαίνει πάντα και το άλλο στην Κοιν.
 export const LETTER_CC_RULES_DEFAULT = 'ionian.secretary@nglgreece.gr => cc: spiros@rokashotels.gr';
 db.defaultSettings({ mail_from_official: MAIL_SENDERS.official.def, mail_from_general: MAIL_SENDERS.general.def, letter_cc_rules: LETTER_CC_RULES_DEFAULT });
+// Όλα τα email από το info@nglgreece.gr (και όσα είχαν αποθηκευτεί με grand.secretary@ για τα Διατάγματα)
+db.migrate('mail-all-from-info-2026-11', (tx) => { for (const k of ['mail_from_official', 'mail_from_general']) tx.setting(k, 'info@nglgreece.gr'); });
 
 // «αν υπάρχει Χ => Υ» ανά γραμμή → [ifs, add, kind]· με «cc:» μπροστά στο Υ ορατή κοινοποίηση, αλλιώς η προεπιλογή (def)
 export function parseCcRules(v, def = 'bcc') {

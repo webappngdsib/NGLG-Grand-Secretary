@@ -63,6 +63,7 @@ html,body{max-width:100%;overflow-x:hidden}
 @media print{html,body{overflow:visible}}
 .pdf-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 0}.pdf-btn{display:inline-block;padding:9px 16px;border-radius:10px;border:1px solid var(--gold);color:#fff;background:rgba(200,162,74,.16);text-decoration:none;font:600 14px/1.2 system-ui,-apple-system,Segoe UI,sans-serif}.pdf-btn:hover{background:rgba(200,162,74,.32)}
 @media print{.pdf-actions{display:none!important}}
+.article-text mark{background:#f6e3a8;color:inherit;border-radius:3px;padding:0 1px}
 </style>
 </head>
 <body>
@@ -201,7 +202,24 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
   const articleMap = new Map(DATA.articles.map(a => [a.number, a]));
   const topicMap = new Map(DATA.topics.map(t => [t.id, t]));
   const topicRules = new Map(DATA.topics.map(t => [t.id, new Set(t.rules)]));
+  // Αναζήτηση ανεκτική στη γλώσσα του κειμένου (καθαρεύουσα, κολλημένες λέξεις):
+  // κάθε λέξη της αναζήτησης γίνεται ρίζα (π.χ. «παραίτηση» → «παραιτησ», βρίσκει «παραίτησις»)
+  // και ελέγχεται στο κείμενο χωρίς κενά.
+  const ENDINGS = ['ουσ','εωσ','εισ','ησ','ισ','ασ','οσ','εσ','υσ','ων','ου','οι','ον','αι','α','η','ε','ο','ι','υ','ω','σ'];
+  const stem = (w) => {
+    if(/\d/.test(w) || w.length<=4) return w;
+    for(const e of ENDINGS){ if(w.endsWith(e) && w.length-e.length>=4) return w.slice(0,-e.length); }
+    return w;
+  };
+  const compact = (s) => s.replace(/[^0-9a-z\u03b1-\u03c9]/g,'');
+  const INDEX = new Map(DATA.articles.map(a => [a.number, {
+    title: compact(normalize(`${a.number} ${a.title}`)),
+    all: compact(normalize(`${a.number} ${a.title} ${a.chapter} ${a.text}`))
+  }]));
+  const ruleQuery = () => { const m=normalize(els.search.value).match(/^(?:κανον\S*|κ\.)?\s*(\d+[a-zα-ω]?)$/); return m ? m[1].toUpperCase() : ''; };
+  const queryTerms = () => ruleQuery() ? [compact(ruleQuery().toLowerCase())] : normalize(els.search.value).split(' ').map(w => compact(stem(compact(w)))).filter(Boolean);
   let visible = [...DATA.articles];
+  let lastQuery = '';
   let selected = null;
 
   function naturalRuleCompare(a,b){
@@ -221,20 +239,27 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
   }
 
   function filterArticles(){
-    const q=normalize(els.search.value);
+    const terms=queryTerms();
+    const ruleQ=ruleQuery(), qText=normalize(els.search.value), newQuery=qText!==lastQuery; lastQuery=qText;
     const topic=els.topic.value;
     const chapter=els.chapter.value;
     const allowed=topic ? topicRules.get(topic) : null;
     visible=DATA.articles.filter(a=>{
       if(allowed && !allowed.has(a.number)) return false;
       if(chapter && a.chapter!==chapter) return false;
-      if(q){
-        const hay=normalize(`${a.number} ${a.title} ${a.chapter} ${a.text}`);
-        const words=q.split(' ').filter(Boolean);
-        if(!words.every(w=>hay.includes(w))) return false;
+      if(terms.length){
+        const hay=INDEX.get(a.number).all;
+        if(!terms.every(w=>hay.includes(w))) return false;
       }
       return true;
     }).sort(naturalRuleCompare);
+    if(terms.length){
+      // πρώτα ο Κανόνας με τον αριθμό που γράφτηκε, μετά όσοι ταιριάζουν στον τίτλο, μετά οι υπόλοιποι
+      const rank=a=>ruleQ && compact(normalize(a.number))===compact(normalize(ruleQ)) ? 0 : (terms.every(w=>INDEX.get(a.number).title.includes(w)) ? 1 : 2);
+      visible.sort((x,y)=>rank(x)-rank(y) || naturalRuleCompare(x,y));
+      if(visible.length && (newQuery || !visible.some(a=>a.number===selected))) showArticle(visible[0].number,false,false);
+      else if(selected) showArticle(selected,false,false);
+    } else if(selected) showArticle(selected,false,false);
     renderResults();
     renderContext();
   }
@@ -263,11 +288,26 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
 
   function relatedTopics(number){ return DATA.topics.filter(t=>t.rules.includes(number)); }
 
-  function showArticle(number, updateHash=false){
+  function highlight(text){
+    const terms=queryTerms().filter(w=>w.length>=2);
+    if(!terms.length) return escapeHTML(text);
+    // ταίριασμα πάνω στο κανονικοποιημένο κείμενο, με αντιστοίχιση θέσεων στο πρωτότυπο
+    let norm='', map=[];
+    for(let i=0;i<text.length;i++){ const n=compact(normalize(text[i])); for(const ch of n){ norm+=ch; map.push(i); } }
+    const marks=[];
+    for(const w of terms){ let k=norm.indexOf(w); while(k!==-1){ marks.push([map[k], map[k+w.length-1]+1]); k=norm.indexOf(w,k+w.length); } }
+    if(!marks.length) return escapeHTML(text);
+    marks.sort((x,y)=>x[0]-y[0]);
+    let out='', pos=0;
+    for(const [s,e] of marks){ if(e<=pos) continue; const st=Math.max(s,pos); out+=escapeHTML(text.slice(pos,st))+'<mark>'+escapeHTML(text.slice(st,e))+'</mark>'; pos=e; }
+    return out+escapeHTML(text.slice(pos));
+  }
+
+  function showArticle(number, updateHash=false, scroll=true){
     const a=articleMap.get(number); if(!a) return;
     selected=number; els.article.value=number;
     els.empty.hidden=true; els.view.hidden=false;
-    els.number.textContent=`Κανόνας ${a.number}`; els.title.textContent=a.title; els.chapterLabel.textContent=a.chapter; els.text.textContent=a.text;
+    els.number.textContent=`Κανόνας ${a.number}`; els.title.textContent=a.title; els.chapterLabel.textContent=a.chapter; els.text.innerHTML=highlight(a.text);
     els.topics.innerHTML='';
     const rel=relatedTopics(number);
     if(rel.length){
@@ -277,10 +317,11 @@ window.CONSTITUTION_DATA = {"meta":{"title":"Συντάγματα της Αρχ�
     if(a.source_note){ els.note.hidden=false; els.note.textContent=a.source_note; } else { els.note.hidden=true; els.note.textContent=''; }
     document.querySelectorAll('.result-item').forEach(x=>x.classList.toggle('active',x.dataset.rule===number));
     if(updateHash) history.replaceState(null,'',`#rule=${encodeURIComponent(number)}`);
-    if(window.innerWidth<900) $('articlePanel').scrollIntoView({behavior:'smooth',block:'start'});
+    if(scroll){ const m=els.text.querySelector('mark'); if(m) setTimeout(()=>m.scrollIntoView({block:'nearest'}),0); }
+    if(scroll && window.innerWidth<900) $('articlePanel').scrollIntoView({behavior:'smooth',block:'start'});
   }
 
-  function escapeHTML(s=''){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function escapeHTML(s=''){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function clearAll(){ els.search.value=''; els.topic.value=''; els.chapter.value=''; els.article.value=''; selected=null; history.replaceState(null,'',location.pathname+location.search); filterArticles(); els.empty.hidden=false; els.view.hidden=true; }
 
   els.search.addEventListener('input',filterArticles);

@@ -2417,6 +2417,15 @@ def test_declarations_constitution_helper_and_decree_signature(app):
     w = cp.evaluate("() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]")
     assert w[0] <= w[1] + 1, w  # χωρίς οριζόντια υπερχείλιση
     assert cp.locator('a[href*="#/"]').count() == 0  # χωρίς συνδέσμους προς την εφαρμογή
+    # Αναζήτηση: δημοτική λέξη βρίσκει την καθαρεύουσα («παραίτηση» → «παραίτησις»), επισημαίνεται, «Κανόνας 12» φέρνει πρώτο τον 12
+    cp.fill('#searchInput', 'παραίτηση')
+    assert int(cp.text_content('#resultCount')) > 0 and cp.locator('.result-item .mini-number').first.text_content() == '183'
+    assert cp.text_content('#articleNumber') == 'Κανόνας 183' and cp.locator('#articleText mark').count() > 0
+    cp.fill('#searchInput', 'Κανόνας 12')
+    assert cp.locator('.result-item .mini-number').first.text_content() == '12' and cp.text_content('#articleNumber') == 'Κανόνας 12'
+    cp.fill('#searchInput', 'xyzq')
+    assert cp.text_content('#resultCount') == '0'
+    cp.fill('#searchInput', '')
     # PDF του Συντάγματος: προβολή και λήψη
     assert cp.locator('a.pdf-btn[href="constitution.pdf"][target=_blank]').count() == 1 and cp.locator('a.pdf-btn[download]').count() == 1
     assert (ROOT / 'constitution' / 'constitution.pdf').read_bytes()[:5] == b'%PDF-'

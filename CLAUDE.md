@@ -6,5 +6,5 @@
   Δεδομένα μόνο στο ιδιωτικό `NGLG-GSEC/nglg-grammateia-data` (μέσω migrations της εφαρμογής) ή στις Script Properties.
 - Χωρίς rebase / force-push / αλλαγή ιστορικού· merge του `main`.
 - Μετά από κάθε αλλαγή: τεστ (`python3 -m pytest tests/test_app.py -q`), ενημέρωση README (και `declarations/README.md` όπου αφορά),
-  push στο `main`, και απάντηση στα ελληνικά με τα live links (https://nglg-gsec.github.io/NGLG-Grand-Secretary/…).
-- Στο τέλος κάθε απάντησης δείχνετε **πάντα** και την αρχική live σελίδα της εφαρμογής: https://nglg-gsec.github.io/NGLG-Grand-Secretary/
+  push στο `main`, και απάντηση στα ελληνικά με τα live links (https://webappngdsib.github.io/NGLG-Grand-Secretary/…).
+- Στο τέλος κάθε απάντησης δείχνετε **πάντα** και την αρχική live σελίδα της εφαρμογής: https://webappngdsib.github.io/NGLG-Grand-Secretary/

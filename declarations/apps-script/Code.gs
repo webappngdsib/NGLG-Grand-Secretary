@@ -268,7 +268,7 @@ function json_(obj) {
 // τα φορτώνει ο server από τη δημόσια σελίδα (όχι από τον browser), ώστε να απαντά μόνο για το Σύνταγμα.
 // Script Properties: ANTHROPIC_API_KEY (υποχρεωτικό), προαιρετικά AI_DAILY_LIMIT (προεπιλογή 50 ερωτήματα/ημέρα),
 // AI_MODEL (προεπιλογή claude-opus-5-5), AI_EFFORT (low | medium | high, προεπιλογή low για γρήγορη απάντηση).
-const CONSTITUTION_URL = 'https://nglg-gsec.github.io/NGLG-Grand-Secretary/constitution/';
+const CONSTITUTION_URL = 'https://webappngdsib.github.io/NGLG-Grand-Secretary/constitution/';
 const AI_MAX_RULES = 20;
 const AI_MAX_QUESTION = 500;
 const RULE_PATTERN = /^\d{1,3}[A-Za-zΑ-Ωα-ω]?$/;

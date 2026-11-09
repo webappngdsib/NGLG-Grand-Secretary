@@ -10,7 +10,7 @@ import { provincesAll } from './provinces.js';
 import { lodgesByMember, lodgeDeregged } from './members.js';
 import { portalApi, portalReady } from './lodge-portal.js';
 
-export const SECRETARIES_PAGE = 'https://nglg-gsec.github.io/NGLG-Grand-Secretary/secretaries/';
+export const SECRETARIES_PAGE = 'https://webappngdsib.github.io/NGLG-Grand-Secretary/secretaries/';
 db.seed('lodge_secretary_log', () => []);
 // Κάθε Επαρχία πιστοποιείται με ένα ΜΟΝΑΔΙΚΟ email (της Επαρχιακής Μεγάλης Γραμματείας)· αφαιρείται το δεύτερο email της Ιονίων
 // που είχε προστεθεί προσωρινά (η εγγραφή «province-ionian-secretary-email-2026-10» έχει ήδη τρέξει όπου άνοιξε η εφαρμογή)

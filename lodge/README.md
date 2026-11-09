@@ -8,7 +8,7 @@
 Τα email των Στοών περνούν μαζικά: Συμβολικές Στοές → Εισαγωγή → επικόλληση «ΣΤΟΑ ΥΠ. ΑΡΙΘΜ. · email · …» (κενό email δεν σβήνει τίποτα),
 ή από τις Επαρχίες στη σελίδα `secretaries/`.
 
-- Σελίδα Γραμματέων: https://nglg-gsec.github.io/NGLG-Grand-Secretary/lodge/ (άμεσος σύνδεσμος ανά Στοά: `lodge/?lodge=118`)
+- Σελίδα Γραμματέων: https://webappngdsib.github.io/NGLG-Grand-Secretary/lodge/ (άμεσος σύνδεσμος ανά Στοά: `lodge/?lodge=118`)
 - Διαχείριση (Μεγάλη Γραμματεία): εφαρμογή → Μητρώο → **🔐 Πύλη Γραμματέων Στοών** (`#/lodge-portal`)
 
 ## Πώς λειτουργεί
@@ -78,7 +78,7 @@
 
 ## Γραμματείς Στοών — σελίδα των Επαρχιών (`secretaries/`)
 
-https://nglg-gsec.github.io/NGLG-Grand-Secretary/secretaries/ — ίδιο Apps Script (Code.gs έκδοση 3: αντικατάσταση και **New version**).
+https://webappngdsib.github.io/NGLG-Grand-Secretary/secretaries/ — ίδιο Apps Script (Code.gs έκδοση 3: αντικατάσταση και **New version**).
 
 1. Η Επαρχιακή Γραμματεία γράφει το email της → λαμβάνει από τον λογαριασμό του script (info@) μήνυμα με **κωδικό 6 ψηφίων** (10΄, μία χρήση).
 2. Βλέπει **μόνο τις Στοές της Επαρχίας της** και για καθεμία καταχωρίζει: **επίσημο email Στοάς** (το κλειδί της Στοάς — όχι το προσωπικό του Γραμματέα),

@@ -12,7 +12,7 @@ import { capacityOf, insertMember, deregEverywhere } from './members.js';
 import { epeteiridaOf } from './epeteirida-table.js';
 import { senderFor } from '../core/mail.js';
 
-export const PORTAL_PAGE = 'https://nglg-gsec.github.io/NGLG-Grand-Secretary/lodge/';
+export const PORTAL_PAGE = 'https://webappngdsib.github.io/NGLG-Grand-Secretary/lodge/';
 const MEMBER_FIELDS = ['surname', 'first_name', 'email', 'mobile', 'degree', 'date_ea', 'date_fc', 'date_mm'];
 const LODGE_FIELDS = ['member_status', 'capacity', 'capacity_date', 'jw_date', 'sw_date', 'wm_date', 'dereg_date', 'fee_rank'];
 const LABELS = { surname: 'Επώνυμο', first_name: 'Όνομα', email: 'Email', mobile: 'Κινητό', degree: 'Βαθμός', date_ea: 'Ημ. μύησης', date_fc: 'Ημ. Εταίρου', date_mm: 'Ημ. Διδασκάλου',

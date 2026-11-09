@@ -2,29 +2,29 @@
 
 The way in to the work of the Secretariat. Everything opens at one address: the **Ψηφιακή Μεγάλη Γραμματεία** app, with the portal of all other sections inside it (menu «🏛 Πύλη»). Runs on GitHub Pages only.
 
-**Portal:** https://nglg-gsec.github.io/NGLG-Grand-Secretary/
+**Portal:** https://webappngdsib.github.io/NGLG-Grand-Secretary/
 
 ## 🔑 Ψηφιακή Μεγάλη Γραμματεία
 
-### 👉 [Άνοιγμα της εφαρμογής](https://nglg-gsec.github.io/NGLG-Grand-Secretary/)
+### 👉 [Άνοιγμα της εφαρμογής](https://webappngdsib.github.io/NGLG-Grand-Secretary/)
 
-`https://nglg-gsec.github.io/NGLG-Grand-Secretary/`
+`https://webappngdsib.github.io/NGLG-Grand-Secretary/`
 
 Τρέχει **μόνο στο GitHub** (χωρίς Render, χωρίς κόστος)· τα δεδομένα φυλάσσονται στο ιδιωτικό αποθετήριο
 `NGLG-GSEC/nglg-grammateia-data`. Πρώτη χρήση και μεταφορά δεδομένων: [docs/ΕΦΑΡΜΟΓΗ.md](docs/ΕΦΑΡΜΟΓΗ.md). Πού βρίσκεται τι (GitHub, Google Drive, Apps Script) και πώς αλλάζουν οι κωδικοί: [docs/ΥΠΟΔΟΜΗ_ΚΑΙ_ΚΩΔΙΚΟΙ.md](docs/ΥΠΟΔΟΜΗ_ΚΑΙ_ΚΩΔΙΚΟΙ.md). Ενεργοποίηση Πύλης Γραμματέων βήμα βήμα, με τον λογαριασμό Google κάθε βήματος: [docs/ΟΔΗΓΟΣ_ΕΝΕΡΓΟΠΟΙΗΣΗΣ_ΠΥΛΗΣ.md](docs/ΟΔΗΓΟΣ_ΕΝΕΡΓΟΠΟΙΗΣΗΣ_ΠΥΛΗΣ.md).
 
 Απευθείας σύνδεσμοι:
-[Νέα Επιστολή](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/letters/new) · [Νέο Διάταγμα](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/decrees/new) · [Επισκέψεις Στοών](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/visits) ·
-[Εορτολόγιο](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/namedays) · [Πρότζεκτ ΜΔ](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/projects) · [Κατάλογος](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/directory) · [Μητρώο Μελών](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/members) ·
-[Βάση Δεδομένων](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/database) ·
-[Δηλώσεις Διάθεσης Μ. Αξιωματικών](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/declarations)
+[Νέα Επιστολή](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/letters/new) · [Νέο Διάταγμα](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/decrees/new) · [Επισκέψεις Στοών](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/visits) ·
+[Εορτολόγιο](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/namedays) · [Πρότζεκτ ΜΔ](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/projects) · [Κατάλογος](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/directory) · [Μητρώο Μελών](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/members) ·
+[Βάση Δεδομένων](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/database) ·
+[Δηλώσεις Διάθεσης Μ. Αξιωματικών](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/declarations)
 
 ### Δηλώσεις Διάθεσης Μεγάλων Αξιωματικών
 
 Μενού 📅 Επισκέψεις ΜΔ → «② Δηλώσεις Διάθεσης Μ. Αξιωματικών» (`#/declarations`): ολόκληρη η σελίδα
 (δήλωση, πρόγραμμα, αναφορά) — ο κώδικας ζει πλέον εδώ, στον φάκελο [`declarations/`](declarations/) (μεταφέρθηκε από το
 `GrandOfficersVisitsRepresentGM`). Δημόσια σελίδα για τους Μεγάλους Αξιωματικούς:
-https://nglg-gsec.github.io/NGLG-Grand-Secretary/declarations/#form
+https://webappngdsib.github.io/NGLG-Grand-Secretary/declarations/#form
 Στην εφαρμογή είναι μία σελίδα: τα κουμπιά (Δήλωση, Πρόγραμμα, «🔒 Διαχειριστική Αναφορά & PDF»)
 αλλάζουν το περιεχόμενο επί τόπου. Η αναφορά ζητά πάντα τον κωδικό πρόσβασης· ο κωδικός ελέγχεται στον server της σελίδας
 (`ADMIN_KEY` στις Script Properties του Apps Script) και δεν γράφεται στον κώδικα.
@@ -32,7 +32,7 @@ https://nglg-gsec.github.io/NGLG-Grand-Secretary/declarations/#form
 **📑 ΣΓΥ · Ροή Συνεδρίασης & Αναφορά Μεγάλου Γραμματέως:** πλακίδιο στην Αρχική με συνδέσμους (νέα καρτέλα) στην αυτόνομη σελίδα https://dskiad.github.io/SGY-report-NGLG-/ (αποθετήριο `dskiad/SGY-report-NGLG-`), στη ζωντανή σελίδα claude.ai, στα PDF Αναφοράς / Συνεδρίασης και στο αρχείο συνεδριάσεων· χωρίς ενσωμάτωση. Το πλακίδιο διαβάζει αυτόματα το https://dskiad.github.io/SGY-report-NGLG-/latest.json (τρέχουσα Συνεδρίαση, PDF), οπότε ακολουθεί κάθε νέα Συνεδρίαση χωρίς αλλαγή εδώ. Όταν το «Άνοιγμα» είναι ήδη η ζωντανή σελίδα, δεν εμφανίζεται δεύτερο κουμπί «Ζωντανή σελίδα»· το «Αρχείο GitHub» ανοίγει τα αντίγραφα των συνεδριάσεων στο GitHub (https://github.com/dskiad/SGY-report-NGLG-/tree/main/archive). Το κουμπί «Άνοιγμα Ροής ΣΓΥ» είναι χρυσό με παλμό, για να ξεχωρίζει. Επίσης κάρτα στην Πύλη και σύνδεσμος στο μενού 🏛 ΣΓΥ.
 
 **📜 Σύνταγμα (Βοηθός Συντάγματος):** ψηφιακό ευρετήριο των Γενικών Νόμων και Κανονισμών (`constitution/index.html`),
-**μόνο** ως αυτόνομη σελίδα για αποστολή: https://nglg-gsec.github.io/NGLG-Grand-Secretary/constitution/ — χωρίς μενού,
+**μόνο** ως αυτόνομη σελίδα για αποστολή: https://webappngdsib.github.io/NGLG-Grand-Secretary/constitution/ — χωρίς μενού,
 σύνδεση ή στοιχεία της Γραμματείας. Στην εφαρμογή υπάρχει το πλακίδιο **«📜 Σύνταγμα»** στην Αρχική και η κάρτα **«📜 Σύνταγμα ΕΜΣτΕ»** στην Πύλη, που ανοίγουν την αυτόνομη σελίδα
 σε νέα καρτέλα· δεν εμφανίζεται στη σελίδα Δηλώσεων ή στο μενού.
 Η **αναζήτηση** κάνει ταίριασμα με ρίζα λέξης, χωρίς τόνους και κενά: λέξη στη δημοτική βρίσκει την καθαρεύουσα του κειμένου
@@ -82,12 +82,12 @@ https://nglg-gsec.github.io/NGLG-Grand-Secretary/declarations/#form
   (π.χ. αυτόματος συγχρονισμός + χρήστης) δεν γράφουν πια η μία πάνω στην άλλη (διορθώθηκε απώλεια εγγραφών σε σπάνιες περιπτώσεις).
 - **🔐 Πύλη Γραμματέων — είσοδος με τον αριθμό της Στοάς** (Φ = Φοίνιξ Κερκύρας): ο κωδικός μιας χρήσης πηγαίνει στο καταχωρισμένο email της Στοάς (το κλειδί της Στοάς)·
   μαζική καταχώριση των email: Συμβολικές Στοές → Εισαγωγή (δέχεται «ΣΤΟΑ ΥΠ. ΑΡΙΘΜ. · email · …»).
-- **🗂 Γραμματείς Στοών — σελίδα των Επαρχιών ([secretaries/](https://nglg-gsec.github.io/NGLG-Grand-Secretary/secretaries/)):** η Επαρχιακή Γραμματεία μπαίνει με το email της
+- **🗂 Γραμματείς Στοών — σελίδα των Επαρχιών ([secretaries/](https://webappngdsib.github.io/NGLG-Grand-Secretary/secretaries/)):** η Επαρχιακή Γραμματεία μπαίνει με το email της
   (κωδικός από το info@), βλέπει μόνο τις Στοές της και καταχωρίζει email Στοάς, ονοματεπώνυμο και κινητό Γραμματέα· έλεγχος «μέλος της Στοάς · Δίπλωμα Διδασκάλου».
   Στην εφαρμογή: Μητρώο → Γραμματείς Στοών (`#/lodge-secretaries`). Οδηγίες: [lodge/README.md](lodge/README.md).
 - **Επισκέψεις → «⬇ PDF (1 σελίδα)»:** Στοές και ημερομηνίες κατά σειρά με τον εκπρόσωπο (ΟΥΔΕΙΣ / χωρίς εκπρόσωπο), όπως το φίλτρο της σελίδας·
   κεφαλίδα ΕΜΣτΕ και «ΜΕΓΑΛΗ ΓΡΑΜΜΑΤΕΙΑ», στο τέλος «Ο Μέγας Γραμματεύς — Πσεβ. Αδ. Δημήτριος Σκιαδόπουλος» με υπογραφή· πάντα μία σελίδα A4.
-- **💶 Ταμείο (νέο, [#/treasury](https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/treasury)):** ετήσιες εισφορές υπολογισμένες από το Μητρώο (Στοές, ιδιότητα, «Στοά πλήρους συνδρομής»).
+- **💶 Ταμείο (νέο, [#/treasury](https://webappngdsib.github.io/NGLG-Grand-Secretary/#/treasury)):** ετήσιες εισφορές υπολογισμένες από το Μητρώο (Στοές, ιδιότητα, «Στοά πλήρους συνδρομής»).
   Ενεργό τακτικό μέλος (Τακτικό, Υιοθετημένο, Επανελθόν, Θεράπων) → 200 € στη Στοά 1ης συνδρομής και +20 € ανά επιπλέον Στοά (2η, 3η …)·
   στις **ειδικές Στοές** η επιπλέον εισφορά είναι 10 €· Επίτιμο, Ομότιμο, Αριστίνδην, Ισόβιο 0 €· Μέτοικο 1/3· οι διαγραμμένοι δεν μετρούν.
   Σελίδες: 📊 Σύνοψη · 🏛 Ανά Στοά · 👤 Ανά μέλος · 🗺 Ανά Επαρχία (με Excel) · ⚙ Ρυθμίσεις (ποσά, ειδικές Στοές).
@@ -98,7 +98,7 @@ https://nglg-gsec.github.io/NGLG-Grand-Secretary/declarations/#form
 - **🔐 Πύλη — email Γραμματέων:** χειρόγραφα ανά Στοά (στήλη «Email») ή μαζικά με επικόλληση «αριθμός · email · Γραμματέας»· γράφονται στον κατάλογο Στοών (ένα πεδίο, `secretary_email`).
 - **🔐 Πύλη — σύνδεση διαχειριστή:** ο super admin (Script Property `SUPER_ADMINS`) μπαίνει απευθείας με «Σύνδεση με Google»· οι διαχειριστές
   (`ADMIN_EMAILS`) με κωδικό μιας χρήσης στο email τους (OTP)· το `ADMIN_KEY` έγινε προαιρετικό. Οδηγίες: [lodge/README.md](lodge/README.md).
-- **🔐 Πύλη Γραμματέων Στοών (νέο — [lodge/](https://nglg-gsec.github.io/NGLG-Grand-Secretary/lodge/))**: ο Γραμματέας κάθε Στοάς, με τον κωδικό της Στοάς, βλέπει μόνο το Μητρώο της Στοάς του και αλλάζει στοιχεία/κατάσταση μελών ή προσθέτει νέα·
+- **🔐 Πύλη Γραμματέων Στοών (νέο — [lodge/](https://webappngdsib.github.io/NGLG-Grand-Secretary/lodge/))**: ο Γραμματέας κάθε Στοάς, με τον κωδικό της Στοάς, βλέπει μόνο το Μητρώο της Στοάς του και αλλάζει στοιχεία/κατάσταση μελών ή προσθέτει νέα·
   σημείωση (Αναγγελία Εισδοχής, Διέλευσης, Διδασκάλου Τέκτονος, νέων Αρχών κ.λπ.) πριν την αποθήκευση· κάθε αποθήκευση = έκδοση `ΑλλαγήΣτοά118έκδοση1-27Οκτ26` (με επαναφορά) και email «Στοά … - Αλλαγή στο Μητρώο» προς τη Στοά από το info@·
   🖨 PDF Α4 «Πίνακας μελών» (βαθμός, αξίωμα, ημ. μεγαλύτερου αξιώματος, διαγραφέντες). Στην εφαρμογή: Μητρώο → 🔐 Πύλη Γραμματέων Στοών (ρύθμιση, κωδικοί & αποστολή, δημοσίευση, λήψη αλλαγών — και αυτόματα —, ιστορικό, εκδόσεις/επαναφορά). Εγκατάσταση: `lodge/README.md`.
 - **Συμβολικές Στοές — Ημερομηνία ίδρυσης & Λογότυπο/Θυρεός:** κάθε Στοά έχει, εκτός από τον αριθμό, «Ημερομηνία ίδρυσης» (και στο Excel ως «Ημ. ίδρυσης»)
@@ -239,18 +239,18 @@ https://nglg-gsec.github.io/NGLG-Grand-Secretary/declarations/#form
 
 ## Grand Chancellor — document editing (live page)
 
-### 👉 [Open the Grand Chancellor's documents](https://nglg-gsec.github.io/NGLG-Grand-Secretary/chancellor/)
+### 👉 [Open the Grand Chancellor's documents](https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/)
 
-`https://nglg-gsec.github.io/NGLG-Grand-Secretary/chancellor/`
+`https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/`
 
 The Office of the Grand Chancellor has its own distinct page in this repository (`chancellor/`), published by the same Pages workflow. Each document is a form: fill in what changes and take away a print-ready PDF.
 
 | Document | Live page |
 | --- | --- |
-| Patents and certificates of appointment | [patents](https://nglg-gsec.github.io/NGLG-Grand-Secretary/chancellor/patents/) |
-| Past Grand Officer patent | [past-grand-officer](https://nglg-gsec.github.io/NGLG-Grand-Secretary/chancellor/patents/past-grand-officer.html) |
-| Honorary Grand Officer patent | [honorary-grand-officer](https://nglg-gsec.github.io/NGLG-Grand-Secretary/chancellor/patents/honorary-grand-officer.html) |
-| Recognition builder (NGLG Regularity, Globe of Amity) | [recognition](https://nglg-gsec.github.io/NGLG-Grand-Secretary/chancellor/recognition/) |
+| Patents and certificates of appointment | [patents](https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/patents/) |
+| Past Grand Officer patent | [past-grand-officer](https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/patents/past-grand-officer.html) |
+| Honorary Grand Officer patent | [honorary-grand-officer](https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/patents/honorary-grand-officer.html) |
+| Recognition builder (NGLG Regularity, Globe of Amity) | [recognition](https://webappngdsib.github.io/NGLG-Grand-Secretary/chancellor/recognition/) |
 
 Also available from the standalone repository [`Grand-Chancellor`](https://github.com/dskiad/Grand-Chancellor).
 

@@ -587,7 +587,7 @@ export function visitLetter(v, letters = db.all('letters')) {
 }
 export const visitProtocol = (v, letters) => { const l = visitLetter(v, letters); return l ? String(seqOf(l)) : ''; };
 // Σύνδεσμος της επιστολής: το PDF στο Drive (αν αποθηκεύτηκε) — αλλιώς η επιστολή στην εφαρμογή (για όσους έχουν πρόσβαση)
-const APP_URL = 'https://nglg-gsec.github.io/NGLG-Grand-Secretary/';
+const APP_URL = 'https://webappngdsib.github.io/NGLG-Grand-Secretary/';
 // Δημόσια προεπισκόπηση της επιστολής (programme/letter.html): το έντυπο Α4 χωρίς διευθύνσεις email
 const publicLetterUrl = (l) => (l ? `${APP_URL}programme/letter.html?p=${encodeURIComponent(String(seqOf(l)))}` : '');
 const ANY_EMAIL = /[^\s<>,;:"'()]+@[^\s<>,;:"'()]+\.[A-Za-z]{2,}/g;
@@ -630,7 +630,7 @@ ${rows.length ? `<table class="gmp-table"><thead><tr><th class="n">Α/Α</th><th
 }
 // ---- Δημόσια σελίδα του προγράμματος (programme/): η εφαρμογή γράφει το πρόγραμμα στα δεδομένα (files/public/programme.json)
 // μετά από κάθε αλλαγή Επισκέψεων/Εκπροσώπων· η δημοσίευση (GitHub Pages) το παίρνει από εκεί. Μόνο όσα δείχνει η αναφορά.
-export const PUBLIC_PROGRAMME_URL = 'https://nglg-gsec.github.io/NGLG-Grand-Secretary/programme/';
+export const PUBLIC_PROGRAMME_URL = 'https://webappngdsib.github.io/NGLG-Grand-Secretary/programme/';
 // «done»: η Επίσκεψη έχει ολοκληρωθεί — εκπρόσωπος και επιστολή με αριθμό πρωτοκόλλου· δεν εκκρεμεί στη σελίδα Δηλώσεων
 export function publicProgramme() {
   return { title: 'Πρόγραμμα επισκέψεων του Σεβασμιωτάτου Μεγάλου Διδασκάλου', salute: GMP_SALUTE, text: GMP_TEXT, closing: GS_CLOSING,

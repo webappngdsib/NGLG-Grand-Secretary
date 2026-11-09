@@ -1,4 +1,4 @@
-> **Ζει πλέον στο `NGLG-GSEC/NGLG-Grand-Secretary`, φάκελος `declarations/`.** Δημόσια σελίδα: https://nglg-gsec.github.io/NGLG-Grand-Secretary/declarations/ · μέσα στην εφαρμογή: https://nglg-gsec.github.io/NGLG-Grand-Secretary/#/declarations
+> **Ζει πλέον στο `NGLG-GSEC/NGLG-Grand-Secretary`, φάκελος `declarations/`.** Δημόσια σελίδα: https://webappngdsib.github.io/NGLG-Grand-Secretary/declarations/ · μέσα στην εφαρμογή: https://webappngdsib.github.io/NGLG-Grand-Secretary/#/declarations
 
 # GrandOfficersVisitsRepresentGM
 
@@ -28,7 +28,7 @@ Galaxy Z Fold (ανοιχτό: δύο στήλες)· στην εκτύπωση/
 | Διαχειριστική Αναφορά & PDF | μόνο η Μεγάλη Γραμματεία | `…/GrandOfficersVisitsRepresentGM/#report` |
 
 Το «Πρόγραμμα Επισκέψεων Μ.Δ.» είναι η ζωντανή σελίδα
-https://nglg-gsec.github.io/NGLG-Grand-Secretary/programme/ ενσωματωμένη.
+https://webappngdsib.github.io/NGLG-Grand-Secretary/programme/ ενσωματωμένη.
 
 **Αναφορά χωρίς κωδικό.** Η καρτέλα της αναφοράς είναι κρυφή. Ανοίγει με
 «Σύνδεση με Google» για τους λογαριασμούς της ιδιότητας `ADMIN_EMAILS`
@@ -186,7 +186,7 @@ python3 tools/build_officers.py Taxis_kai_Provadisma.xlsx > officers.js
 ## Περίληψη με AI του Συντάγματος (έκδοση 5)
 
 Το ίδιο Apps Script εξυπηρετεί και το κουμπί **«✨ Περίληψη με AI»** της σελίδας
-https://nglg-gsec.github.io/NGLG-Grand-Secretary/constitution/ (ενέργεια `ask`). Ενεργοποίηση:
+https://webappngdsib.github.io/NGLG-Grand-Secretary/constitution/ (ενέργεια `ask`). Ενεργοποίηση:
 Ιδιότητες σεναρίου → `ANTHROPIC_API_KEY` = κλειδί API του Claude· προαιρετικά `AI_DAILY_LIMIT` (προεπιλογή 50/ημέρα),
 `AI_MODEL`, `AI_EFFORT`. Μετά νέα έκδοση της ανάπτυξης (παρακάτω). Λεπτομέρειες: `docs/ΥΠΟΔΟΜΗ_ΚΑΙ_ΚΩΔΙΚΟΙ.md`.
 

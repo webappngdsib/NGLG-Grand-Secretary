@@ -368,6 +368,22 @@ def connect_github(app, gh, token='good-token'):
     app.page.locator('#ghForm button').click()
 
 
+def test_moved_data_repo_old_name_maps_to_new(app):
+    # το αποθετήριο δεδομένων μεταφέρθηκε: παλιό όνομα (αποθηκευμένο/πρόσκληση) → webappngdsib
+    gh, urls = MockGitHub(), []
+    def h(route, request):
+        urls.append(request.url)
+        return gh.handle(route, request)
+    app.page.route('https://api.github.com/**', h)
+    app.page.goto(app.base)
+    app.page.fill('[name=repo]', 'NGLG-GSEC/nglg-grammateia-data')
+    app.page.fill('[name=token]', 'good-token')
+    app.page.locator('#ghForm button').click()
+    app.page.wait_for_function("() => (localStorage.getItem('nglg-connection')||'').includes('token')")
+    repo_urls = [u for u in urls if '/repos/' in u]
+    assert repo_urls and all('/repos/webappngdsib/nglg-grammateia-data' in u for u in repo_urls), repo_urls
+
+
 def test_github_storage_and_concurrent_edits(app):
     gh = MockGitHub()
     connect_github(app, gh)
@@ -416,7 +432,7 @@ def test_github_errors(app):
     assert 'λογαριασμό GitHub «dskiad-gh»' in t and 'Πρόσκληση χρήστη' in t and 'Να μένω συνδεδεμένος' in t, t
     assert app.page.locator('a[href*="personal-access-tokens/new"][href*="target_name=webappngdsib"]').count() == 1
     app.errors.clear()
-    connect_github(app, MockGitHub(visible=False, login='NGLG-GSEC', token='github_pat_x'), token='github_pat_x')
+    connect_github(app, MockGitHub(visible=False, login='webappngdsib', token='github_pat_x'), token='github_pat_x')
     app.page.wait_for_selector('text=δεν του δόθηκε πρόσβαση')
     app.errors.clear()
     connect_github(app, MockGitHub(visible=False, scopes='read:user'))

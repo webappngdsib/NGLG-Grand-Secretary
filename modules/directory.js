@@ -1,5 +1,6 @@
 // Κατάλογος — όλα τα στοιχεία επικοινωνίας σε μία σελίδα: Επαρχίες (Γραμματεία, ΕπΜΔ, ΕπΜΓρ.) και Συμβολικές Στοές,
 // με αναζήτηση, αντιγραφή email και «Επιστολή προς…» με ένα πάτημα.
+import { lodgeOfficer } from '../core/officers.js';
 import { module, bind, toast } from '../core/app.js';
 import { esc, fold, exportXlsx } from '../core/util.js';
 import { copyText } from '../core/mail.js';
@@ -24,12 +25,13 @@ ${p.kind === 'Εθνική' ? '' : `<div style="margin-top:8px"><a href="#/direc
   const all = (sel) => regional.map(sel).filter(Boolean).join(', ');
   const bulk = [['Όλα τα email Γραμματειών', all((p) => p.email)], ['Όλοι οι ΕπΜΔ', all((p) => provinceRoles(p)[0].email)], ['Όλοι οι ΕπΜΓρ.', all((p) => provinceRoles(p)[1].email)]]
     .map(([t, v]) => `<button type="button" class="btn" data-act="copy" data-v="${esc(v)}"${v ? '' : ' disabled'}>📋 ${t}</button>`).join('');
-  const rows = lodges.map((l) => `<tr data-hay="${esc([l.number, l.name, l.orient, l.provincial, l.email, l.master, l.secretary, l.secretary_email, l.ritual, l.meeting_place].join(' '))}" data-prov="${esc(l.provincial || '')}">
+  const off = (l) => [lodgeOfficer(l, 'master'), lodgeOfficer(l, 'secretary')];
+  const rows = lodges.map((l) => { const [om, os] = off(l); return `<tr data-hay="${esc([l.number, l.name, l.orient, l.provincial, l.email, om.name, os.name, os.email, l.ritual, l.meeting_place].join(' '))}" data-prov="${esc(l.provincial || '')}">
 <td data-label="Αρ."><b>${esc(l.number)}</b></td><td data-label="Στοά"><b>${esc(l.name)}</b>${(l.status || 'Ενεργή') === 'Ενεργή' ? '' : `<br><small class="muted">${esc(l.status)}</small>`}<br><small class="muted">${esc(lodgeTitle(l))}</small></td>
-<td data-label="ΕπΜΣτ.">${esc(l.provincial || '—')}</td><td data-label="Τυπικό">${esc(l.ritual)}</td><td data-label="Τόπος">${esc(l.meeting_place || l.orient)}</td><td data-label="Σεβάσμιος">${esc(l.master)}</td><td data-label="Γραμματέας">${esc(l.secretary)}</td>
-<td data-label="Email">${mail(lodgeEmail(l))}</td><td data-label="Ενέργειες" class="actions-cell">${letter(lodgeTitle(l), lodgeEmail(l))} <a class="btn small" href="#/lodges/edit/${l.id}">Επεξεργασία</a></td></tr>`).join('');
+<td data-label="ΕπΜΣτ.">${esc(l.provincial || '—')}</td><td data-label="Τυπικό">${esc(l.ritual)}</td><td data-label="Τόπος">${esc(l.meeting_place || l.orient)}</td><td data-label="Σεβάσμιος">${esc(om.name)}</td><td data-label="Γραμματέας">${esc(os.name)}</td>
+<td data-label="Email">${mail(lodgeEmail(l))}</td><td data-label="Ενέργειες" class="actions-cell">${letter(lodgeTitle(l), lodgeEmail(l))} <a class="btn small" href="#/lodges/edit/${l.id}">Επεξεργασία</a></td></tr>`; }).join('');
   const act = lodges.filter((l) => (l.status || 'Ενεργή') !== 'Ανενεργή'), nomail = act.filter((l) => !lodgeEmail(l)).length, noprov = act.filter((l) => !l.provincial).length;
-  const missGm = regional.filter((p) => !String(p.master_name || '').trim()).length, missGs = regional.filter((p) => !String(p.secretary_name || '').trim()).length;
+  const missGm = regional.filter((p) => !provinceRoles(p)[0].name).length, missGs = regional.filter((p) => !provinceRoles(p)[1].name).length;
   const todo = nomail || noprov || missGm || missGs ? `<p class="muted" style="margin:8px 0 0">Προς συμπλήρωση: ${missGm} Επαρχίες χωρίς ΕπΜΔ · ${missGs} χωρίς ΕπΜΓρ. · ${nomail} ενεργές Στοές χωρίς email · ${noprov} χωρίς Επαρχία.</p>` : '';
   return {
     title: 'Κατάλογος',
@@ -55,7 +57,7 @@ ${p.kind === 'Εθνική' ? '' : `<div style="margin-top:8px"><a href="#/direc
         async xlsx() {
           await exportXlsx('EMSTE_KATALOGOS.xlsx', 'ΚΑΤΑΛΟΓΟΣ', ['Είδος', 'Αρ.', 'Όνομα', 'Επαρχία', 'Email', 'ΕπΜΔ / Σεβάσμιος', 'Email ΕπΜΔ', 'ΕπΜΓρ. / Γραμματέας', 'Email ΕπΜΓρ. / Γραμματέα', 'Τυπικό', 'Τόπος'],
             [...provs.map((p) => { const [gm, gs] = provinceRoles(p); return ['Επαρχία', '', p.full_title || p.short, p.short, p.email, gm.name, gm.email, gs.name, gs.email, '', '']; }),
-              ...lodges.map((l) => ['Στοά', l.number, l.name, l.provincial, lodgeEmail(l), l.master, '', l.secretary, l.secretary_email, l.ritual, l.meeting_place || l.orient])], [10, 6, 40, 30, 32, 26, 30, 26, 30, 16, 36]);
+              ...lodges.map((l) => { const [om, os] = off(l); return ['Στοά', l.number, l.name, l.provincial, lodgeEmail(l), om.name, om.email, os.name, os.email, l.ritual, l.meeting_place || l.orient]; })], [10, 6, 40, 30, 32, 26, 30, 26, 30, 16, 36]);
         },
       });
     },
@@ -66,7 +68,7 @@ module({
   id: 'directory',
   routes: { '/directory': page },
   tile: { order: 40, render: () => {
-    const ls = lodgesAll(true), nomail = ls.filter((l) => !lodgeEmail(l)).length, provs = provincesAll(true).filter((p) => p.kind !== 'Εθνική'), nogs = provs.filter((p) => !String(p.secretary_name || '').trim()).length;
+    const ls = lodgesAll(true), nomail = ls.filter((l) => !lodgeEmail(l)).length, provs = provincesAll(true).filter((p) => p.kind !== 'Εθνική'), nogs = provs.filter((p) => !provinceRoles(p)[1].name).length;
     return `<div class="dtile"><h3><a href="#/directory">📇 Κατάλογος</a></h3><div class="big">${ls.length} Στοές · ${provs.length} Επαρχίες</div>${nomail ? `<div class="warn">${nomail} Στοές χωρίς email</div>` : ''}${nogs ? `<div class="warn">${nogs} Επαρχίες χωρίς ΕπΜΓρ.</div>` : ''}
 <div class="acts"><a class="btn primary" href="#/directory">Κατάλογος</a><a class="btn" href="#/lodges">Στοές</a><a class="btn" href="#/provinces">Επαρχίες</a></div></div>`;
   } },

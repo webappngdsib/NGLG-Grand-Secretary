@@ -5,8 +5,9 @@ import { db } from '../core/store.js';
 import { module, onSubmit, go, flash, bind, confirmDo, table, notice, pager, toast } from '../core/app.js';
 import { esc, fold, sortBy, readXlsx, XLSX, parsePasted, fmtDate, today } from '../core/util.js';
 import { memberVisits } from './visits.js';
-import { lodgeNoKey, lodgesAll, lodgeByNumber, lodgeMemberCounts, lodgeSecretaryName } from './lodges.js';
-import { provincialChoices } from './provinces.js';
+import { lodgeNoKey, lodgesAll, lodgeByNumber, lodgeMemberCounts } from './lodges.js';
+import { lodgeOfficer, officesOf, provinceOfLodge } from '../core/officers.js';
+import { provincialChoices, provinceRoles } from './provinces.js';
 import { noContact, NO_CONTACT } from '../core/pickers.js';
 import { epeteiridaOf, highestOfficeText } from './epeteirida-table.js';
 import { reportPaper, printPaper } from '../core/paper.js';
@@ -258,12 +259,17 @@ function deregisteredPage({ query }) {
 }
 // Αναζήτηση ανά Στοά: ενεργά μέλη της Στοάς, ο Γραμματέας της, το email της Στοάς και η Επαρχία
 function lodgeInfoLine(l) {
-  const n = lodgeMemberCounts()[lodgeNoKey(l.number)] || 0, sec = lodgeSecretaryName(l), se = String(l.secretary_email || '').trim(), le = String(l.email || '').trim();
+  const n = lodgeMemberCounts()[lodgeNoKey(l.number)] || 0, le = String(l.email || '').trim(), prov = provinceOfLodge(l);
   const mail = (e) => `<a href="mailto:${esc(e)}">${esc(e)}</a>`;
+  const who = (o) => (o && o.name ? `${o.id ? `<a href="#/members/${o.id}"><b>${esc(o.name)}</b></a>` : `<b>${esc(o.name)}</b>`}${o.email ? ` (${mail(o.email)})` : ''}` : '<span class="muted">— δεν έχει καταχωριστεί</span>');
+  const [gm, gs] = prov ? provinceRoles(prov) : [];
   return ` <span class="msl-active">· Στοά <b>${esc(l.name)} ${esc(l.number)}</b> — ενεργά μέλη: <b>${n}</b></span>
-<span class="msl-info"><br>✍ Ενεργός Γραμματέας: ${sec ? `<b>${esc(sec)}</b>` : '<span class="muted">— δεν έχει καταχωριστεί</span>'}${se ? ` (${mail(se)})` : ''}
-· ✉ Email Στοάς: ${le ? mail(le) : '<span class="muted">—</span>'}${l.provincial ? ` · 🏛 ${esc(l.provincial)}` : ''} · <a href="#/lodges/edit/${l.id}">Στοιχεία Στοάς →</a></span>`;
+<span class="msl-info"><br>✍ Ενεργός Γραμματέας: ${who(lodgeOfficer(l, 'secretary'))} · ⚒ Σεβάσμιος: ${who(lodgeOfficer(l, 'master'))}
+<br>✉ Email Στοάς: ${le ? mail(le) : '<span class="muted">—</span>'}${prov ? ` · 🏛 ${esc(prov.short)} — ${esc(gm.abbr)}: ${who(gm.name ? { ...gm, id: gm.member_id } : null)} · ${esc(gs.abbr)}: ${who(gs.name ? { ...gs, id: gs.member_id } : null)}` : ''}
+· <a href="#/lodges/edit/${l.id}">Στοιχεία Στοάς →</a></span>`;
 }
+// Τρέχοντα αξιώματα μέλους (Σεβάσμιος / Γραμματέας Στοάς, ΕπΜΔ / ΕπΜΓρ.) — από τις Στοές και τις Επαρχίες
+const officeBadges = (id) => officesOf(id).map((o) => `<a class="pill ok moff" href="${o.href}" title="${esc(o.label)}">${o.kind === 'secretary' ? '✍' : o.kind === 'master' ? '⚒' : '🏛'} ${esc(o.short)}</a>`).join(' ');
 function listPage({ query }) {
   const { field, q, status, all, xs } = memberResults(query), pg = Math.max(1, Number(query.p) || 1), byM = lodgesByMember();
   const shown = xs.slice((pg - 1) * PAGE, pg * PAGE);
@@ -280,7 +286,7 @@ function listPage({ query }) {
       ? `<div class="mdereg"><span class="pill dg">⛔ Διαγραμμένος από τη Στοά ${esc(here[0].lodge_name)} ${esc(here[0].lodge_number)}${here[0].dereg_date ? ' · ' + esc(fmtDate(here[0].dereg_date)) : ''}</span>${elsewhere.length
         ? ` <span class="pill ok">✓ ${esc(capacityOf(elsewhere[0]) || 'Τακτικό')} μέλος ΕΜΣτΕ — Στοά ${esc(elsewhere.map((l) => `${l.lodge_name} ${l.lodge_number}`.trim()).join(', '))}</span>` : ' <span class="pill dg">διαγραμμένος από όλες τις Στοές</span>'}</div>` : '';
     const lod = note + ls.slice(0, 3).map((l) => (lodgeDeregged(l) ? '<s class="mdereg-l">' : '') + hl(`${l.lodge_name} ${l.lodge_number}`.trim(), lq, field === 'lodge' || field === 'all') + (lodgeDeregged(l) ? `</s> <span class="pill dg" title="${esc(l.member_status)}">⛔ Διαγραφείς${l.dereg_date ? ' ' + esc(fmtDate(l.dereg_date)) : ''}</span>` : '') + ((c, f) => (c || f ? ` <small class="muted">${esc([c, f].filter(Boolean).join(' · '))}</small>` : ''))(lodgeDeregged(l) ? '' : capacityOf(l), Number(l.fee_rank) === 1 ? 'πλήρης συνδρ.' : feeRankLabel(l.fee_rank))).join('<br>') + (ls.length > 3 ? `<br><small>+${ls.length - 3} ακόμη</small>` : '');
-    return [`<b>${x.id}</b>`, regBadge(x), (x.title && x.title !== 'Αδ.' ? `<small class="mtitle">${esc(x.title)}</small><br>` : '') + H(x.surname, 'surname') + extra(x, 'surname_variants', 'surname'), H(x.first_name, 'first_name') + extra(x, 'first_name_variants', 'first_name'),
+    return [`<b>${x.id}</b>`, regBadge(x), (x.title && x.title !== 'Αδ.' ? `<small class="mtitle">${esc(x.title)}</small><br>` : '') + H(x.surname, 'surname') + extra(x, 'surname_variants', 'surname') + ((b) => (b ? `<br>${b}` : ''))(officeBadges(x.id)), H(x.first_name, 'first_name') + extra(x, 'first_name_variants', 'first_name'),
       noContact(x) ? '<span class="muted">⛔</span>' : H(x.email, 'email') + extra(x, 'other_emails', 'email'), noContact(x) ? '<span class="muted">⛔</span>' : H(x.mobile, 'mobile') + extra(x, 'other_mobiles', 'mobile'),
       esc(x.degree) + [['date_ea', 'Μαθ.'], ['date_fc', 'Εταίρ.'], ['date_mm', 'Διδ.']].filter(([k]) => x[k]).map(([k, a]) => `<br><small class="muted">${a} ${esc(fmtDate(x[k]))}</small>`).join(''), `<small>${esc(highestOfficeText(x.id))}</small>`, lod, noContact(x) ? `<span class="pill bad" title="${NO_CONTACT}">⛔ Διαγραμμένος</span>` : x.active ? 'ΝΑΙ' : 'ΟΧΙ', `<a class="btn small" href="#/members/${x.id}">Επεξεργασία</a> <a class="btn small" href="#/members/card?ids=${x.id}">🪪 Κάρτα Μέλους</a>`];
   });
@@ -325,6 +331,16 @@ ${importBox()}`,
 
 // Πού εμφανίζεται το μέλος (οι λίστες δείχνουν σε αυτό — δεν κρατούν δικά τους αντίγραφα)
 // Εκπροσωπήσεις του Μεγάλου Διδασκάλου από το μέλος (από τις Επισκέψεις Στοών — ίδια δεδομένα, καμία χωριστή καταγραφή)
+// Αξιώματα και Επαρχία του μέλους: ποιος είναι ο ΕπΜΔ και ο ΕπΜΓρ. της Επαρχίας του (από τις Στοές του)
+function officesCard(m) {
+  const offs = officesOf(m.id), byM = lodgesByMember(), seen = new Set(), provs = [];
+  for (const ml of (byM[m.id] || []).filter((x) => !lodgeDeregged(x))) { const p = provinceOfLodge(lodgeByNumber(ml.lodge_number)); if (p && !seen.has(p.id)) { seen.add(p.id); provs.push(p); } }
+  if (!offs.length && !provs.length) return '';
+  const who = (r) => (r.name ? (r.member_id ? `<a href="#/members/${r.member_id}">${esc(r.name)}</a>` : esc(r.name)) + (r.email ? ` <small class="muted">${esc(r.email)}</small>` : '') : '<span class="muted">—</span>');
+  return `<div class="card moffices"><b>🏛 Αξιώματα & Επαρχία</b>
+${offs.length ? `<p>${offs.map((o) => `<a class="pill ok" href="${o.href}">${o.kind === 'secretary' ? '✍' : o.kind === 'master' ? '⚒' : '🏛'} ${esc(o.label)}</a>`).join(' ')}</p>` : '<p class="muted">Χωρίς τρέχον αξίωμα Σεβασμίου / Γραμματέα / ΕπΜΔ / ΕπΜΓρ.</p>'}
+${provs.map((p) => { const [gm, gs] = provinceRoles(p); return `<p class="mprov">${esc(p.short)}: <b>${esc(gm.abbr)}</b> ${who(gm)} · <b>${esc(gs.abbr)}</b> ${who(gs)}</p>`; }).join('')}</div>`;
+}
 function visitsCard(m) {
   const vs = memberVisits(m.id); if (!vs.length) return '';
   const t = today();
@@ -398,7 +414,7 @@ function formPage(m) {
   const offices = m ? sortBy(db.all('member_degrees_offices').filter((o) => o.member_id === m.id), (o) => -(o.decree_year || 0)) : [];
   return {
     title: m ? `Μέλος #${m.id}` : 'Νέο Μέλος',
-    html: `<p><a href="#/members">← Μητρώο Μελών</a></p><h1>${m ? `${esc(m.surname)} ${esc(m.first_name)} <small class="muted">#${m.id}</small>` : 'Νέο Μέλος'}</h1>${m ? `<div class="toolbar"><a class="btn primary" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a><a class="btn" href="#/members/diploma?id=${m.id}">🎓 Δίπλωμα Διδασκάλου</a></div>` : ''}${noContact(m) ? `<div class="card nocontact">${NO_CONTACT}</div>` : ''}${m ? usesOf(m) + visitsCard(m) : ''}
+    html: `<p><a href="#/members">← Μητρώο Μελών</a></p><h1>${m ? `${esc(m.surname)} ${esc(m.first_name)} <small class="muted">#${m.id}</small>` : 'Νέο Μέλος'}</h1>${m ? `<div class="toolbar"><a class="btn primary" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a><a class="btn" href="#/members/diploma?id=${m.id}">🎓 Δίπλωμα Διδασκάλου</a></div>` : ''}${noContact(m) ? `<div class="card nocontact">${NO_CONTACT}</div>` : ''}${m ? officesCard(m) + usesOf(m) + visitsCard(m) : ''}
 <form id="mf"><div class="grid card"><div class="full regcode-row"><label>Αρ. Μητρώου</label><div class="regcode">${m ? regBadge(m) : '<span class="muted">αυτόματα (M + επόμενος ελεύθερος· MM + αριθμός Διπλώματος, αν υπάρχει)</span>'}</div></div>
 ${isAdmin() ? f('diploma_no', 'Δίπλωμα Διδασκάλου Τέκτονος <small class="muted">(Certificate Master Mason) — ο πραγματικός αριθμός μητρώου</small>', 'inputmode="numeric" placeholder="αριθμός διπλώματος"')
   : `<div><label>Δίπλωμα Διδασκάλου Τέκτονος</label><input value="${esc(x.diploma_no || '—')}" disabled></div>`}

@@ -1,5 +1,6 @@
 // Εορτολόγιο — εορτάζοντες μέλη (σταθερές και κινητές εορτές από το Πάσχα), ευχές με «πλακέτα» ΕΜΣτΕ ανά πρόσωπο
 // (σωστή προσφώνηση από το αξίωμα, κρυφή κοινοποίηση στην Επαρχία), ιστορικό ευχών, αναφορά στον ΜΔ, εορτολόγιο ονομάτων.
+import { officesOf } from '../core/officers.js';
 import { db } from '../core/store.js';
 import { module, onSubmit, go, bind, notice, toast, table } from '../core/app.js';
 import { crud } from '../core/crud.js';
@@ -128,7 +129,7 @@ function rankIdx(m) {
   }
 
   const names = [foldName(`${m.first_name} ${m.surname}`), foldName(`${m.surname} ${m.first_name}`)];
-  if (db.all('lodges').some((l) => l.master && names.includes(foldName(l.master)))) k = Math.max(k, 0);
+  if (officesOf(m.id).some((o) => o.kind === 'master') || db.all('lodges').some((l) => !l.master_id && l.master && names.includes(foldName(l.master)))) k = Math.max(k, 0);
   return k;
 }
 // Τίτλος για το «Προς»: Αδ., Σεβ. Αδ., Λίαν Σεβ. Αδ., Πσεβ. Αδ., Σεβτ. Αδ.

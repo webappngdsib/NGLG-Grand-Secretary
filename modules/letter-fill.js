@@ -1,5 +1,6 @@
 // Έξυπνα πρότυπα επιστολών: πεδία σε άγκιστρα ({Στοά}, {Αρ. Στοάς}, {ημέρα}, {ημερομηνία}, {Μέγας Διδάσκαλος}, {Εκπρόσωπος})
 // συμπληρώνονται από τη βάση — Στοά από τις Συμβολικές Στοές, ημέρα/ημερομηνία από την Επίσκεψη (ή όποια δοθεί).
+import { lodgeOfficer } from '../core/officers.js';
 import { db } from '../core/store.js';
 import { parseIso, DAYS } from '../core/util.js';
 import { lodgeByNumber } from './lodges.js';
@@ -54,8 +55,9 @@ export function repRecipients(c) {
 // Γραμματέας της Στοάς (Προς)· Επαρχιακός Μέγας Γραμματέας και ΜΔ (Κοιν.)
 export function lodgeRecipients(c) {
   const l = c.lodgeRec, p = provinceByShort(c.province || ''), gs = p ? provinceRoles(p)[1] : null;
+  const so = l ? lodgeOfficer(l, 'secretary') : null; // Γραμματέας από το Μητρώο Μελών
   const lodgeMail = l ? (String(l.secretary_email || '').trim() || String(l.email || '').trim()) : '';
-  return { lodgeMail, to: lodgeMail, toName: `τον Γραμματέα της Στοάς «${c.lodge}»${c.lodge_number ? ` υπ’ αριθ. ${c.lodge_number}` : ''}${l && l.secretary ? `, ${secretaryName(l.secretary)}` : ''}`,
+  return { lodgeMail, to: lodgeMail, toName: `τον Γραμματέα της Στοάς «${c.lodge}»${c.lodge_number ? ` υπ’ αριθ. ${c.lodge_number}` : ''}${so && so.name ? `, ${so.member ? titledName(so.member) : secretaryName(so.name)}` : ''}`,
     cc: [gs ? gs.email : '', String(db.setting('gm_email') || '').trim()].filter(Boolean).join(', ') };
 }
 

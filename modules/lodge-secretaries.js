@@ -2,6 +2,7 @@
 // για κάθε Στοά της Επαρχίας τους: το επίσημο email της Στοάς (το κλειδί της Στοάς) και ονοματεπώνυμο + κινητό του Γραμματέα.
 // Μία πηγή: ο κατάλογος Στοών (lodges: email, secretary, secretary_last/first, secretary_mobile). Ο server (Apps Script της Πύλης) κρατά
 // αντίγραφο ανά Επαρχία και τα μέλη κάθε Στοάς μόνο για τον έλεγχο «ο Γραμματέας είναι μέλος της Στοάς · έχει Δίπλωμα Διδασκάλου».
+import { matchMember } from '../core/officers.js';
 import { db } from '../core/store.js';
 import { module, bind, toast, go, flash, table } from '../core/app.js';
 import { esc, fold, sortBy, fmtDate, EMAIL_RE } from '../core/util.js';
@@ -66,6 +67,7 @@ export async function syncSecretaries() {
         const l = tx.find('lodges', (x) => lodgeNoKey(x.number) === lodgeNoKey(c.lodge)); if (!l) continue;
         const v = c.values || {}, patch = { secretary_last: S(v.secretary_last), secretary_first: S(v.secretary_first), secretary_mobile: S(v.secretary_mobile) };
         patch.secretary = `${patch.secretary_last} ${patch.secretary_first}`.trim();
+        patch.secretary_id = matchMember(patch.secretary, l.number); // σύνδεση με το μέλος του Μητρώου
         if (S(v.lodge_email)) patch.email = S(v.lodge_email).toLowerCase();
         tx.update('lodges', l.id, patch);
         tx.insert('lodge_secretary_log', { rec_id: c.id, lodge_number: lodgeNoKey(c.lodge), lodge_name: l.name, at: c.at, by: c.by, ...patch, lodge_email: patch.email || '', check: (c.check || {}).status || '' });

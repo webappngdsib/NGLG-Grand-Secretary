@@ -4078,7 +4078,21 @@ def test_lodge_search_summary_and_lodge_archive(app):
     app.page.wait_for_selector('.msl-active')
     t = app.text('.msresult')
     assert 'Βρέθηκαν 2 μέλη' in t and 'ενεργά μέλη: 1' in t, t
-    assert 'Ενεργός Γραμματέας: Ενεργός Πέτρος' in t and 'sec96@example.com' in t and 'Email Στοάς: lodge96@example.com' in t, t
+    assert 'Ενεργός Γραμματέας: Πέτρος Ενεργός' in t and 'sec96@example.com' in t and 'Email Στοάς: lodge96@example.com' in t, t
+    # ο Γραμματέας συνδέεται με το μέλος του Μητρώου: σήμα αξιώματος στη λίστα και κάρτα αξιωμάτων στο μέλος
+    assert app.page.locator('a.moff:has-text("Γραμματέας 96")').count() == 1
+    app.page.locator('a.moff:has-text("Γραμματέας 96")').first.click()
+    app.page.wait_for_selector('h1')
+    mid = app.page.evaluate("async () => (await import('./core/store.js')).db.all('member_registry').find((x) => x.surname === 'Ενεργός').id")
+    app.go(f'/members/{mid}')
+    app.page.wait_for_selector('.moffices')
+    assert 'Γραμματέας Στοάς ΘΕΜΙΣΤΟΚΛΗΣ 96' in app.text('.moffices'), app.text('.moffices')
+    # ΕπΜΔ: όνομα στην Επαρχία → μέλος του Μητρώου (email από το Μητρώο, μία πηγή)
+    r = app.page.evaluate("""async () => { const {db} = await import('./core/store.js'); const {provinceRoles} = await import('./modules/provinces.js');
+      const p = db.all('grand_lodges').find((x) => x.short === 'ΕπΜΣτ. Αθηνών');
+      await db.save('t', (tx) => tx.update('grand_lodges', p.id, { master_name: 'Ενεργός Πέτρος', master_email: '' }));
+      const [gm] = provinceRoles(db.get('grand_lodges', p.id)); return [gm.member_id, gm.email, gm.name]; }""")
+    assert r == [mid, 'en@example.com', 'Πέτρος Ενεργός'], r
     # Αρχείο Στοών (υπομενού Μητρώου)
     assert app.page.locator('#mainnav a[href="#/members/lodges"]').count() == 1
     app.go('/members/lodges')
@@ -4086,7 +4100,8 @@ def test_lodge_search_summary_and_lodge_archive(app):
     app.page.fill('#laq', 'lodge96')
     app.page.wait_for_function("document.querySelectorAll('#labody tr').length === 1")
     row = app.text('#labody')
-    assert '96' in row and 'ΘΕΜΙΣΤΟΚΛΗΣ' in row and 'lodge96@example.com' in row and 'Ενεργός Πέτρος' in row and 'sec96@example.com' in row, row
+    assert '96' in row and 'ΘΕΜΙΣΤΟΚΛΗΣ' in row and 'lodge96@example.com' in row and 'Πέτρος Ενεργός' in row and 'sec96@example.com' in row, row
+    assert app.page.locator('#lapbody tr').count() >= 6 and 'ΕπΜΣτ. Αθηνών' in app.text('#lapbody')
     with app.page.expect_download() as d:
         app.page.click('[data-act=xlsx]')
     assert d.value.suggested_filename.startswith('ARXEIO_STOON_') and d.value.suggested_filename.endswith('.xlsx')

@@ -3,7 +3,8 @@ import { db } from '../core/store.js';
 import { module, flash, go, toast, bind, confirmDo } from '../core/app.js';
 import { crud } from '../core/crud.js';
 import { esc, sortBy, fold } from '../core/util.js';
-import { addContactSource } from '../core/pickers.js';
+import { addContactSource, attachPicker, memberItems } from '../core/pickers.js';
+import { lodgeOfficer, linkOfficer, fullName } from '../core/officers.js';
 import { provincialChoices } from './provinces.js';
 import { resolveFileImages } from '../core/paper.js';
 
@@ -68,7 +69,9 @@ export function lodgeTitle(x) {
 }
 export const lodgeEmail = (x) => String(x.email || '').trim() || String(x.secretary_email || '').trim();
 // Γραμματέας της Στοάς (ονοματεπώνυμο): νέα πεδία επώνυμο/όνομα, αλλιώς το παλιό «Γραμματέας»
-export const lodgeSecretaryName = (l) => { const t = (v) => String(v ?? '').replace(/\s+/g, ' ').trim(); return [t(l && l.secretary_last), t(l && l.secretary_first)].filter(Boolean).join(' ') || t(l && l.secretary); };
+// Γραμματέας / Σεβάσμιος της Στοάς: από το Μητρώο (core/officers.js)
+export const lodgeSecretaryName = (l) => (l ? lodgeOfficer(l, 'secretary').name : '');
+export const lodgeMasterName = (l) => (l ? lodgeOfficer(l, 'master').name : '');
 export const lodgeByNumber = (n) => db.all('lodges').find((l) => lodgeNoKey(l.number) === lodgeNoKey(n)) || null;
 let countsMemo = { head: null, v: null };
 export function lodgeMemberCounts() {
@@ -87,6 +90,10 @@ export function lodgeMemberCounts() {
 
 addContactSource(() => lodgesAll(true).filter(lodgeEmail).map((l) => ({ name: lodgeTitle(l), email: lodgeEmail(l), sub: `Στοά ${l.number} · ${l.provincial || ''}`, lodge_number: l.number })));
 
+// Κελί αξιωματικού: όνομα (σύνδεσμος στο μέλος), email, κινητό — όλα από το Μητρώο
+export const officerCell = (o) => !o || !o.name ? '<span class="muted">—</span>'
+  : `${o.id ? `<a href="#/members/${o.id}">${esc(o.name)}</a>` : `${esc(o.name)} <span class="pill warn" title="Δεν βρέθηκε μοναδικό μέλος στο Μητρώο">⚠ χωρίς σύνδεση</span>`}`
+    + (o.email ? `<br><small><a href="mailto:${esc(o.email)}">${esc(o.email)}</a></small>` : '') + (o.mobile ? `<br><small><a href="tel:${esc(String(o.mobile).replace(/[^\d+]/g, ''))}">${esc(o.mobile)}</a></small>` : '');
 const rituals = () => [...new Set(db.all('lodges').map((x) => String(x.ritual || '').trim()).filter(Boolean))].sort();
 const fields = [
   { k: 'number', label: 'Αριθμός Στοάς', required: true },
@@ -98,10 +105,14 @@ const fields = [
   { k: 'status', label: 'Κατάσταση', type: 'select', options: LODGE_STATUSES },
   { k: 'kind', label: 'Είδος', type: 'select', empty: '—', options: LODGE_KINDS },
   { k: 'full_title', label: 'Πλήρης τίτλος', full: true, placeholder: 'π.χ. ΣΣτ. 2 Ακρόπολις υπό την Σκ. της ΕπΜΣτ. Αθηνών' },
-  { k: 'master', label: 'Σεβάσμιος' },
-  { k: 'master_mobile', label: 'Κινητό Σεβασμίου', type: 'tel' },
-  { k: 'secretary', label: 'Γραμματέας' },
-  { k: 'secretary_email', label: 'Email Γραμματέα', type: 'email' },
+  { k: 'master_pick', label: '🔎 Σεβάσμιος από το Μητρώο Μελών', placeholder: 'επώνυμο, όνομα, αρ. μητρώου…', full: true },
+  { k: 'master', label: 'Σεβάσμιος', help: 'Συνδέεται με το μέλος του Μητρώου· email/κινητό από το Μητρώο.' },
+  { k: 'master_id', label: 'Μέλος (Σεβάσμιος)', type: 'number', hidden: true },
+  { k: 'master_mobile', label: 'Κινητό Σεβασμίου (αν δεν υπάρχει στο Μητρώο)', type: 'tel' },
+  { k: 'secretary_pick', label: '🔎 Γραμματέας από το Μητρώο Μελών', placeholder: 'επώνυμο, όνομα, αρ. μητρώου…', full: true },
+  { k: 'secretary', label: 'Γραμματέας', help: 'Συνδέεται με το μέλος του Μητρώου.' },
+  { k: 'secretary_id', label: 'Μέλος (Γραμματέας)', type: 'number', hidden: true },
+  { k: 'secretary_email', label: 'Email Γραμματέα (θέσης — για την Πύλη)', type: 'email' },
   { k: 'secretary_mobile', label: 'Κινητό Γραμματέα', type: 'tel' },
   { k: 'ritual', label: 'Τυπικό', placeholder: 'π.χ. Emulation, Σκωτικό', datalist: rituals },
   { k: 'meeting_place', label: 'Τόπος συνεδριάσεων', full: true, placeholder: 'π.χ. Τεκτονικόν Μέγαρον, Ερεσού 38, Αθήνα' },
@@ -145,12 +156,19 @@ module({
       { label: 'Τυπικό', v: (x) => esc(x.ritual || '') },
       { label: 'ΕπΜΣτ.', v: (x) => esc(x.provincial || '—') },
       { label: 'Email', v: (x) => esc(lodgeEmail(x)) || '<span class="muted">—</span>' },
-      { label: 'Σεβάσμιος', v: (x) => esc(x.master) + (x.master_mobile ? `<br><small><a href="tel:${esc(String(x.master_mobile).replace(/[^\d+]/g, ''))}">${esc(x.master_mobile)}</a></small>` : '') },
+      { label: 'Σεβάσμιος', v: (x) => officerCell(lodgeOfficer(x, 'master')) },
+      { label: 'Γραμματέας', v: (x) => officerCell(lodgeOfficer(x, 'secretary')) },
       { label: 'Ενεργά μέλη', v: (x) => { const n = lodgeMemberCounts()[lodgeNoKey(x.number)] || 0; return `<a href="#/members?field=lodge&q=${encodeURIComponent(x.number)}">${n}</a>`; } },
     ],
     mountList: (el) => resolveFileImages(el),
     extra: (x) => logoCard(x),
     mountForm(el, x) {
+      for (const r of ['master', 'secretary']) {
+        attachPicker(el.querySelector(`[name=${r}_pick]`), memberItems, (m) => {
+          el.querySelector(`[name=${r}]`).value = fullName(m); el.querySelector(`[name=${r}_id]`).value = m.id;
+          if (r === 'secretary' && m.email && !el.querySelector('[name=secretary_email]').value) el.querySelector('[name=secretary_email]').value = m.email;
+        });
+      }
       if (!x) return;
       resolveFileImages(el);
       const up = el.querySelector('#logo-up');
@@ -168,6 +186,11 @@ module({
       d.name = cleanLodgeName(d.name); d.number = lodgeNoKey(d.number);
       if (!LODGE_STATUSES.includes(d.status)) d.status = 'Ενεργή';
       if (tx.find('lodges', (x) => lodgeNoKey(x.number) === d.number && x.id !== id)) throw new Error(`Υπάρχει ήδη Στοά με αριθμό ${d.number}.`);
+      delete d.master_pick; delete d.secretary_pick;
+      const old = id ? tx.get('lodges', id) : null;
+      // ο Γραμματέας από τη φόρμα αντικαθιστά τα πεδία επώνυμο/όνομα που έστειλε η Επαρχία
+      if (old && String(old.secretary || '').trim() !== d.secretary) { d.secretary_last = ''; d.secretary_first = ''; }
+      linkOfficer(d, 'master_id', 'master', d.number, old); linkOfficer(d, 'secretary_id', 'secretary', d.number, old);
       return d;
     },
     excel: {

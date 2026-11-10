@@ -5,6 +5,7 @@ import { module } from '../core/app.js';
 import { crud } from '../core/crud.js';
 import { esc, sortBy } from '../core/util.js';
 import { attachPicker, memberItems, addContactSource } from '../core/pickers.js';
+import { provinceOfficer, linkOfficer, fullName } from '../core/officers.js';
 
 export const PROVINCE_KINDS = ['Επαρχιακή', 'Περιφερειακή', 'Εθνική'];
 const SEED = [
@@ -43,10 +44,11 @@ export function provinceRoles(p) {
   const [gm, gs] = ROLE_ABBR[p.kind] || ROLE_ABBR['Επαρχιακή'];
   const gen = String(p.addressee || '').replace(/^\S+\.?\s+/, '') || p.full_title || p.short;
   const adj = (a) => (a.startsWith('Επ') ? 'Επαρχιακός ' : a.startsWith('Περ') ? 'Περιφερειακός ' : '');
-  const mn = String(p.master_name || '').trim(), sn = String(p.secretary_name || '').trim();
+  // πρόσωπα από το Μητρώο Μελών (core/officers.js)· email θέσης υπερισχύει, αλλιώς του μέλους
+  const om = provinceOfficer(p, 'gm'), os = provinceOfficer(p, 'gs'), mn = om.name, sn = os.name;
   return [
-    { role: 'gm', abbr: gm, label: adj(gm) + 'Μέγας Διδάσκαλος', name: mn, email: String(p.master_email || '').trim(), addressee: `${gm} ${gen}${mn ? ', ' + mn : ''}` },
-    { role: 'gs', abbr: gs, label: adj(gs) + 'Μέγας Γραμματέας', name: sn, email: String(p.secretary_email || '').trim() || String(p.email || '').trim(), addressee: (p.addressee || `${gs} ${gen}`) + (sn ? ', ' + sn : '') },
+    { role: 'gm', abbr: gm, label: adj(gm) + 'Μέγας Διδάσκαλος', name: mn, member_id: om.id, mobile: om.mobile, email: om.email, addressee: `${gm} ${gen}${mn ? ', ' + mn : ''}` },
+    { role: 'gs', abbr: gs, label: adj(gs) + 'Μέγας Γραμματέας', name: sn, member_id: os.id, mobile: os.mobile, email: os.email, addressee: (p.addressee || `${gs} ${gen}`) + (sn ? ', ' + sn : '') },
   ];
 }
 
@@ -66,16 +68,20 @@ const fields = [
   { k: 'addressee', label: '«Προς» — όπως τυπώνεται στην Επιστολή', full: true },
   { k: 'email', label: 'Email Γραμματείας (κοινό)', type: 'email', full: true },
   { k: 'master_pick', label: '🔎 ΕπΜΔ από το Μητρώο Μελών', placeholder: 'επώνυμο, όνομα…', full: true },
-  { k: 'master_name', label: 'Μέγας Διδάσκαλος της Επαρχίας (ΕπΜΔ)' },
-  { k: 'master_email', label: 'Email ΕπΜΔ', type: 'email' },
+  { k: 'master_name', label: 'Μέγας Διδάσκαλος της Επαρχίας (ΕπΜΔ)', help: 'Συνδέεται με το μέλος του Μητρώου.' },
+  { k: 'master_id', label: 'Μέλος (ΕπΜΔ)', type: 'number', hidden: true },
+  { k: 'master_email', label: 'Email ΕπΜΔ (θέσης — αν κενό: του Μητρώου)', type: 'email' },
   { k: 'secretary_pick', label: '🔎 ΕπΜΓρ. από το Μητρώο Μελών', placeholder: 'επώνυμο, όνομα…', full: true },
-  { k: 'secretary_name', label: 'Μέγας Γραμματέας της Επαρχίας (ΕπΜΓρ.)' },
+  { k: 'secretary_name', label: 'Μέγας Γραμματέας της Επαρχίας (ΕπΜΓρ.)', help: 'Συνδέεται με το μέλος του Μητρώου.' },
+  { k: 'secretary_id', label: 'Μέλος (ΕπΜΓρ.)', type: 'number', hidden: true },
   { k: 'secretary_email', label: 'Email ΕπΜΓρ. (αν κενό: email Γραμματείας)', type: 'email' },
   { k: 'sort_order', label: 'Σειρά εμφάνισης', type: 'number' },
   { k: 'active', label: 'Κατάσταση', type: 'select', options: [[1, 'Ενεργή'], [0, 'Ανενεργή (κρυφή από τις λίστες)']] },
   { k: 'notes', label: 'Σημειώσεις', type: 'textarea', full: true },
 ];
 const pickKeys = ['master_pick', 'secretary_pick'];
+const roleCell = (o) => (!o.name ? '<span class="muted">—</span>' : (o.id ? `<a href="#/members/${o.id}">${esc(o.name)}</a>` : `${esc(o.name)} <span class="pill warn" title="Δεν βρέθηκε μοναδικό μέλος στο Μητρώο">⚠ χωρίς σύνδεση</span>`)
+  + (o.email ? `<br><small class="muted">${esc(o.email)}</small>` : ''));
 
 module({
   id: 'provinces',
@@ -89,8 +95,8 @@ module({
       { label: 'Επαρχία', v: (p) => `<b>${esc(p.short)}</b>${p.active ? '' : ' <span class="pill warn">Ανενεργή</span>'}<br><small class="muted">${esc(p.full_title)}</small>` },
       { label: 'Στοές', v: (p) => { const ls = provinceLodges(p); return ls.length ? `<b>${ls.length}</b><br><small class="muted">${ls.map((l) => esc(l.number)).sort((x, y) => (Number(x) || 1e9) - (Number(y) || 1e9)).join(', ')}</small>` : '—'; } },
       { label: 'Email Γραμματείας', v: (p) => esc(p.email) },
-      { label: 'ΕπΜΔ', v: (p) => `${esc(p.master_name || '—')}<br><small class="muted">${esc(p.master_email)}</small>` },
-      { label: 'ΕπΜΓρ.', v: (p) => `${esc(p.secretary_name || '—')}<br><small class="muted">${esc(p.secretary_email)}</small>` },
+      { label: 'ΕπΜΔ', v: (p) => roleCell(provinceOfficer(p, 'gm')) },
+      { label: 'ΕπΜΓρ.', v: (p) => roleCell(provinceOfficer(p, 'gs')) },
     ],
     validate(d, tx, id) {
       for (const k of pickKeys) delete d[k];
@@ -98,6 +104,8 @@ module({
       d.sort_order = Number(d.sort_order) || 0;
       if (!PROVINCE_KINDS.includes(d.kind)) d.kind = 'Επαρχιακή';
       if (tx.find('grand_lodges', (p) => p.short === d.short && p.id !== id)) throw new Error(`Υπάρχει ήδη εγγραφή «${d.short}».`);
+      const old = id ? tx.get('grand_lodges', id) : null;
+      linkOfficer(d, 'master_id', 'master_name', null, old); linkOfficer(d, 'secretary_id', 'secretary_name', null, old);
       return d;
     },
     afterSave(tx, r, old) { // μετονομασία: ακολουθούν και οι Στοές της
@@ -107,8 +115,9 @@ module({
       for (const [pick, name, email] of [['master_pick', 'master_name', 'master_email'], ['secretary_pick', 'secretary_name', 'secretary_email']]) {
         const f = el.querySelector(`[name=${pick}]`);
         attachPicker(f, memberItems, (m) => {
-          el.querySelector(`[name=${name}]`).value = `${m.first_name || ''} ${m.surname || ''}`.trim();
-          if (m.email) el.querySelector(`[name=${email}]`).value = m.email;
+          el.querySelector(`[name=${name}]`).value = fullName(m);
+          el.querySelector(`[name=${name.replace('_name', '_id')}]`).value = m.id;
+          el.querySelector(`[name=${email}]`).value = ''; // email από το Μητρώο (συμπληρώνεται μόνο email θέσης)
         });
       }
     },

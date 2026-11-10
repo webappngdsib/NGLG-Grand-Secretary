@@ -4658,6 +4658,19 @@ def test_award_former_deacon_shows_dove_jewel(app):
     assert app.page.locator('#dprev img[src="img/jewels/diakonos-peristeri.jpg"]').count() == 0
 
 
+def test_award_former_worshipful_master(app):
+    # «Πρώην Σεβάσμιος Διδάσκαλος» στη λίστα των Πρώην (τελευταίο, εκτός τάξεως προβαδίσματος της Μεγάλης Στοάς)
+    app.connect_local()
+    add_member(app)
+    app.go('/decrees/new')
+    app.page.check('[name=template_key][value="decree-provincial"]')
+    opts = app.page.locator('#dOffice option').all_inner_texts()
+    assert opts[-1] == 'Πρώην Σεβάσμιος Διδάσκαλος', opts
+    app.pick('.registry-search', 'Παπαδ')
+    app.page.select_option('#dOffice', 'Σεβάσμιος Διδάσκαλος')
+    app.page.wait_for_function("document.querySelector('#dprev') && document.querySelector('#dprev').innerText.includes('Πρώην Σεβασμίου Διδασκάλου')")
+
+
 def test_new_letter_default_recipients_and_bcc_from_settings(app):
     # Κάθε νέα επιστολή: σταθεροί παραλήπτες (Προς) και Bcc από τις Ρυθμίσεις (ιδιωτικά δεδομένα)· δεν διπλασιάζονται
     app.connect_local()

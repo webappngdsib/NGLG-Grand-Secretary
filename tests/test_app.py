@@ -585,7 +585,8 @@ def test_paste_member_registry_and_deregistered_no_contact(app):
     assert app.page.locator('.pill.bad').count() == 1
     # δεν εμφανίζονται ως παραλήπτες επιστολών, ούτε στα μέλη για διατάγματα / εκπροσώπους
     found = app.page.evaluate("async () => { const p = await import('./core/pickers.js'); return [p.contactItems('Γεώργιος').map((x) => x.label), p.memberItems('Γεώργιος').map((x) => x.label)]; }")
-    assert sorted(found[1]) == ['Ενεργόπουλος Γεώργιος', 'Πρώτοδιαγραφείς Γεώργιος'] and 'Διαγραμμένος Γεώργιος' not in found[0]
+    import re as _re  # οι λίστες δείχνουν και την Προσφώνηση της Επετηρίδας (π.χ. «Σεβ. Αδ. …»)
+    assert sorted(_re.sub(r'^.*Αδ\. ', '', x) for x in found[1]) == ['Ενεργόπουλος Γεώργιος', 'Πρώτοδιαγραφείς Γεώργιος'] and 'Διαγραμμένος Γεώργιος' not in found[0]
     # η καρτέλα του μέλους δείχνει την απαγόρευση και δεν έχει κουμπί επιστολής
     app.go(f"/members/{by['Διαγραμμένος']['id']}")
     assert 'απαγορεύεται κάθε επικοινωνία' in app.text() and app.page.locator('a:has-text("✉ Επιστολή")').count() == 0
@@ -2530,6 +2531,7 @@ def test_declarations_gm_decision_on_the_spot(browser, base_url):
 
 
 def test_gm_decisions_in_app_with_declarations(app):
+    import datetime as _dt
     # ③ Αποφάσεις Μ.Δ. μέσα στην εφαρμογή, πάνω στις Επισκέψεις: δηλώσεις διάθεσης (κωδικός, μόνο στην καρτέλα), απόφαση της σελίδας Δηλώσεων
     # (παλιοί κωδικοί του config.js), επιλογή και αποθήκευση· ο εκπρόσωπος φαίνεται στην καρτέλα του μέλους
     app.connect_local()
@@ -2551,11 +2553,11 @@ def test_gm_decisions_in_app_with_declarations(app):
         tx.insert('visits', { visit_date: '2026-11-02', lodge: 'ΑΤΛΑΣ', lodge_number: '118', location: '', province: 'ΕπΜΣτ. Πειραιώς', rep_id: null, notes: '' });
         tx.insert('visits', { visit_date: '2026-11-02', lodge: 'ΑΚΡΟΠΟΛΙΣ', lodge_number: '104', location: '', province: 'ΕπΜΣτ. Αθηνών', rep_id: null, notes: '' });
         const gm = tx.insert('reps', { name: 'Ιωάννης', surname: 'Μπενετάτος', office: 'Μέγας Διδάσκαλος', email: '', mobile: '' });
-        tx.insert('visits', { visit_date: '2026-11-11', lodge: 'ΕΝΩΣΙΣ', lodge_number: '16', location: '', province: 'ΕπΜΣτ. Ιονίων Νήσων', rep_id: gm.id, notes: '' }); });
+        tx.insert('visits', { visit_date: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10), lodge: 'ΕΝΩΣΙΣ', lodge_number: '16', location: '', province: 'ΕπΜΣτ. Ιονίων Νήσων', rep_id: gm.id, notes: '' }); });
       sessionStorage.setItem('nglg-decl-key', 'kleidi');
       // η αυτόματη δημοσίευση του προγράμματος (400 ms μετά την αποθήκευση) να τελειώσει πριν ανοίξει η σελίδα
       await new Promise((r) => setTimeout(r, 600)); await (await import('./modules/visits.js')).publishProgramme(); }""")
-    app.go('/visits/decisions?frm=2026-10-01&to=2026-12-31')
+    app.go(f'/visits/decisions?frm=2026-10-01&to={_dt.date.today() + _dt.timedelta(days=400)}')
     # όπου πηγαίνει ο ίδιος ο ΜΔ δεν χρειάζεται απόφαση: δεν εμφανίζεται (μόνο στις Επισκέψεις Στοών)
     assert app.page.locator('.gd-card', has_text='ΕΝΩΣΙΣ').count() == 0 and 'με τον Μ.Δ. αυτοπροσώπως' in app.text()
     # ενιαία λογική: η απόφαση της σελίδας Δηλώσεων (ΑΤΛΑΣ) περνά ΑΥΤΟΜΑΤΑ στην Επίσκεψη
@@ -2570,9 +2572,9 @@ def test_gm_decisions_in_app_with_declarations(app):
     st = app.page.evaluate("async () => { const {db} = await import('./core/store.js'); return db.all('visits').map((v) => (db.get('reps', v.rep_id) || {}).surname); }")
     assert st == ['Διαβάτης', 'Διαβάτης', 'Μπενετάτος'], st
     # με εκπρόσωπο πλέον: δεν εμφανίζονται (μόνο όσες περιμένουν απόφαση)· με «all=1» ξαναφαίνονται για αλλαγή
-    app.go('/visits/decisions?frm=2026-10-01&to=2026-12-31')
+    app.go(f'/visits/decisions?frm=2026-10-01&to={_dt.date.today() + _dt.timedelta(days=400)}')
     assert app.page.locator('.gd-card').count() == 0 and '2 με εκπρόσωπο ήδη' in app.text() and 'περιμένουν απόφαση' in app.text()
-    app.go('/visits/decisions?frm=2026-10-01&to=2026-12-31&all=1')
+    app.go(f'/visits/decisions?frm=2026-10-01&to={_dt.date.today() + _dt.timedelta(days=400)}&all=1')
     assert app.page.locator('.gd-card').count() == 2
     app.go('/visits')
     assert 'ΕΝΩΣΙΣ' in app.text()
@@ -4677,6 +4679,39 @@ def test_award_former_worshipful_master(app):
     app.page.select_option('#dOffice', 'Μέγας Γραμματεύς')
     app.page.wait_for_timeout(400)
     assert app.page.locator('#dprev img[src="img/jewels/sevasmios-proin.jpg"]').count() == 0
+
+
+def test_member_page_sets_epeteirida_honorific_everywhere(app):
+    # Σελίδα μέλους → «✏ Προσθήκη Προσφώνησης / Ανώτατου αξιώματος» → Επετηρίδα (μία πηγή) → λίστες επιλογής Αδελφών και «Προς»
+    app.connect_local()
+    add_member(app, surname='Δοκιμόπουλος', first='Ευάγγελος', email='ed@example.com', mobile='6944000095')
+    mid = app.page.evaluate("async () => (await import('./core/store.js')).db.all('member_registry').find((x) => x.surname === 'Δοκιμόπουλος').id")
+    app.go(f'/members/{mid}')
+    app.page.click('.ep-edit summary')
+    app.page.select_option('#epHon', 'Πσεβ. Αδ.')
+    app.page.fill('#epRank', 'Πρώην Δεύτερος Μέγας Επόπτης')
+    app.page.click('[data-act=epSave]')
+    app.page.wait_for_selector('text=Η Προσφώνηση ενημερώθηκε')
+    t = app.text('.ep-member')
+    assert 'Πρώην Δεύτερος Μέγας Επόπτης' in t and 'Πσεβ. Αδ.' in t, t
+    r = app.page.evaluate("async () => (await import('./core/store.js')).db.all('epeteirida').filter((x) => x.full_name === 'Δοκιμόπουλος Ευάγγελος')")
+    assert len(r) == 1 and r[0]['member_id'] == mid and r[0]['honorific'] == 'Πσεβ. Αδ.'
+    # λίστα επιλογής Αδελφών (π.χ. Διάταγμα) και «Προς» Επιστολής
+    app.go('/decrees/new')
+    app.page.fill('.registry-search', 'Δοκιμόπ')
+    app.page.wait_for_selector('.picker-list button')
+    assert 'Πσεβ. Αδ. Δοκιμόπουλος Ευάγγελος' in app.page.locator('.picker-list:not([hidden])').inner_text()
+    app.go('/letters/new')
+    app.pick('#rcptPick', 'Δοκιμόπ')
+    assert app.page.input_value('[name=recipient_name]') == 'Πσεβ. Αδ. Ευάγγελος Δοκιμόπουλος'
+    # αλλαγή της ίδιας γραμμής (όχι νέα)
+    app.go(f'/members/{mid}')
+    app.page.click('.ep-edit summary')
+    app.page.select_option('#epHon', 'Σεβτ. Αδ.')
+    app.page.click('[data-act=epSave]')
+    app.page.wait_for_selector('text=Η Προσφώνηση ενημερώθηκε')
+    n = app.page.evaluate("async () => (await import('./core/store.js')).db.all('epeteirida').filter((x) => x.member_id === %d).length" % mid)
+    assert n == 1
 
 
 def test_new_letter_default_recipients_and_bcc_from_settings(app):

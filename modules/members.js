@@ -15,6 +15,7 @@ import { lodgeFeeTotal, euro } from './treasury.js';
 import { identify, canonicalId, person, digits10, sameNameGroups, regCode, matchesCode, codeKey } from '../core/people.js';
 import { isSealed } from '../core/connect.js';
 import { smallLodgesPage } from './small-lodges.js';
+import { RANK_OFFICES, HONORIFIC_OPTIONS } from './decree-catalog.js';
 import { lodgeArchivePage } from './lodge-archive.js';
 import { diplomasPage } from './diplomas.js';
 import { memberCardPage } from './member-card.js';
@@ -187,17 +188,37 @@ function setMemberLodges(tx, mid, lodges) {
   });
 }
 
-// Επετηρίδα του μέλους (από τον πίνακα «Επετηρίδα»): ανώτατο αξίωμα, διάταγμα, τίτλος
+// Επετηρίδα του μέλους (από τον πίνακα «Επετηρίδα»): ανώτατο αξίωμα, διάταγμα, τίτλος — και επεξεργασία εδώ.
+// Η Προσφώνηση της Επετηρίδας είναι η ΜΙΑ πηγή για τον τίτλο του Αδελφού σε όλες τις λίστες επιλογής, το «Προς», την Κάρτα Μέλους.
+const RANK_CHOICES = [...RANK_OFFICES.map((o) => 'Πρώην ' + o), ...RANK_OFFICES];
 function epCard(m) {
-  const rs = epeteiridaOf(m.id);
-  if (!rs.length) return '';
-  const r = rs[0], d = r.decree_no ? `${r.decree_no}${r.decree_year ? '/' + r.decree_year : ''}` : r.decree_year || '—';
-  return `<div class="card ep-member"><h2 style="margin-top:0">📜 Επετηρίδα</h2><div class="grid">
+  const rs = epeteiridaOf(m.id), r = rs[0] || {}, d = r.decree_no ? `${r.decree_no}${r.decree_year ? '/' + r.decree_year : ''}` : r.decree_year || '—';
+  const view = rs.length ? `<div class="grid">
 <div><label>Ανώτατο αξίωμα / βαθμός</label><b>${esc(r.rank || '—')}</b></div><div><label>Διάταγμα ανώτατου αξιώματος</label><b class="official-number">${esc(d)}</b></div>
 <div><label>Τίτλος αξιώματος κατά το Σύνταγμα</label>${esc(r.title || '—')} ${Number(r.active) ? '<span class="pill ok">Ενεργός</span>' : ''}</div><div><label>Προσφώνηση</label>${esc(r.honorific || '—')}</div>
 ${r.current ? `<div class="full"><label>Εν ενεργεία αξίωμα / διάταγμα</label>${esc(r.current)}</div>` : ''}${Number(r.tmd) ? `<div><label>ΤΜΔ</label>ΝΑΙ ${esc(r.tmd_decree || '')}</div>` : ''}
 ${r.province ? `<div><label>Επαρχία / Στοά</label>${esc(r.province)}</div>` : ''}</div>
-${rs.length > 1 ? `<p class="muted">Και: ${rs.slice(1).map((x) => esc(x.title || x.rank)).join(' · ')}</p>` : ''}<p><a href="#/epeteirida/pinakas">Άνοιγμα της Επετηρίδας →</a></p></div>`;
+${rs.length > 1 ? `<p class="muted">Και: ${rs.slice(1).map((x) => esc(x.title || x.rank)).join(' · ')}</p>` : ''}` : '<p class="muted">Δεν υπάρχει εγγραφή στην Επετηρίδα.</p>';
+  return `<div class="card ep-member"><h2 style="margin-top:0">📜 Επετηρίδα</h2>${view}
+<details class="ep-edit"${rs.length ? '' : ''}><summary class="btn small">✏ ${rs.length ? 'Αλλαγή' : 'Προσθήκη'} Προσφώνησης / Ανώτατου αξιώματος</summary>
+<div class="grid" style="margin-top:8px"><div><label for="epHon">Προσφώνηση</label><select id="epHon"><option value="">—</option>${HONORIFIC_OPTIONS.map((h) => `<option${h === r.honorific ? ' selected' : ''}>${esc(h)}</option>`).join('')}</select></div>
+<div><label for="epRank">Ανώτατο αξίωμα / βαθμός</label><input id="epRank" list="epRanks" value="${esc(r.rank || '')}" placeholder="π.χ. Πρώην Δεύτερος Μέγας Επόπτης"><datalist id="epRanks">${RANK_CHOICES.map((o) => `<option value="${esc(o)}">`).join('')}</datalist></div>
+<div><label for="epDno">Αρ. διατάγματος</label><input id="epDno" inputmode="numeric" value="${esc(r.decree_no ?? '')}"></div><div><label for="epDyr">Έτος</label><input id="epDyr" inputmode="numeric" value="${esc(r.decree_year ?? '')}"></div></div>
+<p class="muted">Ισχύει αμέσως σε όλες τις λίστες επιλογής Αδελφών, στο «Προς» των Επιστολών και στην Κάρτα Μέλους.</p>
+<button type="button" class="btn primary" data-act="epSave">💾 Αποθήκευση στην Επετηρίδα</button></details>
+<p><a href="#/epeteirida/pinakas">Άνοιγμα της Επετηρίδας →</a></p></div>`;
+}
+// Αποθήκευση από τη σελίδα του μέλους: ενημέρωση της κύριας γραμμής του ή νέα γραμμή συνδεδεμένη με το μέλος
+async function saveEp(m, el) {
+  const v = (id) => String(el.querySelector(id).value || '').replace(/\s+/g, ' ').trim(), n = (x) => (/^\d+$/.test(x) ? Number(x) : x || null);
+  const patch = { honorific: v('#epHon'), rank: v('#epRank'), decree_no: n(v('#epDno')), decree_year: n(v('#epDyr')) };
+  if (!patch.honorific && !patch.rank) throw new Error('Συμπληρώστε Προσφώνηση ή Ανώτατο αξίωμα.');
+  const r = epeteiridaOf(m.id)[0];
+  await db.save(`Επετηρίδα: ${m.surname} ${m.first_name} — ${[patch.honorific, patch.rank].filter(Boolean).join(' · ')}`, (tx) => {
+    if (r) tx.update('epeteirida', r.id, { ...patch, member_id: r.member_id || m.id });
+    else tx.insert('epeteirida', { aa: Math.max(0, ...tx.all('epeteirida').map((x) => Number(x.aa) || 0)) + 1, member_id: m.id, full_name: `${m.surname || ''} ${m.first_name || ''}`.trim(),
+      active: 0, title: '', province: '', tmd: 0, tmd_decree: '', current: '', ...patch });
+  });
 }
 
 // ---------------------------------------------------------------- σελίδες
@@ -433,6 +454,7 @@ ${f('mm_lodge_name', 'Στοά Εγέρσεως (όπου έγινε Διδάσ�
 <div class="toolbar"><button class="btn primary">💾 Αποθήκευση</button><a class="btn" href="#/members">Ακύρωση</a>${m ? `<a class="btn" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a>` : ''}${m && !noContact(m) ? `<a class="btn" href="#/letters/new?to_name=${encodeURIComponent(`${m.first_name} ${m.surname}`)}&to_email=${encodeURIComponent(m.email || '')}">✉ Επιστολή</a>` : ''}${m ? '<button type="button" class="btn danger" data-act="del">Διαγραφή</button>' : ''}</div></form>
 ${m ? epCard(m) : ''}${offices.length ? `<h2>Ιστορικό αξιωμάτων (Διατάγματα)</h2>${table(['Έτος', 'Αξίωμα / Τίτλος', 'Διάταγμα'], offices.map((o) => [esc(o.decree_year), esc(o.office), o.decree_id ? `<a href="#/decrees/${o.decree_id}">${esc(o.decree_no)}/${esc(o.decree_year)}</a>` : esc(o.decree_no ? `${o.decree_no}/${o.decree_year}` : '')]))}` : ''}`,
     mount(el) {
+      if (m) bind(el, { async epSave() { await saveEp(m, el); flash('✓ Επετηρίδα: η Προσφώνηση ενημερώθηκε σε όλες τις λίστες.'); go(`/members/${m.id}`); } });
       onSubmit(el.querySelector('#mf'), async (d) => {
         const rn = isAdmin() ? String(d.registry_no || '').trim() : String(m ? m.registry_no ?? '' : '');
         if (m && isAdmin() && rn !== String(m.registry_no ?? '') && !confirmDo(`Αλλαγή του μόνιμου Αρ. Μητρώου από ${m.registry_no ?? '—'} σε ${rn || '—'};`)) return;

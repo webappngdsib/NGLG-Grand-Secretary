@@ -33,7 +33,8 @@ export function attachPicker(input, items, onPick) {
   document.addEventListener('pointerdown', (e) => { if (!box.contains(e.target) && e.target !== input) box.hidden = true; });
 }
 
-export const memberItems = (q) => searchMembers(q).map((m) => ({ label: memberName(m), sub: [String(m.diploma_no ?? '').trim() ? 'MM' + String(m.diploma_no).trim() : m.registry_no != null ? 'M' + m.registry_no : '', m.degree, m.email, m.mobile, memberLodges(m.id).map((l) => `${l.lodge_name} ${l.lodge_number}`).join(', ')].filter(Boolean).join(' · '), value: m }));
+// Λίστες επιλογής Αδελφών: με την Προσφώνηση από την Επετηρίδα (π.χ. «Πσεβ. Αδ. Παπαδόπουλος Γεώργιος»)
+export const memberItems = (q) => searchMembers(q).map((m) => ({ label: [((t) => (t && t !== 'Αδ.' ? t : ''))(memberTitle(m)), memberName(m)].filter(Boolean).join(' '), sub: [String(m.diploma_no ?? '').trim() ? 'MM' + String(m.diploma_no).trim() : m.registry_no != null ? 'M' + m.registry_no : '', m.degree, m.email, m.mobile, memberLodges(m.id).map((l) => `${l.lodge_name} ${l.lodge_number}`).join(', ')].filter(Boolean).join(' · '), value: m }));
 
 // Τίτλος μέλους (π.χ. «Πσεβ. Αδ.») — ορίζεται από τις Ευχές/Εορτολόγιο, που γνωρίζουν αξιώματα και Επετηρίδα
 let titleFn = () => '';

@@ -8,7 +8,7 @@ import { esc, fold, today, fmtDate, dayStr, parseIso, sortBy, download, EMAIL_RE
 import { senderBanner, copyText, withLetterCc } from '../core/mail.js';
 import { bccWithout } from '../core/gmail.js';
 import { reportPaper, printPaper, letterhead, letterPaper, IMG, GS_CLOSING, GS_NAME, GS_TITLE, gsSignatureText } from '../core/paper.js';
-import { attachPicker, contactItems, memberItems, noContact } from '../core/pickers.js';
+import { attachPicker, contactItems, memberItems, noContact, memberTitle } from '../core/pickers.js';
 import { provincialChoices, provinceByShort, provinceRoles } from './provinces.js';
 import { lodgesAll, lodgeNoKey, lodgeByNumber, cleanLodgeName } from './lodges.js';
 import { DEC_MAP, precedenceOf } from './decree-catalog.js';
@@ -117,16 +117,25 @@ const repMap = () => Object.fromEntries(db.all('reps').map((r) => [r.id, r]));
 const signature = () => gsSignatureText();
 const rankmap = () => { try { return JSON.parse(db.setting('visits_rankmap') || '{}'); } catch { return {}; } };
 const baseOffices = (r) => String(r.office || '').split(' · ').map((o) => o.replace(/\s*\(\d{4}\)\s*$/, '').replace(/^Πρώην\s+/, '').trim()).filter(Boolean);
-// Βαθμός (τίτλος) εκπροσώπου: πρώτα η Προσφώνηση του μέλους στην Επετηρίδα (επίσημη πηγή, π.χ. Πρώην Μέγας Γραμματεύς →
-// «Λίαν Σεβάσμιος»)· αλλιώς ό,τι δόθηκε στον εκπρόσωπο ή, τέλος, ο βαθμός από τα αξιώματά του
+// Βαθμός από αξιώματα (π.χ. «Πρώην Δεύτερος Μέγας Επόπτης · Μέγας Γραμματεύς») → 0..3 (−1 χωρίς αξίωμα)
+export function officesLevel(office, rm = rankmap()) {
+  const os = baseOffices({ office });
+  return os.length ? Math.max(...os.map((o) => rm[o] ?? REP_DEFAULT_RANKS[o] ?? HON_IDX[(DEC_MAP[o] || {}).hon_short] ?? EXTRA_RANKS[o] ?? 0)) : -1;
+}
+// Βαθμός του ίδιου του εκπροσώπου (χωρίς το Μητρώο): ό,τι δόθηκε ρητά, αλλιώς από τα αξιώματά του
+export function repOwnLevel(r, rm = rankmap()) {
+  if (!r) return -1;
+  return Math.max(REP_RANKS.indexOf(r.rep_rank), officesLevel(r.office || '', rm));
+}
+// Βαθμός (τίτλος) εκπροσώπου — ΜΙΑ πηγή με το Μητρώο: η Προσφώνηση του μέλους (core/pickers memberTitle → namedays titleOf:
+// η ΑΝΩΤΕΡΗ από Επετηρίδα, Διατάγματα, αξιώματα) και, αν είναι ανώτερα, τα αξιώματα του εκπροσώπου
 export function repRank(r, rm = rankmap()) {
   if (!r) return '';
-  const mid = r.member_id || (r.surname && r.id ? identify({ surname: r.surname, first_name: r.name }) : null);
-  const ep = (mid ? epeteiridaOf(mid) : []).map((e) => honorificLevel(e.honorific)).filter((h) => h != null);
-  if (ep.length) return REP_RANKS[Math.max(...ep)];
-  if (REP_RANKS.includes(r.rep_rank)) return r.rep_rank;
-  const os = baseOffices(r);
-  return os.length ? REP_RANKS[Math.max(...os.map((o) => rm[o] ?? REP_DEFAULT_RANKS[o] ?? HON_IDX[(DEC_MAP[o] || {}).hon_short] ?? EXTRA_RANKS[o] ?? 0))] : '';
+  const mid = r.member_id || (r.surname && r.id ? identify({ surname: r.surname, first_name: r.name }) : null), m = mid ? db.get('member_registry', canonicalId(mid)) || db.get('member_registry', mid) : null;
+  const mine = m ? honorificLevel(memberTitle(m)) ?? -1 : -1;
+  const own = m ? officesLevel(r.office || '', rm) : repOwnLevel(r, rm); // με μέλος: η ρητή τιμή του εκπροσώπου δεν υπερισχύει του Μητρώου
+  const k = Math.max(mine, own);
+  return k >= 0 ? REP_RANKS[k] : '';
 }
 const HON_IDX = { 'Σεβ. Αδ.': 0, 'ΛΣεβ. Αδ.': 1, 'Πσεβ. Αδ.': 2, 'Σεβτ. Αδ.': 3 };
 const EXTRA_RANKS = { 'Μέγας Θησαυροφύλαξ': 1, 'Μέγας Επιθεωρητής Περιοχής': 1, 'Αντικαταστάτης Επαρχιακός Μέγας Διδάσκαλος': 2 };

@@ -1812,6 +1812,44 @@ def test_rep_title_from_epeteirida_and_rep_label(app):
     assert 'Σεβάσμιος Αδ. Νικόλαος' not in app.page.input_value('[name=body]').replace('Λίαν Σεβάσμιος Αδ. Νικόλαος', '')
 
 
+def test_newer_decree_beats_older_epeteirida_honorific_everywhere(app):
+    # Επετηρίδα: παλιά Προσφώνηση «Λίαν Σεβάσμιος»· Διάταγμα απονομής «Πρώην Δεύτερος Μέγας Επόπτης» (Πσεβ.) →
+    # ο ανώτερος βαθμός ισχύει παντού: Μητρώο, Εκπρόσωπος/Επισκέψεις, λίστες επιλογής, «Προς»
+    app.connect_local()
+    mid = app.page.evaluate("""async () => { const {db} = await import('./core/store.js'); let id;
+      await db.save('x', (tx) => { tx.replace('visits', []);
+        const m = tx.insert('member_registry', { surname: 'Ανωτερόπουλος', first_name: 'Γεώργιος', email: 'an@example.com', active: 1 }); id = m.id;
+        tx.insert('epeteirida', { aa: 1, active: 0, title: '', honorific: 'Λίαν Σεβάσμιος', full_name: 'Ανωτερόπουλος Γεώργιος', rank: 'Πρώην Μέγας Γραμματεύς', member_id: m.id });
+        tx.insert('member_degrees_offices', { member_id: m.id, record_type: 'award', degree: '', office: 'Πρώην Δεύτερος Μέγας Επόπτης', decree_id: null, decree_no: 205, decree_year: 2009, is_current: 1, notes: '' });
+        const r = tx.insert('reps', { surname: 'Ανωτερόπουλος', name: 'Γεώργιος', office: 'Πρώην Μέγας Γραμματεύς', rep_rank: 'Λίαν Σεβάσμιος Αδ.', member_id: m.id });
+        tx.insert('visits', { visit_date: '2099-10-09', lodge: 'ΔΙΩΝΗ', lodge_number: '32', location: '', province: 'ΕπΜΣτ. Πελοποννήσου & Δυτικής Ελλάδας', rep_id: r.id, notes: '' }); }); return id; }""")
+    r = app.page.evaluate("""async () => { const {db} = await import('./core/store.js'); const v = await import('./modules/visits.js'); const p = await import('./core/pickers.js');
+      const m = db.all('member_registry').find((x) => x.surname === 'Ανωτερόπουλος'), rep = db.all('reps').find((x) => x.surname === 'Ανωτερόπουλος');
+      return [p.memberTitle(m), v.repRank(rep), p.memberItems('Ανωτερόπ')[0].label]; }""")
+    assert r == ['Πσεβ. Αδ.', 'Πανσεβάσμιος Αδ.', 'Πσεβ. Αδ. Ανωτερόπουλος Γεώργιος'], r
+    app.go('/visits')
+    app.page.locator('.vcard a:has-text("📄 Επιστολή")').first.click()
+    app.page.wait_for_selector('#lf')
+    assert 'Πανσεβάσμιος Αδ. Γεώργιος Ανωτερόπουλος' in app.page.input_value('[name=body]')
+
+
+def test_decrees_not_synced_pass_to_epeteirida_once(app):
+    # Διάταγμα απονομής που δεν πέρασε ποτέ στην Επετηρίδα: η ενημέρωση (ίδια με την εφάπαξ μετάβαση) γράφει ανώτερο αξίωμα + Προσφώνηση
+    app.connect_local()
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      await db.save('x', (tx) => {
+        const m = tx.insert('member_registry', { surname: 'Παλαιόπουλος', first_name: 'Ιωάννης', email: 'pl@example.com', active: 1 });
+        tx.insert('epeteirida', { aa: 1, active: 0, title: '', honorific: 'Λίαν Σεβάσμιος', full_name: 'Παλαιόπουλος Ιωάννης', rank: 'Πρώην Μέγας Γραμματεύς', member_id: m.id });
+        tx.insert('decree_documents', { template_key: 'decree-provincial', decree_no: 205, decree_year: 2009, rules: JSON.stringify({ action: 'award', award_office: 'Δεύτερος Μέγας Επόπτης' }),
+          appointments: JSON.stringify([{ member_id: m.id, first_name: 'Ιωάννης', last_name: 'Παλαιόπουλος' }]), status: 'ready' });
+      }); }""")
+    r = app.page.evaluate("""async () => { const {db} = await import('./core/store.js'); const s = await import('./modules/decree-sync.js');
+      const d = db.all('decree_documents').find((x) => x.decree_no === 205);
+      await db.save('t', (tx) => { s.applyDecreeSync(tx, tx.get('decree_documents', d.id)); });
+      const e = db.all('epeteirida').find((x) => x.full_name === 'Παλαιόπουλος Ιωάννης'); return [e.rank, e.honorific, e.decree_no]; }""")
+    assert r == ['Πρώην Δεύτερος Μέγας Επόπτης', 'Πσεβ. Αδ.', 205], r
+
+
 def test_decree_templates_general_decree_and_page_design(app):
     app.connect_local()
     # τα δύο πρότυπα Διατάγματος στα Πρότυπα, όχι στη Νέα Επιστολή

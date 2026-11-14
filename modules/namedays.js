@@ -14,7 +14,7 @@ import { epeteiridaOf, honorificLevel, pendingEpLinks } from './epeteirida-table
 import { lodgesByMember, memberLodgesLine } from './members.js';
 import { lodgeByNumber } from './lodges.js';
 import { provinceByShort, provinceRoles, provincesAll } from './provinces.js';
-import { repRank, REP_RANKS } from './visits.js';
+import { officesLevel, repOwnLevel } from './visits.js';
 
 const RULES = { '': '—', george: 'Αγ. Γεωργίου (μετά το Πάσχα αν πέφτει πριν)', mark: 'Αγ. Μάρκου (μετά το Πάσχα αν πέφτει πριν)' };
 const RK = ['Αδ.', 'Σεβ.', 'Λίαν Σεβ.', 'Πσεβ.', 'Σεβτ.'], TITLE = ['Αδ.', 'Σεβ. Αδ.', 'Λίαν Σεβ. Αδ.', 'Πσεβ. Αδ.', 'Σεβτ. Αδ.'];
@@ -118,13 +118,15 @@ export function celebrants(frm, to) {
 const HON_K = { 'Σεβ. Αδ.': 0, 'ΛΣεβ. Αδ.': 1, 'Λίαν Σεβ. Αδ.': 1, 'Πσεβ. Αδ.': 2, 'Σεβτ. Αδ.': 3 };
 function rankIdx(m) {
   // Η Προσφώνηση στην Επετηρίδα είναι η επίσημη πηγή· αλλιώς από εκπροσώπους, αξιώματα, Σεβάσμιο Στοάς
-  const ep = epeteiridaOf(m.id).map((r) => honorificLevel(r.honorific)).filter((h) => h != null);
-  if (ep.length) return Math.max(...ep);
-  let k = -1;
+  // ΜΙΑ πηγή, ο ΑΝΩΤΕΡΟΣ βαθμός από: Προσφώνηση και ανώτατο αξίωμα της Επετηρίδας, αξιώματα των Διαταγμάτων, αξιώματα ως εκπροσώπου.
+  // (Παλαιότερη Προσφώνηση της Επετηρίδας δεν «κρύβει» νεότερο Διάταγμα — π.χ. ΛΣεβ. → Πρώην Δεύτερος Μέγας Επόπτης = Πσεβ.)
+  const eps = epeteiridaOf(m.id), ep = eps.map((r) => honorificLevel(r.honorific)).filter((h) => h != null);
+  let k = ep.length ? Math.max(...ep) : -1;
+  for (const r of eps) k = Math.max(k, officesLevel(r.rank || ''), officesLevel(r.title || ''));
   const ids = new Set((person(m.id) || { ids: [m.id] }).ids); // όλες οι εγγραφές του ίδιου προσώπου
-  for (const r of db.all('reps').filter((r) => ids.has(r.member_id))) { const rk = repRank(r); if (REP_RANKS.includes(rk)) k = Math.max(k, REP_RANKS.indexOf(rk)); }
+  for (const r of db.all('reps').filter((r) => ids.has(r.member_id))) k = Math.max(k, ep.length ? officesLevel(r.office || '') : repOwnLevel(r));
   for (const o of db.all('member_degrees_offices').filter((o) => ids.has(o.member_id))) {
-    k = Math.max(k, 0); const rk = repRank({ office: o.office || '' }); if (rk) k = Math.max(k, REP_RANKS.indexOf(rk));
+    k = Math.max(k, 0, officesLevel(o.office || ''));
     if (HON_K[o.honorific] != null) k = Math.max(k, HON_K[o.honorific]);
   }
 

@@ -10,7 +10,7 @@ import { letterhead, IMG, printPaper, pageLayers, layoutTop, customHead, default
 import { mailButtons, senderBanner } from '../core/mail.js';
 import { attachPicker, memberItems, contactItems } from '../core/pickers.js';
 import { DECREE_KINDS, DECREE_PLACEHOLDERS, GENERAL_BODY, PROVINCIAL_OFFICES, keyFor, decreeKey, decreeTemplate, layoutOf } from './decree-templates.js';
-import { planDecreeSync, planChanges, planText, applyDecreeSync, revertDecreeSync, syncInfo, EP_LABEL } from './decree-sync.js';
+import { planDecreeSync, planChanges, planText, applyDecreeSync, revertDecreeSync, syncInfo, EP_LABEL, decreePeople } from './decree-sync.js';
 import { gmName } from './letter-fill.js';
 import { nextProtocol, askProtocol, claimProtocol, suggestedProtocol, formProtocol, setProtocol } from './protocol.js';
 import { findMember, insertMember } from './members.js';
@@ -195,6 +195,13 @@ export function officeImage(html, L, urls = {}) {
   return html.replace(/^(ως\n)(?!(?:<[^>]+>|[ \t])*<span class="dec-office">)([^\n]+)$/gm, `$1<span class="dec-office">$2</span>${img}`).replace(/^(τον Τίτλον του [^\n]+)$/m, (m) => (m.includes('dec-office') ? m : `<span class="dec-office">${m}</span>${img}`));
 }
 
+// Εφάπαξ: όσα Διατάγματα (απονομής / διορισμού / ΤΜΔ) δεν είχαν περάσει ποτέ στην Επετηρίδα περνούν τώρα, με χρονολογική σειρά.
+// Μόνο αναβαθμίσεις (ανώτερο αξίωμα / Προσφώνηση· «Εν ενεργεία» από το νεότερο διορισμό) και με καταγραφή στο Διάταγμα (αναίρεση από τη σελίδα του).
+db.migrate('decrees-to-epeteirida-all-2026-11', (tx) => {
+  const ds = tx.all('decree_documents').filter((d) => decreeKey(d) !== 'decree-general' && !syncInfo(d))
+    .sort((a, b) => (Number(a.decree_year) || 0) - (Number(b.decree_year) || 0) || (Number(a.decree_no) || 0) - (Number(b.decree_no) || 0));
+  for (const d of ds) if (planChanges(planDecreeSync(d, decreePeople(d), tx, d.id)).length) applyDecreeSync(tx, d);
+});
 // Επετηρίδα: κάθε Διάταγμα γράφει τα αξιώματα/τίτλους στο member_degrees_offices (δημιουργεί μέλος αν λείπει).
 export const epOfficeLabel = (m, a) => (m.action === 'appoint' ? a.office || m.decree_office || '' : m.action === 'award' ? (m.award_office ? 'Πρώην ' + m.award_office : '') : 'Τάξις του Μεγάλου Διδασκάλου δι’ Υπηρεσίας');
 function syncOffices(tx, d) {

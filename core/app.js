@@ -103,7 +103,7 @@ function navHtml() {
   }).join('');
   const who = actor();
   return `<header class="top has-nav"><div class="brand"><a href="#/" class="brandname" title="Αρχική"><b>⌂ Μεγάλη Γραμματεία · ΕΜΣΤΕ</b></a>
-<a class="actor-pill" href="#/identity" title="Υπογράφων — πατήστε για αλλαγή">✍ ${esc(ACTORS[who])}</a><span id="syncPill" class="sync-pill" hidden>Αποθήκευση…</span></div>
+<a class="actor-pill" href="#/identity" title="Υπογράφων — πατήστε για αλλαγή">✍ ${esc(ACTORS[who])}</a><span id="syncPill" class="sync-pill" hidden>Αποθήκευση…</span>${APP_VERSION ? `<small class="appver" title="Έκδοση της εφαρμογής που τρέχει (αλλάζει με κάθε δημοσίευση)">έκδ. ${esc(APP_VERSION.slice(0, 7))}</small>` : ''}</div>
 <button type="button" class="navtoggle" aria-expanded="false" aria-controls="mainnav">☰ Μενού</button>
 <nav id="mainnav" aria-label="Κύριο μενού">${items}</nav></header>`;
 }

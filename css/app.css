@@ -704,3 +704,4 @@ a[data-mail]{overflow-wrap:anywhere;word-break:break-word}
   .navsec+.navsec{margin-top:8px}
 }
 .top .navtoggle,.top .navtoggle:hover{color:#fff}
+.appver{font:600 .72rem system-ui,sans-serif;color:#6b7a90;background:#eef2f7;border-radius:999px;padding:3px 8px}

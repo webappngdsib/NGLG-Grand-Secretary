@@ -3,22 +3,37 @@
 import { module, tilesHtml, bannersHtml, ACTORS, actor, setActor, bind, go, flash } from '../core/app.js';
 import { esc } from '../core/util.js';
 
-const M = (title, order, items, cls) => ({ title, order, items: items.map(([label, href, external]) => (label === '-' ? { sep: true } : { label, href, external: !!external })), cls });
+// Στοιχείο μενού: [ετικέτα, href, εξωτερικό] · ['-'] διαχωριστικό · ['# Τίτλος ενότητας'] επικεφαλίδα ενότητας (στήλη)
+const M = (title, order, items, cls) => ({ title, order, cls, items: items.map(([label, href, external]) => (label === '-' ? { sep: true } : label.startsWith('# ') ? { head: label.slice(2) } : { label, href, external: !!external })) });
 
 module({
   id: 'home',
-  // Ενιαία δομή: κάθε ενότητα μία φορά, με τη σειρά της δουλειάς (οι Επισκέψεις ΜΔ με τα βήματα ①–⑤ της ροής)
+  // Μενού κατά τη λογική της δουλειάς: ΤΙ γράφω (Έγγραφα) → ΠΟΙΟΝ αφορά (Μέλη, Στοές) → ΤΙ τρέχει (Επισκέψεις, ΣΓΥ, Ταμείο) →
+  // Επικοινωνία → Σύστημα. Κάθε κατηγορία με δικό της χρώμα· οι μεγάλες χωρίζονται σε ενότητες-στήλες. Κάθε σελίδα μία φορά.
   menu: [
-    { title: '📋 Αναφορά εκπροσώπησης ΜΔ', order: 5, href: '#/visits/gm-programme', cls: 'navbtn' },
-    { title: '🔒 Ενημέρωση ΜΔ', order: 6, href: '#/declarations?view=report', cls: 'navbtn' },
-    M('✉ Έγγραφα', 10, [['+ Νέα Επιστολή', '#/letters/new'], ['Αρχείο Επιστολών', '#/letters'], ['📎 Καταχώριση έτοιμης επιστολής (PDF)', '#/letter-import'], ['🏛 + Έγκριση Εσωτερικού Κανονισμού', '#/letters/new?template=kanonismos'], ['-'], ['+ Διάταγμα ΕΝ ΕΝΕΡΓΕΙΑ', '#/decrees/new'], ['+ Διάταγμα ΠΡΩΗΝ', '#/decrees/new?kind=decree-provincial'], ['+ Διάταγμα ΤΑΞΗ ΜΔ', '#/decrees/new?kind=decree-service'], ['+ Γενικό Διάταγμα', '#/decrees/new?kind=decree-general'], ['Αρχείο Διαταγμάτων', '#/decrees'], ['-'], ['🎓 + Δίπλωμα Διδασκάλου Τέκτονος (A3)', '#/members/diploma'], ['-'], ['Πρότυπα (Επιστολές & Διατάγματα)', '#/templates'], ['📖 Βιβλίο Πρωτοκόλλου', '#/database/protocol']], 'letters'),
-    M('👥 Μητρώο', 20, [['Μητρώο Μελών', '#/members'], ['🏛 Μητρώο Μελών ΣΓΥ', '#/members/sgy'], ['🪪 Κάρτα Μέλους', '#/members/card'], ['🎓 Διπλώματα Διδασκάλου', '#/members/diplomas'], ['📖 Πρωτόκολλο Διπλωμάτων Διδασκάλων Τεκτόνων', '#/members/diplomas?tab=protocol'], ['🏛 Διπλώματα ανά Στοά', '#/members/diplomas?tab=lodges'], ['⬆ Φόρτωση Διπλωμάτων (Excel)', '#/members/diplomas?tab=import'], ['📜 Επετηρίδα (πίνακας)', '#/epeteirida/pinakas'], ['Ιστορικό αξιωμάτων', '#/epeteirida'], ['-'], ['Συμβολικές Στοές', '#/lodges'], ['📇 Αρχείο Στοών (Γραμματείς · email · Επαρχία)', '#/members/lodges'], ['Επαρχιακές Μεγάλες Στοές', '#/provinces'], ['🏛 Στοές με < 12 κύρια μέλη', '#/members/small-lodges'], ['-'], ['🔐 Πύλη Γραμματέων Στοών (Μητρώα Στοών)', '#/lodge-portal'], ['🗂 Γραμματείς Στοών (Επαρχίες)', '#/lodge-secretaries'], ['🛡 ΕΛΕΓΧΟΣ ΑΛΛΑΓΩΝ (Αναγγελίες)', '#/registry-audit'], ['-'], ['📇 Κατάλογος (Επαρχίες & Στοές)', '#/directory'], ['👥 Επαφές & Ομάδες (Google)', '#/contacts']]),
-    M('💶 Ταμείο', 27, [['📊 Σύνοψη εισφορών', '#/treasury'], ['🏛 Ανά Στοά', '#/treasury/lodges'], ['👤 Ανά μέλος', '#/treasury/members'], ['🗺 Ανά Επαρχία', '#/treasury/provinces'], ['-'], ['⚙ Ποσά & ειδικές Στοές', '#/treasury/settings']]),
-    M('🏛 ΣΓΥ', 25, [['🏛 ΣΓΥ — Μέλη', '#/sgy'], ['📋 Παρουσιολόγιο ΣΓΥ', '#/sgy/attendance'], ['✉ Νέα Επιστολή προς ΣΓΥ', '#/letters/new?category=ΣΓΥ&to_name=' + encodeURIComponent('Προς τα Μέλη του Συμβουλίου Γενικών Υποθέσεων')], ['Επιστολές ΣΓΥ', '#/letters?category=ΣΓΥ'], ['-'], ['📑 Ροή Συνεδρίασης & Αναφορά ΜΓραμ ↗', 'https://dskiad.github.io/SGY-report-NGLG-/', true]]),
-    M('📅 Επισκέψεις ΜΔ', 30, [['① Πρόγραμμα Εγκαταστάσεων', '#/visits'], ['② Δηλώσεις Διάθεσης Μ. Αξιωματικών', '#/declarations'], ['③ Αποφάσεις Μ.Δ.', '#/visits/decisions'], ['④ Ενημέρωση Επαρχίας', '#/visits/publish'], ['⑤ Αναφορά επισκέψεων', '#/visits/report'], ['-'], ['+ Νέα επίσκεψη', '#/visits/new'], ['Εκπρόσωποι ΜΔ', '#/reps'], ['Στοές χωρίς ημερομηνία Εγκατάστασης', '#/visits/missing']]),
-    M('🎉 Εορτολόγιο & Πρότζεκτ', 35, [['🎉 Εορτολόγιο & ευχές', '#/namedays'], ['Πρότζεκτ ΜΔ', '#/projects']]),
-    M('🌐 Δημόσιες σελίδες', 40, [['Πρόγραμμα επισκέψεων ΜΔ ↗', 'programme/', true], ['Δηλώσεις Διάθεσης ↗', 'declarations/', true], ['Πύλη Γραμματέων Στοών ↗', 'lodge/', true], ['Γραμματείς Στοών — Επαρχίες ↗', 'secretaries/', true], ['-'], ['Ψηφιακό Έντυπο Διατάγματος', 'diatagma/'], ['⚖ Καγκελαρία — Πατέντες & Αναγνώριση', 'chancellor/'], ['🏛 Πύλη (όλες οι εφαρμογές)', '#/portal']]),
-    M('⚙ Διαχείριση', 50, [['Ρυθμίσεις', '#/settings'], ['✍ Ποιος υπογράφει', '#/identity'], ['-'], ['🗄 Βάση Δεδομένων', '#/database'], ['💾 Αντίγραφο & μεταφορά δεδομένων', '#/database/backup'], ['🩺 Έλεγχος εφαρμογής', '#/system']]),
+    M('✉ Έγγραφα', 10, [
+      ['# Επιστολές'], ['+ Νέα Επιστολή', '#/letters/new'], ['Αρχείο Επιστολών', '#/letters'], ['📎 Καταχώριση έτοιμης επιστολής (PDF)', '#/letter-import'], ['🏛 + Έγκριση Εσωτερικού Κανονισμού', '#/letters/new?template=kanonismos'],
+      ['# Διατάγματα'], ['+ Διάταγμα ΕΝ ΕΝΕΡΓΕΙΑ', '#/decrees/new'], ['+ Διάταγμα ΠΡΩΗΝ', '#/decrees/new?kind=decree-provincial'], ['+ Διάταγμα ΤΑΞΗ ΜΔ', '#/decrees/new?kind=decree-service'], ['+ Γενικό Διάταγμα', '#/decrees/new?kind=decree-general'], ['Αρχείο Διαταγμάτων', '#/decrees'],
+      ['# Έντυπα & Πρωτόκολλο'], ['🎓 + Δίπλωμα Διδασκάλου Τέκτονος (A3)', '#/members/diploma'], ['Πρότυπα (Επιστολές & Διατάγματα)', '#/templates'], ['📖 Βιβλίο Πρωτοκόλλου', '#/database/protocol']], 'letters'),
+    M('👥 Μέλη', 20, [
+      ['# Μητρώο'], ['Μητρώο Μελών', '#/members'], ['🪪 Κάρτα Μέλους', '#/members/card'],
+      ['# Επετηρίδα'], ['📜 Επετηρίδα (πίνακας)', '#/epeteirida/pinakas'], ['Ιστορικό αξιωμάτων', '#/epeteirida'],
+      ['# Διπλώματα Διδασκάλου'], ['🎓 Διπλώματα Διδασκάλου', '#/members/diplomas'], ['📖 Πρωτόκολλο Διπλωμάτων', '#/members/diplomas?tab=protocol'], ['🏛 Διπλώματα ανά Στοά', '#/members/diplomas?tab=lodges'], ['⬆ Φόρτωση Διπλωμάτων (Excel)', '#/members/diplomas?tab=import']], 'members'),
+    M('🏛 Στοές', 22, [
+      ['# Στοές & Επαρχίες'], ['📇 Αρχείο Στοών & Επαρχιών', '#/members/lodges'], ['Συμβολικές Στοές', '#/lodges'], ['Επαρχιακές Μεγάλες Στοές', '#/provinces'], ['📇 Κατάλογος επικοινωνίας', '#/directory'], ['🏛 Στοές με < 12 κύρια μέλη', '#/members/small-lodges'],
+      ['# Γραμματείς Στοών'], ['🔐 Πύλη Γραμματέων (Μητρώα Στοών)', '#/lodge-portal'], ['🗂 Γραμματείς Στοών (Επαρχίες)', '#/lodge-secretaries'], ['🛡 ΕΛΕΓΧΟΣ ΑΛΛΑΓΩΝ (Αναγγελίες)', '#/registry-audit']], 'lodges'),
+    M('📅 Επισκέψεις ΜΔ', 30, [
+      ['# Ροή εργασίας'], ['① Πρόγραμμα Εγκαταστάσεων', '#/visits'], ['② Δηλώσεις Διάθεσης Μ. Αξιωματικών', '#/declarations'], ['③ Αποφάσεις Μ.Δ.', '#/visits/decisions'], ['④ Ενημέρωση Επαρχίας', '#/visits/publish'], ['⑤ Αναφορά επισκέψεων', '#/visits/report'],
+      ['# Καταχώριση'], ['+ Νέα επίσκεψη', '#/visits/new'], ['Εκπρόσωποι ΜΔ', '#/reps'], ['Στοές χωρίς ημερομηνία Εγκατάστασης', '#/visits/missing']], 'visits'),
+    M('🏛 ΣΓΥ', 34, [['🏛 ΣΓΥ — Μέλη', '#/sgy'], ['🏛 Μητρώο Μελών ΣΓΥ', '#/members/sgy'], ['📋 Παρουσιολόγιο ΣΓΥ', '#/sgy/attendance'], ['-'], ['✉ Νέα Επιστολή προς ΣΓΥ', '#/letters/new?category=ΣΓΥ&to_name=' + encodeURIComponent('Προς τα Μέλη του Συμβουλίου Γενικών Υποθέσεων')], ['Επιστολές ΣΓΥ', '#/letters?category=ΣΓΥ'], ['-'], ['📑 Ροή Συνεδρίασης & Αναφορά ΜΓραμ ↗', 'https://dskiad.github.io/SGY-report-NGLG-/', true]], 'sgy'),
+    M('💶 Ταμείο', 36, [['📊 Σύνοψη εισφορών', '#/treasury'], ['🏛 Ανά Στοά', '#/treasury/lodges'], ['👤 Ανά μέλος', '#/treasury/members'], ['🗺 Ανά Επαρχία', '#/treasury/provinces'], ['-'], ['⚙ Ποσά & ειδικές Στοές', '#/treasury/settings']], 'treasury'),
+    M('🎉 Επικοινωνία', 40, [['🎉 Εορτολόγιο & ευχές', '#/namedays'], ['👥 Επαφές & Ομάδες (Google)', '#/contacts'], ['Πρότζεκτ ΜΔ', '#/projects']], 'contact'),
+    M('⚙ Σύστημα', 50, [
+      ['# Ρυθμίσεις'], ['Ρυθμίσεις', '#/settings'], ['✍ Ποιος υπογράφει', '#/identity'], ['🗄 Βάση Δεδομένων', '#/database'], ['💾 Αντίγραφο & μεταφορά δεδομένων', '#/database/backup'], ['🩺 Έλεγχος εφαρμογής', '#/system'],
+      ['# Δημόσιες σελίδες'], ['Πρόγραμμα επισκέψεων ΜΔ ↗', 'programme/', true], ['Δηλώσεις Διάθεσης ↗', 'declarations/', true], ['Πύλη Γραμματέων Στοών ↗', 'lodge/', true], ['Γραμματείς Στοών — Επαρχίες ↗', 'secretaries/', true], ['Ψηφιακό Έντυπο Διατάγματος', 'diatagma/'], ['⚖ Καγκελαρία — Πατέντες & Αναγνώριση', 'chancellor/'], ['🏛 Πύλη (όλες οι εφαρμογές)', '#/portal']], 'system'),
+    // γρήγορες ενέργειες (πάντα ορατές)
+    { title: '📋 Αναφορά ΜΔ', order: 60, href: '#/visits/gm-programme', cls: 'navbtn' },
+    { title: '🔒 Ενημέρωση ΜΔ', order: 61, href: '#/declarations?view=report', cls: 'navbtn' },
   ],
   routes: {
     '/': () => ({

@@ -92,16 +92,20 @@ export function bind(el, actions) {
 // ---- Σελίδα ----
 function navHtml() {
   const groups = [...menus].sort((a, b) => a.order - b.order);
+  const link = (i) => `<a href="${i.href}"${i.external ? ' target="_blank" rel="noopener"' : ''}>${esc(i.label)}</a>`;
   const items = groups.map((m) => {
-    if (m.href) return `<a href="${m.href}">${esc(m.title)}</a>`;
-    const links = m.items.map((i) => (i.sep ? '<div class="navdrop-sep"></div>' : `<a href="${i.href}"${i.external ? ' target="_blank" rel="noopener"' : ''}>${esc(i.label)}</a>`)).join('');
-    return `<details class="navdrop ${m.cls || ''}"><summary>${esc(m.title)} <span class="caret">▾</span></summary><div class="navdrop-menu">${links}</div></details>`;
+    if (m.href) return `<a href="${m.href}" class="${m.cls || ''}">${esc(m.title)}</a>`;
+    // ενότητες (στήλες): κάθε «head» ξεκινά νέα στήλη· χωρίς επικεφαλίδες = μία στήλη
+    const secs = [];
+    for (const i of m.items) { if (i.head || !secs.length) secs.push({ head: i.head || '', items: [] }); if (!i.head) secs.at(-1).items.push(i); }
+    const body = secs.map((x) => `<div class="navsec">${x.head ? `<div class="navdrop-head">${esc(x.head)}</div>` : ''}${x.items.map((i) => (i.sep ? '<div class="navdrop-sep"></div>' : link(i))).join('')}</div>`).join('');
+    return `<details class="navdrop ${m.cls || ''}"><summary>${esc(m.title)} <span class="caret">▾</span></summary><div class="navdrop-menu" style="--cols:${secs.length}">${body}</div></details>`;
   }).join('');
   const who = actor();
-  return `<header class="top has-nav"><div class="brand"><a href="#/" class="brandname"><b>Μεγάλη Γραμματεία · ΕΜΣΤΕ</b></a>
+  return `<header class="top has-nav"><div class="brand"><a href="#/" class="brandname" title="Αρχική"><b>⌂ Μεγάλη Γραμματεία · ΕΜΣΤΕ</b></a>
 <a class="actor-pill" href="#/identity" title="Υπογράφων — πατήστε για αλλαγή">✍ ${esc(ACTORS[who])}</a><span id="syncPill" class="sync-pill" hidden>Αποθήκευση…</span></div>
 <button type="button" class="navtoggle" aria-expanded="false" aria-controls="mainnav">☰ Μενού</button>
-<nav id="mainnav" aria-label="Κύριο μενού">${items}<a href="#/" class="homebtn">⌂ Αρχική</a></nav></header>`;
+<nav id="mainnav" aria-label="Κύριο μενού">${items}</nav></header>`;
 }
 
 function wireNav(root) {
@@ -118,6 +122,11 @@ function wireNav(root) {
     if (!mobile.matches && m.getBoundingClientRect().right > document.documentElement.clientWidth - 8) m.classList.add('align-right');
   }));
   nav.addEventListener('click', (e) => { if (e.target.closest('a')) setNav(false); });
+  // τρέχουσα σελίδα: σημείωση στο μενού και στην κατηγορία της
+  const here = location.hash || '#/', path = here.split('?')[0];
+  const links = [...nav.querySelectorAll('.navdrop-menu a[href^="#/"]')];
+  const hit = links.find((a) => a.getAttribute('href') === here) || links.find((a) => a.getAttribute('href') === path);
+  if (hit) { hit.setAttribute('aria-current', 'page'); hit.closest('.navdrop').classList.add('cur'); }
   document.addEventListener('pointerdown', (e) => { if (!top.contains(e.target)) { closeDrops(); if (mobile.matches) setNav(false); } });
 }
 

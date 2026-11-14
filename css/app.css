@@ -674,3 +674,33 @@ a[data-mail]{overflow-wrap:anywhere;word-break:break-word}
 .btn.goldflash:hover,.btn.primary.goldflash:hover{background:linear-gradient(135deg,#F7DC92 0%,#D3AE55 45%,#A47612 100%)!important;color:#2A1C02!important}
 @keyframes goldflash{0%,100%{box-shadow:0 0 0 0 rgba(201,164,74,.75);filter:brightness(1)}50%{box-shadow:0 0 0 7px rgba(201,164,74,0),0 0 18px 4px rgba(244,210,122,.85);filter:brightness(1.15)}}
 @media (prefers-reduced-motion:reduce){.btn.goldflash{animation:none;box-shadow:0 0 0 3px rgba(201,164,74,.55)}}
+
+/* ===== Κύριο μενού (νέα δομή): κατηγορίες με δικό τους χρώμα, αναπτυσσόμενα μενού με ενότητες-στήλες ===== */
+.navdrop{--c:#0b2f63}
+.navdrop.letters{--c:#187a3d}.navdrop.members{--c:#0b4fa3}.navdrop.lodges{--c:#0e7480}.navdrop.visits{--c:#c0561a}
+.navdrop.sgy{--c:#6a3fa0}.navdrop.treasury{--c:#9a7300}.navdrop.contact{--c:#b8336f}.navdrop.system{--c:#4b5563}
+.top .navdrop summary{background:var(--c);border:1px solid var(--c);color:#fff;padding:7px 11px;border-radius:9px;font-size:.95rem;font-weight:700;line-height:1.2;white-space:nowrap;
+  box-shadow:inset 0 -2px 0 #0002;transition:filter .15s,transform .15s}
+.top .navdrop summary:hover{filter:brightness(1.12)}
+.top .navdrop[open] summary{filter:brightness(.88);box-shadow:inset 0 2px 4px #0003}
+.top .navdrop.cur summary{outline:2px solid #fff;outline-offset:-4px}
+.top .navdrop-menu{border:1px solid #d6dde8;border-top:4px solid var(--c);border-radius:0 0 12px 12px;padding:10px 12px;min-width:250px}
+.top nav{gap:6px}
+.navsec{min-width:0}
+.navdrop-head{font:700 .72rem/1.2 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--c);
+  padding:6px 10px 5px;margin-bottom:2px;border-bottom:1px solid color-mix(in srgb,var(--c) 25%,#fff)}
+.top .navdrop-menu a{color:#1d2b44;font-weight:600;min-height:34px;padding:6px 10px;font-size:.93rem}
+.top .navdrop-menu a:hover,.top .navdrop-menu a:focus-visible{background:color-mix(in srgb,var(--c) 11%,#fff);color:var(--c)}
+.top .navdrop-menu a[aria-current=page]{background:color-mix(in srgb,var(--c) 16%,#fff);color:var(--c);box-shadow:inset 3px 0 0 var(--c)}
+.top nav>a.navbtn{font-size:.9rem;padding:7px 10px;white-space:nowrap}
+.brandname b{white-space:nowrap}
+@media screen and (min-width:1181px){
+  .top .navdrop-menu{display:grid;grid-template-columns:repeat(var(--cols,1),minmax(215px,1fr));gap:2px 14px;width:max-content;max-width:min(780px,calc(100vw - 24px))}
+}
+@media screen and (max-width:1180px){
+  .top .navdrop summary{font-size:17px;padding:10px 14px;white-space:normal}
+  .top .navdrop-menu{display:block;border-radius:0 0 10px 10px}
+  .top .navdrop-menu a{min-height:46px;font-size:17px}
+  .navsec+.navsec{margin-top:8px}
+}
+.top .navtoggle,.top .navtoggle:hover{color:#fff}

@@ -1951,7 +1951,7 @@ def test_gm_programme_report_and_public_page(app):
         tx.insert('visits', { visit_date: '2099-02-15', lodge: 'ΚΕΝΗ', lodge_number: '30', location: '', province: P, rep_id: null, notes: '' });
         tx.insert('visits', { visit_date: '2020-01-01', lodge: 'ΠΑΛΙΑ', lodge_number: '40', location: '', province: P, rep_id: r.id, notes: '' }); }); }""")
     app.go('/')
-    app.page.locator('nav a', has_text='Αναφορά εκπροσώπησης ΜΔ').click()
+    app.page.locator('nav a[href="#/visits/gm-programme"]').click()  # γρήγορο κουμπί «📋 Αναφορά ΜΔ»
     app.page.wait_for_url('**/#/visits/gm-programme')
     t = app.text('.print-area')
     assert 'ΜΕΓΑΛΗ ΓΡΑΜΜΑΤΕΙΑ' in t and 'Σεβασμιώτατοι, Πανσεβάσμιοι, Λίαν Σεβάσμιοι και Σεβάσμιοι Αδελφοί,' in t and 'Με αφοσίωση και εκτίμηση,' in t and 'Μέγας Γραμματεύς' in t
@@ -2811,7 +2811,14 @@ def test_unified_menu_and_visits_flow(app):
     app.connect_local()
     app.go('/')
     groups = app.page.eval_on_selector_all('#mainnav details.navdrop > summary', 'els => els.map((e) => e.textContent.replace("▾", "").trim())')
-    assert groups == ['✉ Έγγραφα', '👥 Μητρώο', '🏛 ΣΓΥ', '💶 Ταμείο', '📅 Επισκέψεις ΜΔ', '🎉 Εορτολόγιο & Πρότζεκτ', '🌐 Δημόσιες σελίδες', '⚙ Διαχείριση'], groups
+    assert groups == ['✉ Έγγραφα', '👥 Μέλη', '🏛 Στοές', '📅 Επισκέψεις ΜΔ', '🏛 ΣΓΥ', '💶 Ταμείο', '🎉 Επικοινωνία', '⚙ Σύστημα'], groups
+    # κάθε κατηγορία με δικό της χρώμα· οι μεγάλες με ενότητες-στήλες
+    colors = app.page.eval_on_selector_all('#mainnav details.navdrop > summary', 'els => els.map((e) => getComputedStyle(e).backgroundColor)')
+    assert len(set(colors)) == len(colors), colors
+    assert app.page.locator('.navdrop.letters .navdrop-head').all_text_contents() == ['Επιστολές', 'Διατάγματα', 'Έντυπα & Πρωτόκολλο']
+    # η τρέχουσα σελίδα σημειώνεται στο μενού και στην κατηγορία της
+    app.go('/members')
+    assert app.page.locator('.navdrop.members.cur a[aria-current=page][href="#/members"]').count() == 1
     hrefs = app.page.eval_on_selector_all('#mainnav a', 'els => els.map((e) => e.getAttribute("href"))')
     inner = [h for h in hrefs if h.startswith('#/')]
     assert len(inner) == len(set(inner)), inner  # κάθε σελίδα μία φορά στο μενού

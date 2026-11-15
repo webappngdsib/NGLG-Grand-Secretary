@@ -703,5 +703,39 @@ a[data-mail]{overflow-wrap:anywhere;word-break:break-word}
   .top .navdrop-menu a{min-height:46px;font-size:17px}
   .navsec+.navsec{margin-top:8px}
 }
-.top .navtoggle,.top .navtoggle:hover{color:#fff}
+.top .navtoggle,.top .navtoggle:hover{color:#fff;background:#0b2f63;border-color:#0b2f63}.top.nav-open .navtoggle{background:#08264f}
 .appver{font:600 .72rem system-ui,sans-serif;color:#6b7a90;background:#eef2f7;border-radius:999px;padding:3px 8px}
+
+/* ===== Αρχική: πλακίδια ως συμπαγή κουμπιά-κατηγορίες με αναδυόμενο μενού (λιγότερα κενά) ===== */
+@media screen{
+  .wrap{margin-top:14px}
+  .home-hero{gap:10px;margin-bottom:4px}.home-hero h1{margin:0 0 2px;font-size:1.35rem}.home-hero p{margin:0;font-size:.88rem}
+  .dash{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin:8px 0 12px;align-items:start}
+  .dash>details.dchip{position:relative;padding:0;gap:0;border-top-width:0;border-left:4px solid #123b7a;border-radius:9px;display:block;overflow:visible}
+  .dash>details.dchip.gold{border-left-color:#b18a43}.dash>details.dchip.green{border-left-color:#187a3d}
+  .dchip>summary{list-style:none;display:flex;align-items:center;gap:6px;padding:7px 8px 7px 32px;min-height:42px;cursor:pointer;user-select:none;-webkit-user-select:none;border-radius:8px}
+  .dchip>summary::-webkit-details-marker{display:none}
+  .dchip>summary:hover{background:#f3f6fb}
+  .dchip[open]>summary{background:#eef3fa;border-radius:8px 8px 0 0}
+  .dash>.dchip>summary h3{flex:1;min-width:0;margin:0;padding:0;font-size:.9rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dash>.dchip>summary h3::before{left:7px;top:11px}
+  .dash>.dchip>summary .big{font-size:1rem;font-weight:700;color:#0b2f63;white-space:nowrap}
+  .dash>.dchip>summary .big small{font-size:.72rem;font-weight:400}
+  .dchip .caret{font-size:.75rem;color:#6b7a90}.dchip[open] .caret{transform:rotate(180deg)}
+  .dchip-body{position:absolute;z-index:40;left:-1px;right:-1px;top:100%;min-width:240px;background:#fff;border:1px solid #d8deea;border-top:0;border-radius:0 0 10px 10px;
+    box-shadow:0 12px 26px #0002;padding:8px 10px;display:flex;flex-direction:column;gap:5px}
+  .dchip-body .acts{margin-top:4px}
+}
+@media screen and (max-width:600px){
+  .dash{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+  .dchip>summary{padding:6px 6px 6px 28px;min-height:40px}
+  .dash>.dchip>summary h3{font-size:.8rem;white-space:normal}
+  .dash>.dchip>summary .big{font-size:.85rem}
+  .dash>.dchip:nth-child(2n) .dchip-body{left:auto;right:-1px}
+}
+@media screen{
+  .dchip .dnum{font:700 .78rem/1 system-ui,sans-serif;color:#fff;background:#123b7a;border-radius:999px;padding:4px 8px;white-space:nowrap}
+  .dchip.gold .dnum{background:#b18a43}.dchip.green .dnum{background:#187a3d}
+  .dchip-body>.big{font-size:1.05rem}
+}
+@media screen{.dchip-body>.dchip-open{align-self:flex-end;font-weight:700;font-size:.85rem;order:-1}}

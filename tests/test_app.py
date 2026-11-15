@@ -3106,6 +3106,25 @@ def test_sgy_match_comma_separated_recipients_with_latin_names(app):
     assert app.page.locator('#sgyMatch [data-mi]:checked').count() == 1  # οι πιθανές δεν επιλέγονται μόνες τους
 
 
+def test_home_tiles_are_compact_dropdown_buttons(app):
+    # Αρχική: κάθε κατηγορία είναι συμπαγές κουμπί (τίτλος + αριθμός)· οι λεπτομέρειες/ενέργειες ανοίγουν από κάτω, ένα κάθε φορά
+    app.page.route('**/SGY-report-NGLG-/latest.json*', lambda r: r.abort())
+    app.connect_local()
+    app.page.set_viewport_size({'width': 1440, 'height': 900})
+    app.go('/')
+    chips = app.page.locator('.dash > details.dchip')
+    assert chips.count() >= 10 and app.page.locator('.dash > details.dchip[open]').count() == 0
+    h = app.page.evaluate("() => Math.max(...[...document.querySelectorAll('.dash > details.dchip')].map((d) => d.getBoundingClientRect().height))")
+    assert h <= 50, h  # μία γραμμή ανά κουμπί
+    v = app.page.locator('.dash > details.dchip', has_text='Επισκέψεις')
+    v.locator('summary').click()
+    assert v.get_attribute('open') is not None and v.locator('.dchip-body a.dchip-open').is_visible()
+    app.page.locator('.dash > details.dchip', has_text='Ταμείο').locator('summary').click()
+    assert app.page.locator('.dash > details.dchip[open]').count() == 1  # ένα ανοιχτό κάθε φορά
+    app.page.mouse.click(1300, 800)
+    assert app.page.locator('.dash > details.dchip[open]').count() == 0  # κλείνει με κλικ έξω
+
+
 def test_home_sgy_tile_numbered_and_sgy_templates(app):
     # Αρχική: πλακίδιο ΣΓΥ (αριθμημένα, πυκνά)· πρότυπα ΣΓΥ στα Πρότυπα και στη σελίδα ΣΓΥ· επιστολή από πρότυπο ΣΓΥ με Αρ. Πρωτ.
     app.connect_local()
@@ -4588,7 +4607,7 @@ def test_home_sgy_report_tile(app):
     app.connect_local()
     app.go('/')
     t = app.page.locator('.dtile', has_text='ΣΓΥ · Ροή Συνεδρίασης')
-    assert 'Τακτική Συνεδρίαση 02/11/2026' in t.inner_text()
+    assert 'Τακτική Συνεδρίαση 02/11/2026' in t.text_content()
     hrefs = t.locator('a').evaluate_all("as => as.map((a) => [a.getAttribute('href'), a.getAttribute('target')])")
     assert ['https://dskiad.github.io/SGY-report-NGLG-/', '_blank'] in hrefs
     assert any(h.endswith('Anafora_MGram_SGY_301026_v20.pdf') for h, _ in hrefs) and any('TokGbLGVAzWv6V5Nz1TFSb' in h for h, _ in hrefs)
@@ -4619,7 +4638,7 @@ def test_home_sgy_report_tile_no_duplicate_live_button(app):
     t = app.page.locator('[data-tile="sgy-report"]')
     t.locator('text=Δοκιμή').wait_for()
     hrefs = t.locator('.acts a').evaluate_all("as => as.map((a) => a.getAttribute('href'))")
-    assert hrefs.count(live) == 1 and 'Ζωντανή σελίδα' not in t.inner_text() and 'Αρχείο GitHub' in t.inner_text()
+    assert hrefs.count(live) == 1 and 'Ζωντανή σελίδα' not in t.text_content() and 'Αρχείο GitHub' in t.text_content()
     b = t.locator('a.goldflash')  # χρυσό κουμπί με παλμό για τη Ροή Συνεδρίασης
     assert b.count() == 1 and b.get_attribute('href') == live and 'Άνοιγμα Ροής ΣΓΥ' in b.inner_text()
     assert b.evaluate("(e) => getComputedStyle(e).animationName") == 'goldflash'

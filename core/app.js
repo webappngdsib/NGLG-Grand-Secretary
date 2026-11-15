@@ -20,7 +20,31 @@ export function module(def) {
   if (def.banner) banners.push(def.banner);
 }
 export const allRoutes = () => routes.map((r) => r.pattern);
-export const tilesHtml = () => '<div class="dash">' + [...tiles].sort((a, b) => a.order - b.order).map((t) => { try { return t.render() || ''; } catch (e) { console.error(e); return ''; } }).join('') + '</div>';
+// Αρχική: κάθε πλακίδιο γίνεται συμπαγές «κουμπί-κατηγορία» (τίτλος + κύριος αριθμός) που ανοίγει από κάτω τις λεπτομέρειες
+// και τις ενέργειές του (droplist). Οι ενότητες γράφουν τα πλακίδιά τους όπως πριν· η μετατροπή γίνεται μόνο εδώ.
+function chipTile(html) {
+  if (typeof document === 'undefined') return html;
+  const t = document.createElement('template'); t.innerHTML = html.trim();
+  const tile = t.content.firstElementChild;
+  if (!tile || !tile.classList.contains('dtile')) return html;
+  const h3 = tile.querySelector(':scope > h3'), big = tile.querySelector(':scope > .big');
+  const d = document.createElement('details'); d.className = tile.className + ' dchip';
+  for (const a of tile.attributes) if (a.name !== 'class') d.setAttribute(a.name, a.value);
+  const sum = document.createElement('summary'), body = document.createElement('div'); body.className = 'dchip-body';
+  // ο τίτλος ανοίγει το αναδυόμενο (όχι τη σελίδα)· η σελίδα της ενότητας ως πρώτος σύνδεσμος μέσα σε αυτό
+  const ta = h3 && h3.querySelector('a[href]');
+  if (ta) { const open = document.createElement('a'); open.className = 'dchip-open'; open.href = ta.getAttribute('href'); if (ta.target) { open.target = ta.target; open.rel = 'noopener'; } open.textContent = 'Άνοιγμα →';
+    tile.prepend(open); ta.replaceWith(...ta.childNodes); }
+  if (h3) sum.append(h3);
+  // στο κουμπί μόνο ο αριθμός (σήμα)· η πλήρης φράση (π.χ. «44 προσεχείς») στην αρχή του αναδυόμενου
+  const num = big ? (/^\s*([\d.,]+\s*€?)/.exec(big.textContent) || [])[1] : '';
+  if (num) { const b = document.createElement('span'); b.className = 'dnum'; b.textContent = num.trim(); b.title = big.textContent.trim(); sum.append(b); }
+  sum.insertAdjacentHTML('beforeend', '<span class="caret">▾</span>');
+  while (tile.firstChild) body.append(tile.firstChild);
+  d.append(sum, body);
+  return d.outerHTML;
+}
+export const tilesHtml = () => '<div class="dash">' + [...tiles].sort((a, b) => a.order - b.order).map((t) => { try { return chipTile(t.render() || ''); } catch (e) { console.error(e); return ''; } }).join('') + '</div>';
 export const bannersHtml = () => banners.map((b) => { try { return b() || ''; } catch (e) { console.error(e); return ''; } }).join('');
 
 // ---- Υπογράφων (Δημήτρης / Νικόλαος), αποθηκεύεται σε αυτή τη συσκευή ----
@@ -201,6 +225,9 @@ export function start() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey) acceptSuggestion(e.target); });
   document.addEventListener('dblclick', (e) => acceptSuggestion(e.target));
   window.addEventListener('hashchange', onHash);
+  // Αρχική: ένα ανοιχτό πλακίδιο-κουμπί κάθε φορά· κλείνει με κλικ έξω
+  document.addEventListener('toggle', (e) => { const d = e.target; if (d.matches && d.matches('details.dchip') && d.open) document.querySelectorAll('details.dchip[open]').forEach((x) => { if (x !== d) x.open = false; }); }, true);
+  document.addEventListener('pointerdown', (e) => { if (!e.target.closest('details.dchip')) document.querySelectorAll('details.dchip[open]').forEach((x) => { x.open = false; }); });
   checkVersion(); addEventListener('focus', checkVersion);
   db.on((ev) => {
     const p = document.getElementById('syncPill');

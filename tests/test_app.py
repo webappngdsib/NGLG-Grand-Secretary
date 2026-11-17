@@ -81,6 +81,49 @@ def test_letters_protocol_and_print(app):
     assert '2 επιστολές' in app.text()
 
 
+def test_letter_page_mode_a4(app):
+    # «📄 Σελιδοποίηση εγγράφου»: μακρύ κείμενο → Συνεχόμενο (ένα φύλλο, σμίκρυνση) ή Σελιδοποίηση Α4 (σελίδες) σε οθόνη, εκτύπωση, PDF
+    app.connect_local()
+    long = '\n\n'.join(f'Παράγραφος {i}: ' + 'Αγαπητοί Αδελφοί, η Μεγάλη Γραμματεία σας ενημερώνει για τις εργασίες. ' * 6 for i in range(1, 19))
+    app.go('/letters/new').fill(subject='Μακροσκελής επιστολή', body=long)
+    app.click('👁 Προεπισκόπηση')
+    app.page.wait_for_selector('.pm-note:has-text("ξεπερνά τη μία σελίδα")')
+    app.page.click('#lf label:has([name=page_mode][value=a4])')
+    app.page.wait_for_selector('#pv .paper.paged .sheet')
+    app.page.wait_for_selector('.pm-note:has-text("Σελιδοποίηση Α4")')
+    assert app.page.locator('#pv .sheet').count() >= 2
+    app.click('Αποθήκευση & απόδοση')
+    app.page.wait_for_url('**/#/letters/1')
+    app.page.wait_for_selector('.print-area .paper.paged .sheet')
+    import json as _j
+    n = app.page.locator('.print-area .sheet').count()
+    assert n >= 2 and app.page.locator('.print-area .sheet').last.locator('.sigrow').count() == 1
+    assert f'Σελίδα {n} από {n}' in app.text('.print-area') and 'Αρ. Πρωτ. 20545' in app.text('.print-area')
+    # κάθε φύλλο χωρά: τίποτα δεν κόβεται
+    assert app.page.evaluate("() => [...document.querySelectorAll('.sheet-in')].every((b) => b.scrollHeight <= b.clientHeight + 1)")
+    full = re.sub(r'\s+', ' ', app.page.evaluate("() => [...document.querySelectorAll('.print-area .sheet .body')].map((b) => b.textContent).join(' ')"))
+    assert 'Παράγραφος 1:' in full and 'Παράγραφος 18:' in full and full.count('Αγαπητοί Αδελφοί') == 18 * 6
+    # εκτύπωση: όσες σελίδες και τα φύλλα
+    app.page.emulate_media(media='print')
+    pdf = app.page.pdf(format='A4', print_background=True)
+    app.page.emulate_media(media='screen')
+    pages = pdf.count(b'/Type /Page\n') + pdf.count(b'/Type /Page ') + pdf.count(b'/Type/Page\n') + pdf.count(b'/Type/Page/') + pdf.count(b'/Type /Page/')
+    assert pages == n, (pages, n)
+    # PDF για Drive / email: μία σελίδα ανά φύλλο
+    cnt = app.page.evaluate("""async () => { const { paperPdf } = await import('./core/pdf.js');
+      const b = await paperPdf(document.querySelector('.print-area .paper'), { title: 't' });
+      const t = new TextDecoder('latin1').decode(new Uint8Array(await b.arrayBuffer())); return (t.match(/\\/Type\\s*\\/Page[^s]/g) || []).length; }""")
+    assert cnt == n, (cnt, n)
+    assert _j.loads(app.page.evaluate("() => localStorage.length >= 0 ? '1' : '0'")) == 1
+    # επιστροφή σε Συνεχόμενο από την οθόνη αποστολής → ένα φύλλο
+    app.page.click('.pm-view label:has([name=page_mode][value=continuous])')
+    app.page.wait_for_selector('.print-area .paper:not(.paged)')
+    app.wait_saved()
+    assert app.page.locator('.print-area .sheet').count() == 0
+    app.page.wait_for_selector('.pm-note:has-text("ξεπερνά τη μία σελίδα")')
+    assert not app.errors, app.errors
+
+
 def test_decree_epeteirida_and_members(app):
     app.connect_local()
     add_member(app)

@@ -5,7 +5,7 @@ import { module, onSubmit, go, flash, toast, bind, confirmDo, table, notice, act
 import { crud } from '../core/crud.js';
 import { esc, foldName, today, fmtDate, matches, sortBy, safeFileName, latinFileName, EMAIL_RE, splitEmails, download, outgoingProtocolBtn } from '../core/util.js';
 import { richPlain } from '../core/rich.js';
-import { letterPaper, printPaper, signerProfile, IMG, fitPaper, letterFields, LETTER_FIELDS, protocolImage, hasProtocolField } from '../core/paper.js';
+import { letterPaper, printPaper, signerProfile, IMG, fitPaper, letterFields, LETTER_FIELDS, protocolImage, hasProtocolField, PAGE_MODES, pageMode, paginatePaper, overflowsPage } from '../core/paper.js';
 import { makeDocx, letterBlocks } from '../core/docx.js';
 import { docTitle, driveBox, saveDocToDrive, driveMaxProtocol, hasDriveToken, driveReady } from '../core/drive.js';
 import { mailButtons, senderBanner, withLetterCc, senderFor, MAIL_SENDERS } from '../core/mail.js';
@@ -182,6 +182,21 @@ async function refreshDriveLast(el) {
   src.textContent = n == null ? '(Drive: κανένα αρχείο με αριθμό)' : n >= (book || 0) ? `(φάκελος Drive · ${new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })})` : `(Βιβλίο Πρωτοκόλλου · Drive: ${n})`;
 }
 
+// «📄 Σελιδοποίηση εγγράφου»: Συνεχόμενο (ένα φύλλο, όπως πάντα) ή Σελιδοποίηση Α4 (σελίδες με μικρά περιθώρια).
+// Η επιλογή αποθηκεύεται με την επιστολή (page_mode) και ορίζει τι εκτυπώνεται, γίνεται PDF, αποθηκεύεται στο Drive και στέλνεται.
+const pageModeBox = (x, cls = 'full') => `<div class="${cls} pagemode noprint"><b>📄 Σελιδοποίηση εγγράφου:</b><span class="seg" role="radiogroup">${Object.entries(PAGE_MODES).map(([k, v]) =>
+  `<label title="${k === 'a4' ? 'Κανονικές σελίδες Α4 με μικρά περιθώρια — για σωστή εκτύπωση πολυσέλιδου κειμένου' : 'Ένα φύλλο Α4· το μακρύ κείμενο σμικρύνεται για να χωρέσει'}"><input type="radio" name="page_mode" value="${k}"${pageMode(x) === k ? ' checked' : ''}>${k === 'a4' ? '📑' : '📜'} ${esc(v)}</label>`).join('')}</span><small class="muted pm-note"></small></div>`;
+// Σημείωση κάτω από την επιλογή: πόσες σελίδες βγαίνουν / αν το κείμενο ξεπερνά τη μία σελίδα
+async function pageNote(paper, note) {
+  if (!paper || !note) return;
+  if (paper.classList.contains('paged')) {
+    const n = await paginatePaper(paper);
+    note.innerHTML = `✓ Σελιδοποίηση Α4: <b>${n} ${n === 1 ? 'σελίδα' : 'σελίδες'}</b> — έτσι εκτυπώνεται, γίνεται PDF, αποθηκεύεται και στέλνεται.`;
+  } else note.innerHTML = overflowsPage(paper)
+    ? '<span class="warn">⚠ Το κείμενο ξεπερνά τη μία σελίδα: στο «Συνεχόμενο» σμικρύνεται για να χωρέσει σε ένα φύλλο. Για εκτύπωση σε κανονικές σελίδες επιλέξτε «📑 Σελιδοποίηση Α4».</span>'
+    : 'Το κείμενο χωρά σε μία σελίδα Α4.';
+}
+
 function letterForm(x, query = {}) {
   const tpl = templates();
   return `<form id="lf" class="grid card">
@@ -198,6 +213,7 @@ ${fillPanel(x, query)}
 ${protoImageBox(x)}
 <div><label>Κατάσταση</label><select name="status"><option value="draft"${x.status !== 'ready' ? ' selected' : ''}>Πρόχειρη</option><option value="ready"${x.status === 'ready' ? ' selected' : ''}>Έτοιμη</option></select></div>
 <div><label>Υπογράφων</label><select name="signer">${Object.entries(ACTORS).map(([k, v]) => `<option value="${k}"${(x.signer || actor()) === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+${pageModeBox(x)}
 <div class="full toolbar"><button class="btn${x.protocol_seq ? ' primary' : ''}">💾 Αποθήκευση</button>${x.protocol_seq ? '' : '<button type="button" class="btn primary" data-act="ready">✅ Έτοιμη: Αποθήκευση & απόδοση αρ. πρωτοκόλλου</button>'}<button type="button" class="btn" data-act="preview">👁 Προεπισκόπηση</button><button type="button" class="btn" data-act="form">🖋 Ψηφιακό Έντυπο</button><button type="button" class="btn" data-act="word">⬇ Word</button>
 <a class="btn" href="${x.id ? '#/letters/' + x.id : '#/letters'}">Ακύρωση</a></div></form>
 <section id="pv" class="print-area" hidden></section>`;
@@ -296,12 +312,15 @@ function mountLetterForm(el, x, isNew) {
     const pv = el.querySelector('#pv');
     pv.innerHTML = letterPaper({ ...x, ...d, letter_date: d.letter_date || x.letter_date || today() });
     pv.hidden = false; pv.scrollIntoView({ behavior: 'smooth' });
+    pageNote(pv.querySelector('.paper'), f.querySelector('.pm-note'));
   } });
+  // Αλλαγή σελιδοποίησης: η προεπισκόπηση δείχνει αμέσως τη νέα εκδοχή
+  for (const r of f.querySelectorAll('[name=page_mode]')) r.addEventListener('change', () => el.querySelector('[data-act=preview]').click());
   onSubmit(f, async (d) => {
     const emails = splitEmails(d.recipient_email), bad = emails.filter((e) => !EMAIL_RE.test(e));
     if (bad.length) throw new Error('Μη έγκυρο email: ' + bad.join(', '));
     const row = { subject: d.subject.trim(), body: d.body.trim(), template_id: d.template_id ? Number(d.template_id) : null, recipient_name: d.recipient_name.trim(),
-      recipient_email: emails.join(', '), recipient_member_id: d.recipient_member_id ? Number(d.recipient_member_id) : null, visit_id: Number(d.visit_id) || x.visit_id || null, cc_name: String(d.cc_name || '').trim(), closing: String(d.closing || '').trim(), category: LETTER_CATEGORIES[d.category] ? d.category : 'ΕΠΙΣΤΟΛΗ', status: d.status, signer: d.signer, protocol_image: String(d.protocol_image || '') };
+      recipient_email: emails.join(', '), recipient_member_id: d.recipient_member_id ? Number(d.recipient_member_id) : null, visit_id: Number(d.visit_id) || x.visit_id || null, cc_name: String(d.cc_name || '').trim(), closing: String(d.closing || '').trim(), category: LETTER_CATEGORIES[d.category] ? d.category : 'ΕΠΙΣΤΟΛΗ', status: d.status, signer: d.signer, protocol_image: String(d.protocol_image || ''), page_mode: pageMode(d) };
     // Ημερομηνία: επεξεργάσιμη· αν αλλάξει από τον χρήστη μένει και όταν δοθεί αριθμός πρωτοκόλλου
     const ld = /^\d{4}-\d{2}-\d{2}$/.test(String(d.letter_date || '')) ? d.letter_date : (x.letter_date || today());
     row.letter_date = ld;
@@ -463,6 +482,7 @@ function viewLetter({ params }) {
 <div class="toolbar"><button class="btn primary" data-act="${ext ? 'extdl' : 'pdf'}">⬇ PDF${ext ? ' (πρωτότυπο)' : ' / Εκτύπωση'}</button>${mailButtons(withLetterCc({ to: x.recipient_email, bcc: mailBcc(x, x.recipient_email), subject: letterFields(x.subject, x), body: mailBody(x), kind: mailKind(x) }), '✉ Αποστολή με Email')}
 ${x.reg_file ? '<button class="btn" data-act="regpdf">📎 Εσωτ. Κανονισμός (PDF)</button>' : ''}${ext ? '' : `<button class="btn" data-act="word">⬇ Word (επεξεργασία)</button><button class="btn" data-act="form">🖋 Ψηφιακό Έντυπο</button>`}
 <button class="btn" data-act="wapdf">🟢 WhatsApp / Business με PDF</button><a class="btn" target="_blank" rel="noopener" href="${wa}">WhatsApp μήνυμα</a>${x.status === 'ready' ? '' : '<button class="btn primary" data-act="ready">✅ Έτοιμη: απόδοση αρ. πρωτοκόλλου</button>'}</div>
+${ext ? '' : pageModeBox(x, 'pm-view')}
 ${x.status === 'ready' ? `<p class="noprint">${x.sent_at ? `<span class="vok">✓ Στάλθηκε με email ${esc(fmtDate(x.sent_at))}</span>` : '<button class="btn small" data-act="markSent" title="Για email που στάλθηκε εκτός εφαρμογής (π.χ. «Άνοιγμα στο Gmail»)">✓ Σημείωση ως σταλμένη</button>'}</p><div class="mailsheet"></div>` : '<p class="send-help">Για αποστολή με συνημμένο PDF ορίστε πρώτα την επιστολή «✅ Έτοιμη» (αριθμός πρωτοκόλλου).</p>'}${driveBox(x, fileName(x))}</section>
 <div class="toolbar noprint"><a class="btn" href="${ext ? `#/letter-import?id=${x.id}` : `#/letters/${x.id}/edit`}">Επεξεργασία</a>${ext ? '' : `<a class="btn" href="#/letters/new?copy_from=${x.id}">Νέα πάνω σε αυτή</a>`}<a class="btn" href="#/letters">Αρχείο Επιστολών</a>
 ${x.protocol_seq ? '<button class="btn" data-act="protocol">✏ Αλλαγή αρ. πρωτοκόλλου</button>' : ''}<button class="btn danger" data-act="del">Διαγραφή</button> ${statusPill(x.status)}</div>
@@ -475,6 +495,13 @@ ${ext ? `<div class="card ext-pdf"><p class="muted" style="margin-top:0">📎 Έ
         onSent: () => markLetterSent(x),
         onKind: async (k) => { await db.save(`Επιστολή ${x.protocol_no || x.id}: λογαριασμός αποστολής`, (tx) => { tx.update('letters', x.id, { mail_kind: k }); }); toast(`Η επιστολή θα στέλνεται από ${senderFor(k)}.`); go(`/letters/${x.id}`); }, getMsg: () => withLetterCc({ to: x.recipient_email, cc: '', bcc: mailBcc(x, x.recipient_email), subject: letterFields(x.subject, x), body: mailBody(x) }),
         getPdf: async () => (ext ? extPdf(x) : { blob: await (await import('../core/pdf.js')).paperPdf(el.querySelector('.print-area .paper'), { title: fileName(x) }), name: fileName(x) + '.pdf' }) });
+      if (!ext) {
+        pageNote(el.querySelector('.print-area .paper'), el.querySelector('.pm-note'));
+        for (const r of el.querySelectorAll('.pm-view [name=page_mode]')) r.addEventListener('change', async () => {
+          await db.save(`Επιστολή ${x.protocol_no || x.id}: ${PAGE_MODES[pageMode({ page_mode: r.value })]}`, (tx) => { tx.update('letters', x.id, { page_mode: pageMode({ page_mode: r.value }) }); });
+          toast(r.value === 'a4' ? 'Σελιδοποίηση Α4: εκτύπωση, PDF, Drive και αποστολή σε σελίδες.' : 'Συνεχόμενο: ένα φύλλο Α4.'); go(`/letters/${x.id}`);
+        });
+      }
       bind(el, {
         pdf: () => printPaper(fileName(x)),
         async extdl() { const r = await extPdf(x); download(r.name, r.blob, 'application/pdf'); },
@@ -553,7 +580,7 @@ module({
       // Μενού «Έγγραφα → + Έγκριση Εσωτερικού Κανονισμού»: το ενεργό πρότυπο με αυτό το όνομα (όποιος κι αν είναι ο αριθμός του)
       if (query.template === 'kanonismos') { const t = kanonismosTemplate(); if (t) query = { ...query, template_id: String(t.id) }; }
       let x = { status: 'draft', signer: actor() };
-      if (query.copy_from) { const s = db.get('letters', query.copy_from); if (s) x = { ...x, template_id: s.template_id, subject: s.subject, body: s.body, recipient_name: s.recipient_name, recipient_email: s.recipient_email, recipient_member_id: s.recipient_member_id, cc_name: s.cc_name || '', closing: s.closing || '', category: s.category || 'ΕΠΙΣΤΟΛΗ', source_letter_id: s.id }; }
+      if (query.copy_from) { const s = db.get('letters', query.copy_from); if (s) x = { ...x, template_id: s.template_id, subject: s.subject, body: s.body, recipient_name: s.recipient_name, recipient_email: s.recipient_email, recipient_member_id: s.recipient_member_id, cc_name: s.cc_name || '', closing: s.closing || '', category: s.category || 'ΕΠΙΣΤΟΛΗ', page_mode: pageMode(s), source_letter_id: s.id }; }
       else if (query.template_id) { const t = db.get('letter_templates', query.template_id); if (t) x = { ...x, template_id: t.id, body: t.body, subject: t.subject || '', closing: t.closing || '', category: t.category || 'ΕΠΙΣΤΟΛΗ' }; }
       if (query.template_id && !x.template_id && db.get('letter_templates', query.template_id)) x.template_id = Number(query.template_id);
       if (query.to_name || query.to_email) Object.assign(x, { recipient_name: query.to_name || '', recipient_email: query.to_email || '' });

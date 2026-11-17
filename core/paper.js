@@ -77,11 +77,101 @@ export function letterFields(text, x) {
   return t.replace(PROTO_RE, String(x.protocol_seq)).replace(LDATE_RE, fmtDate(x.letter_date) || '');
 }
 
+// Σελιδοποίηση εγγράφου (επιλογή ανά επιστολή, πεδίο page_mode):
+//   'continuous' (προεπιλογή) → ένα φύλλο Α4, το μακρύ κείμενο σμικρύνεται ομοιόμορφα (όπως πάντα)
+//   'a4'                      → κανονικές σελίδες Α4 με μικρά περιθώρια, αρίθμηση σελίδων· έτσι εκτυπώνεται, γίνεται PDF, αποθηκεύεται και στέλνεται
+export const PAGE_MODES = { continuous: 'Συνεχόμενο (ένα φύλλο)', a4: 'Σελιδοποίηση Α4 (σελίδες)' };
+export const pageMode = (x) => (x && x.page_mode === 'a4' ? 'a4' : 'continuous');
+
 export function letterPaper(x) {
-  return `<article class="paper">${letterhead()}
+  const paged = pageMode(x) === 'a4';
+  const inner = `${letterhead()}
 <div class="meta"><div>Αρ. Πρωτ.: <b class="official-number">${esc(x.protocol_seq ? String(x.protocol_seq) : (x.protocol_no || 'θα δοθεί όταν οριστεί «Έτοιμη»'))}</b></div><div>Ημερομηνία: <b class="official-number">${esc(fmtDate(x.letter_date))}</b></div></div>
-${x.recipient_name ? `<p><b>Προς:</b> ${esc(x.recipient_name)}</p>` : ''}${x.cc_name ? `<p class="cc-line"><b>Κοιν.:</b> <span>${esc(x.cc_name).replace(/\n/g, '<br>')}</span></p>` : ''}<p><b>Θέμα:</b> ${esc(letterFields(x.subject, x))}</p>
-<div class="body">${richHtml(letterFields(x.body, x))}</div><p style="margin-top:10mm">${esc(x.closing || db.setting('closing'))}</p>${signatureBlock(x.signer, protocolImage(x))}</article>`;
+${x.recipient_name ? `<p><b>Προς:</b> ${esc(x.recipient_name)}</p>` : ''}${x.cc_name ? `<p class="cc-line"><b>Κοιν.:</b> <span>${esc(x.cc_name).replace(/\n/g, '<br>')}</span></p>` : ''}<p class="subject-line"><b>Θέμα:</b> ${esc(letterFields(x.subject, x))}</p>
+<div class="body">${richHtml(letterFields(x.body, x))}</div>`;
+  const close = `<p style="margin-top:10mm">${esc(x.closing || db.setting('closing'))}</p>${signatureBlock(x.signer, protocolImage(x))}`;
+  if (!paged) return `<article class="paper">${inner}${close}</article>`;
+  // Σελιδοποιημένο: το περιεχόμενο φυλάσσεται σε <template> και μοιράζεται σε φύλλα Α4 (paginatePaper) μόλις μπει στη σελίδα.
+  // Αποφώνηση + υπογραφή + σφραγίδα μένουν πάντα μαζί στην ίδια σελίδα.
+  const proto = x.protocol_seq ? String(x.protocol_seq) : '';
+  return `<article class="paper paged" data-proto="${esc(proto)}"><template class="paged-src">${inner}<div class="keep">${close}</div></template></article>`;
+}
+
+// ── Σελιδοποίηση Α4 ─────────────────────────────────────────────────────────────────────────────────────
+// Το περιεχόμενο ρέει σε φύλλα .sheet (210×297mm, μικρά περιθώρια). Μπλοκ που δεν χωρούν περνούν στην επόμενη σελίδα·
+// παράγραφοι κόβονται ανάμεσα σε λέξεις. Ατόφια (δεν κόβονται): κεφαλίδα, στοιχεία πρωτοκόλλου, εικόνες, υπογραφή.
+const ATOMIC = '.head,.meta,.keep,.sigrow,.proto-stamp,img,br,hr,table,tr,svg,canvas';
+function flowSheets(p) {
+  const src = p.querySelector(':scope > template.paged-src');
+  if (!src) return 0;
+  p.querySelectorAll(':scope > .sheet').forEach((s) => s.remove());
+  let box, path = [];
+  const shells = [];
+  const newSheet = () => {
+    const sh = document.createElement('div'); sh.className = 'sheet';
+    box = document.createElement('div'); box.className = 'sheet-in';
+    sh.appendChild(box); p.appendChild(sh);
+  };
+  const cur = () => (path.length ? path[path.length - 1] : box);
+  const over = () => box.scrollHeight > box.clientHeight + 1;
+  const hasContent = () => !!(box.textContent.trim() || box.querySelector('img,canvas,svg,table'));
+  const breakPage = () => {
+    const old = path; newSheet(); path = [];
+    for (const s of old) { const c = s.cloneNode(false); c.classList.add('cont'); cur().appendChild(c); path.push(c); shells.push(c); }
+  };
+  const splitText = (t) => { // κείμενο που δεν χωρά: όσες λέξεις χωρούν εδώ, οι υπόλοιπες στην επόμενη σελίδα
+    const words = t.data.split(/(?<=\s)/);
+    const node = document.createTextNode(''); cur().appendChild(node);
+    let lo = 0, hi = words.length;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; node.data = words.slice(0, mid).join(''); if (over()) hi = mid - 1; else lo = mid; }
+    node.data = words.slice(0, lo).join('');
+    if (!lo) node.remove();
+    const rest = words.slice(lo).join('');
+    if (!lo && !hasContent()) { cur().appendChild(document.createTextNode(rest)); return; } // ούτε μία λέξη σε άδεια σελίδα
+    breakPage();
+    if (rest) place(document.createTextNode(rest));
+  };
+  const place = (n) => {
+    cur().appendChild(n);
+    if (!over()) return;
+    n.remove();
+    if (n.nodeType === 3) { if (n.data.trim()) splitText(n); return; }
+    if (n.nodeType !== 1) return;
+    if (!n.matches(ATOMIC) && n.childNodes.length) { // κοντέινερ (σώμα, παράγραφος, έντονα…): συνεχίζει στην επόμενη σελίδα
+      const sh = n.cloneNode(false); cur().appendChild(sh); path.push(sh); shells.push(sh);
+      for (const c of [...n.childNodes]) place(c);
+      path.pop();
+      return;
+    }
+    if (hasContent()) breakPage();
+    cur().appendChild(n); // ατόφιο μπλοκ στην αρχή σελίδας (αν είναι μεγαλύτερο από σελίδα, κόβεται στο κάτω άκρο)
+  };
+  newSheet();
+  for (const n of [...src.content.cloneNode(true).childNodes]) place(n);
+  for (const s of shells) if (s.isConnected && !s.textContent.trim() && !s.querySelector('img,br')) s.remove(); // άδεια υπολείμματα
+  const sheets = [...p.querySelectorAll(':scope > .sheet')];
+  const proto = p.dataset.proto;
+  sheets.forEach((sh, i) => sh.insertAdjacentHTML('beforeend', `<div class="sheet-no">${proto ? `Αρ. Πρωτ. ${esc(proto)} · ` : ''}Σελίδα ${i + 1} από ${sheets.length}</div>`));
+  p.dataset.pages = String(sheets.length);
+  return sheets.length;
+}
+const imgsReady = (root) => Promise.all([...root.querySelectorAll('img')].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))));
+// Σελιδοποίηση ενός .paper.paged (επαναλαμβάνεται όταν φορτώσουν εικόνες/γραμματοσειρές ώστε τα ύψη να είναι τελικά)
+export async function paginatePaper(p) {
+  if (!p || !p.classList.contains('paged')) return 0;
+  const z = p.style.zoom; p.style.zoom = '1';
+  try {
+    flowSheets(p);
+    if (document.fonts) await document.fonts.ready.catch(() => {});
+    await resolveFileImages(p); await imgsReady(p);
+    return flowSheets(p);
+  } finally { p.style.zoom = z; fitPaged(p); }
+}
+// Στην οθόνη του κινητού τα φύλλα Α4 σμικρύνονται για να χωρούν στο πλάτος
+const SHEET_PX = (210 * 96) / 25.4;
+function fitPaged(p) {
+  const w = (p.parentElement && p.parentElement.clientWidth) || window.innerWidth;
+  p.style.zoom = w && w < SHEET_PX + 8 ? String(+(Math.max(0.3, (w - 8) / SHEET_PX)).toFixed(4)) : '';
 }
 
 // Εικόνες αποθηκευμένες στα δεδομένα (π.χ. φόντο/κεφαλίδα προτύπου Διατάγματος): <img data-dfile="templates/…">
@@ -118,9 +208,9 @@ export const layoutTop = (layout = {}, urls = {}) => { const h = layout.header; 
 // Μία σελίδα Α4: Επιστολή/Διάταγμα που ξεπερνά τη σελίδα σμικρύνεται ομοιόμορφα (ίδια διάταξη, ίδιες αλλαγές γραμμής)
 // ώστε οθόνη, εκτύπωση και PDF να δείχνουν πάντα το ίδιο ένα φύλλο. Οι αναφορές (.report) μένουν πολυσέλιδες.
 const A4_PX = (293 * 96) / 25.4; // ύψος Α4 με μικρό περιθώριο ασφαλείας
-const DOC = '.paper:not(.report)';
+const DOC = '.paper:not(.report):not(.paged)', PAGED = '.paper.paged';
 export function fitPaper(p, a4 = false) {
-  if (!p || p.classList.contains('report')) return 1;
+  if (!p || p.classList.contains('report') || p.classList.contains('paged')) return 1;
   p.style.zoom = '1'; p.classList.toggle('a4', a4);
   const mh = p.style.minHeight; p.style.minHeight = '0';
   const h = p.scrollHeight; p.style.minHeight = mh;
@@ -130,6 +220,15 @@ export function fitPaper(p, a4 = false) {
   p.style.zoom = String(+(base * s).toFixed(4));
   p.dataset.fit = String(+s.toFixed(4));
   return s;
+}
+// Ξεπερνά το περιεχόμενο τη μία σελίδα Α4; (μέτρηση χωρίς να αλλάξει η εμφάνιση)
+export function overflowsPage(p) {
+  if (!p || p.classList.contains('paged')) return false;
+  const keep = { zoom: p.style.zoom, a4: p.classList.contains('a4'), mh: p.style.minHeight };
+  p.style.zoom = '1'; p.classList.add('a4'); p.style.minHeight = '0';
+  const h = p.scrollHeight;
+  p.style.zoom = keep.zoom; p.classList.toggle('a4', keep.a4); p.style.minHeight = keep.mh;
+  return h > A4_PX + 1;
 }
 const screenA4 = (p) => window.innerWidth >= 800 || !!p.closest('.dec-live');
 export function fitPapers(root = document, print = false) {
@@ -141,12 +240,16 @@ export function fitPapers(root = document, print = false) {
 if (typeof document !== 'undefined') {
   let t = 0;
   const later = () => { cancelAnimationFrame(t); t = requestAnimationFrame(() => { fitPapers(); resolveFileImages().then(() => fitPapers()); }); };
-  new MutationObserver((ms) => { if (ms.some((m) => [...m.addedNodes].some((n) => n.nodeType === 1 && (n.matches(DOC) || n.querySelector?.(DOC))))) later(); })
-    .observe(document.documentElement, { childList: true, subtree: true });
+  const fresh = (n) => n.nodeType === 1 && (n.matches(PAGED) || n.querySelector?.(PAGED));
+  new MutationObserver((ms) => {
+    const added = ms.flatMap((m) => [...m.addedNodes]);
+    if (added.some((n) => n.nodeType === 1 && (n.matches(DOC) || n.querySelector?.(DOC)))) later();
+    for (const n of added.filter(fresh)) for (const p of n.matches(PAGED) ? [n] : n.querySelectorAll(PAGED)) if (!p.dataset.pages) paginatePaper(p);
+  }).observe(document.documentElement, { childList: true, subtree: true });
   document.addEventListener('load', (e) => { if (e.target.tagName === 'IMG' && e.target.closest(DOC)) later(); }, true);
-  addEventListener('resize', later);
-  addEventListener('beforeprint', () => fitPapers(document, true));
-  addEventListener('afterprint', () => fitPapers());
+  addEventListener('resize', () => { later(); document.querySelectorAll(PAGED).forEach(fitPaged); });
+  addEventListener('beforeprint', () => { fitPapers(document, true); document.querySelectorAll(PAGED).forEach((p) => { p.dataset.z = p.style.zoom; p.style.zoom = ''; }); });
+  addEventListener('afterprint', () => { fitPapers(); document.querySelectorAll(PAGED).forEach(fitPaged); });
 }
 
 // Εκτύπωση: ο τίτλος της σελίδας γίνεται το όνομα του αρχείου PDF.

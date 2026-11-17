@@ -739,3 +739,24 @@ a[data-mail]{overflow-wrap:anywhere;word-break:break-word}
   .dchip-body>.big{font-size:1.05rem}
 }
 @media screen{.dchip-body>.dchip-open{align-self:flex-end;font-weight:700;font-size:.85rem;order:-1}}
+
+/* Σελιδοποίηση εγγράφου: «Σελιδοποίηση Α4» (Επιστολές) — φύλλα Α4 με μικρά περιθώρια, ίδια σε οθόνη, εκτύπωση και PDF */
+.paper.paged{width:auto!important;max-width:none!important;min-height:0!important;padding:0!important;margin:0 auto!important;background:none!important;box-shadow:none!important;overflow:visible!important}
+.paper.paged>template{display:none}
+.paper.paged>.sheet{position:relative;width:210mm;height:297mm;padding:10mm 12mm 13mm;margin:18px auto;background:#fff;box-shadow:0 8px 30px #0002;overflow:hidden}
+.paper.paged .sheet-in{height:100%;overflow:hidden}
+.paper.paged .sheet-no{position:absolute;left:0;right:0;bottom:5mm;text-align:center;font-size:8.5pt;color:#6b7790}
+.paper.paged .cont{margin-top:0!important}
+.paper.paged .meta{flex-direction:row!important;gap:0}.paper.paged .sigrow{flex-wrap:nowrap!important;gap:14mm!important}
+.paper.paged .sigrow .seal-img,.paper.paged .sigrow .seal canvas{width:48mm!important;height:48mm!important}
+@media print{.paper.paged,.paper.paged:not(.report){width:auto!important;padding:0!important;margin:0!important;overflow:visible!important;break-inside:auto!important;zoom:1!important}
+.paper.paged>.sheet{margin:0!important;box-shadow:none!important;break-after:page;page-break-after:always}
+.paper.paged>.sheet:last-child{break-after:auto;page-break-after:auto}}
+/* Επιλογή σελιδοποίησης στη φόρμα / στην αποστολή */
+.pagemode{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.pagemode .seg{display:inline-flex;border:1px solid #0b2f63;border-radius:8px;overflow:hidden}
+.pagemode .seg label{display:flex;align-items:center;gap:4px;padding:7px 12px;cursor:pointer;margin:0;font-weight:600;color:#0b2f63;background:#fff}
+.pagemode .seg label+label{border-left:1px solid #0b2f63}
+.pagemode .seg input{position:absolute;opacity:0;pointer-events:none}
+.pagemode .seg label:has(input:checked){background:#0b2f63;color:#fff}
+.pagemode .pm-note{flex-basis:100%}

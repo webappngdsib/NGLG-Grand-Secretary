@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
+from playwright.sync_api import expect
 
 from mock_github import MockGitHub
 
@@ -3163,9 +3164,9 @@ def test_home_tiles_are_compact_dropdown_buttons(app):
     v.locator('summary').click()
     assert v.get_attribute('open') is not None and v.locator('.dchip-body a.dchip-open').is_visible()
     app.page.locator('.dash > details.dchip', has_text='Ταμείο').locator('summary').click()
-    assert app.page.locator('.dash > details.dchip[open]').count() == 1  # ένα ανοιχτό κάθε φορά
+    expect(app.page.locator('.dash > details.dchip[open]')).to_have_count(1)  # ένα ανοιχτό κάθε φορά (το toggle είναι ασύγχρονο)
     app.page.mouse.click(1300, 800)
-    assert app.page.locator('.dash > details.dchip[open]').count() == 0  # κλείνει με κλικ έξω
+    expect(app.page.locator('.dash > details.dchip[open]')).to_have_count(0)  # κλείνει με κλικ έξω
 
 
 def test_home_sgy_tile_numbered_and_sgy_templates(app):

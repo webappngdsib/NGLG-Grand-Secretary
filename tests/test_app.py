@@ -130,6 +130,23 @@ def test_letter_lodge_numbers_popup(app):
     assert app.page.input_value('[name=subject]') == 'Θέμα που γράφτηκε'
 
 
+def test_letter_edit_lodge_numbers_button(app):
+    # «ℹ ΣΤΟΕΣ ΑΡ» και στην Επεξεργασία επιστολής (πορτοκαλί κουμπί)· τα στοιχεία της φόρμας μένουν ίδια
+    app.connect_local()
+    app.go('/letters/new').fill(subject='Αρχικό θέμα', body='Αρχικό κείμενο').click('Αποθήκευση & απόδοση')
+    app.page.wait_for_url('**/#/letters/1')
+    app.go('/letters/1/edit')
+    assert app.page.evaluate("() => getComputedStyle(document.querySelector('#lodgeNosBtn')).backgroundColor") == 'rgb(242, 140, 27)'
+    app.page.fill('[name=subject]', 'Αλλαγμένο θέμα')
+    app.page.click('#lodgeNosBtn')
+    app.page.wait_for_selector('dialog.lodgenos[open]')
+    assert "ΑΤΛΑΣ υπ.'αριθμ 118" in app.page.locator('.lodgenos .ln-line').all_inner_texts()
+    app.page.click('.lodgenos [data-ln=close]')
+    app.page.wait_for_selector('dialog.lodgenos', state='detached')
+    assert app.page.input_value('[name=subject]') == 'Αλλαγμένο θέμα' and app.page.input_value('[name=body]') == 'Αρχικό κείμενο'
+    assert app.page.url.endswith('#/letters/1/edit')
+
+
 def test_letter_page_mode_a4(app):
     # «📄 Σελιδοποίηση εγγράφου»: μακρύ κείμενο → Συνεχόμενο (ένα φύλλο, σμίκρυνση) ή Σελιδοποίηση Α4 (σελίδες) σε οθόνη, εκτύπωση, PDF
     app.connect_local()

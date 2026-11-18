@@ -15,6 +15,9 @@ import { attachPicker, contactItems } from '../core/pickers.js';
 import { nextProtocol, askProtocol, askNextProtocol, claimProtocol, setNextProtocol, suggestedProtocol, legacyDecreeLetterIds, protocolBook, checkProtocol } from './protocol.js';
 import { lodgesAll, lodgeByNumber } from './lodges.js';
 import { openLodgeNumbers } from './lodge-numbers.js';
+// «ℹ ΣΤΟΕΣ ΑΡ» δίπλα στον τίτλο (Νέα Επιστολή & Επεξεργασία): εκτός φόρμας, type="button" — δεν αγγίζει όσα έχουν γραφτεί
+const lodgeNosTitle = (h1) => `<div class="ln-titlebar">${h1}<button type="button" class="btn small ln-btn noprint" id="lodgeNosBtn" title="Ενεργές Στοές με τον αριθμό τους — για σωστή γραφή στην επιστολή">ℹ ΣΤΟΕΣ ΑΡ</button></div>`;
+const bindLodgeNos = (el) => el.querySelector('#lodgeNosBtn').addEventListener('click', (e) => { e.preventDefault(); openLodgeNumbers(); });
 import { provinceLetter } from './visits.js';
 import { PLACEHOLDERS, hasPlaceholders, fillPlaceholders, fillContext, lodgeRecipients, missingPlaceholders, GM_VISIT, REP_VISIT, repRecipients, dayWithArticle, dateWords } from './letter-fill.js';
 
@@ -591,8 +594,8 @@ module({
       if (query.visit_id) x.visit_id = Number(query.visit_id);
       if (LETTER_CATEGORIES[query.category]) x.category = query.category;
       if (!query.copy_from) x.recipient_email = mergeEmails(x.recipient_email, db.setting('letter_default_to') || ''); // σταθεροί παραλήπτες κάθε νέας επιστολής
-      return { title: 'Νέα Επιστολή', html: `<div class="ln-titlebar"><h1>Νέα Επιστολή</h1><button type="button" class="btn small ln-btn noprint" id="lodgeNosBtn" title="Ενεργές Στοές με τον αριθμό τους — για σωστή γραφή στην επιστολή">ℹ ΣΤΟΕΣ ΑΡ</button></div><div class="card signer-card noprint"><b>Υπογράφων:</b> ${esc(ACTORS[actor()])} <a class="btn small" href="#/identity">Αλλαγή</a></div>${outgoingBar()}${letterForm(x, query)}`,
-        mount: (el) => { el.querySelector('#lodgeNosBtn').addEventListener('click', (e) => { e.preventDefault(); openLodgeNumbers(); }); return mountLetterForm(el, x, true); } };
+      return { title: 'Νέα Επιστολή', html: `${lodgeNosTitle('<h1>Νέα Επιστολή</h1>')}<div class="card signer-card noprint"><b>Υπογράφων:</b> ${esc(ACTORS[actor()])} <a class="btn small" href="#/identity">Αλλαγή</a></div>${outgoingBar()}${letterForm(x, query)}`,
+        mount: (el) => { bindLodgeNos(el); return mountLetterForm(el, x, true); } };
     },
     '/letters/:id': viewLetter,
     // Μόνο το έντυπο της επιστολής (χωρίς μενού, αποστολή, παραλήπτες email) — π.χ. από τον Αρ. Πρωτ. της Αναφοράς εκπροσώπησης
@@ -611,7 +614,7 @@ module({
       const x = db.get('letters', params.id);
       if (!x) return '<h1>Δεν βρέθηκε η επιστολή</h1>';
       if (isExt(x)) return { title: 'Έτοιμη επιστολή (PDF)', html: extForm(x), mount: (el) => mountExtForm(el, x) };
-      return { title: 'Επεξεργασία επιστολής', html: `<h1>Επεξεργασία <span class="official-number">${esc(x.protocol_no)}</span></h1>${outgoingBar()}${letterForm(x)}`, mount: (el) => mountLetterForm(el, x, false) };
+      return { title: 'Επεξεργασία επιστολής', html: `${lodgeNosTitle(`<h1>Επεξεργασία <span class="official-number">${esc(x.protocol_no)}</span></h1>`)}${outgoingBar()}${letterForm(x)}`, mount: (el) => { bindLodgeNos(el); return mountLetterForm(el, x, false); } };
     },
     ...crud({
       table: 'letter_templates', base: '/templates', title: 'Πρότυπα Επιστολών', one: 'Πρότυπο', name: (t) => t.name,

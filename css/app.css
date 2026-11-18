@@ -763,7 +763,8 @@ a[data-mail]{overflow-wrap:anywhere;word-break:break-word}
 /* «ℹ ΣΤΟΕΣ ΑΡ» (Νέα Επιστολή): κατάλογος ενεργών Στοών με αριθμό */
 .ln-titlebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ln-titlebar h1 { margin-right: auto; }
-.ln-btn { background: #eef4ff; border-color: #9db7e0; color: #123a74; font-weight: 700; }
+.ln-titlebar .btn.ln-btn { background: #f28c1b; border-color: #d9730a; color: #fff; font-weight: 700; }
+.ln-titlebar .btn.ln-btn:hover, .ln-titlebar .btn.ln-btn:focus-visible { background: #d9730a; border-color: #b85f05; color: #fff; }
 dialog.lodgenos { margin: auto; inset: 0; position: fixed; width: min(560px, calc(100vw - 16px)); max-width: none; max-height: min(88vh, 88dvh); padding: 14px; border: 1px solid #d6dbe4; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }
 dialog.lodgenos:not([open]) { display: none; }
 dialog.lodgenos::backdrop { background: rgba(11, 31, 58, .45); }

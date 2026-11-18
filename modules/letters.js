@@ -37,6 +37,8 @@ export const LETTER_CATEGORIES = { ΕΠΙΣΤΟΛΗ: 'Επιστολή', ΕΠΙ�
 // Προεπιλογή μόνο οι υπηρεσιακές διευθύνσεις· τα προσωπικά email γράφονται στις Ρυθμίσεις (ιδιωτικά δεδομένα), όχι στον κώδικα.
 db.defaultSettings({ letter_default_to: 'athens.secretary@nglgreece.gr, piraeus.secretary@nglgreece.gr, ionian.secretary@nglgreece.gr, nglgr.prov.cent.north@gmail.com, secretary.pr.pwg.nglgreece@gmail.com',
   letter_default_bcc: 'administration@nglgreece.gr' });
+// Κρυφή Κοιν. (Bcc) της επιστολής: το πεδίο της φόρμας· παλιές επιστολές χωρίς πεδίο → η προεπιλογή των Ρυθμίσεων
+const letterBcc = (x) => (typeof x.bcc_email === 'string' ? x.bcc_email : db.setting('letter_default_bcc') || '');
 const mergeEmails = (...xs) => { const seen = new Set(); return xs.flatMap((x) => splitEmails(x)).filter((e) => { const k = e.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).join(', '); };
 const category = (x) => (LETTER_CATEGORIES[x.category] ? x.category : 'ΕΠΙΣΤΟΛΗ');
 // Ο αριθμός πρωτοκόλλου δίνεται μόνο όταν η επιστολή οριστεί «Έτοιμη»· οι πρόχειρες δεν δεσμεύουν αριθμό.
@@ -212,6 +214,7 @@ ${fillPanel(x, query)}
 <div><label>Παραλήπτης («Προς»)</label><input name="recipient_name" value="${esc(x.recipient_name || '')}"></div>
 <div><label>Email παραλήπτη</label><input name="recipient_email" value="${esc(x.recipient_email || '')}" inputmode="email" placeholder="πολλά με κόμμα"><input id="emailPick" class="subpick" placeholder="+ Προσθήκη email από επαφή ή ομάδα…" autocomplete="off"></div>
 <div class="full"><label>Κοιν. (στο έντυπο, κάτω από το «Προς»)</label><input id="ccPick" class="subpick" placeholder="🔎 Κοιν.: επαφή ή ομάδα (μπαίνει στο έντυπο και το email της στους παραλήπτες)…" autocomplete="off"><textarea name="cc_name" rows="2" style="min-height:0">${esc(x.cc_name || '')}</textarea></div>
+<div class="full"><label>Κρυφή Κοιν. (BCC)</label><input name="bcc_email" value="${esc(letterBcc(x))}" inputmode="email" placeholder="email με κόμμα"><small class="muted">Μόνο στην αποστολή email (Bcc)· δεν εμφανίζεται στο έντυπο / PDF. Προεπιλογή σε κάθε νέα επιστολή: Ρυθμίσεις → Κοινοποίηση επιστολών → «Κρυφή κοινοποίηση (Bcc)».</small></div>
 <div class="full"><label>Θέμα</label><input name="subject" value="${esc(x.subject || '')}" required></div>
 <div class="full"><label>Κείμενο</label><textarea name="body" required>${esc(x.body || '')}</textarea><div class="toolbar noprint" style="margin-top:4px"><button type="button" class="btn small" data-act="linkword" title="Επιλέξτε μια λέξη στο Κείμενο και πατήστε">🔗 Link σε λέξη</button></div><small class="muted">Επιλέξτε μια λέξη (π.χ. ΔΗΛΩΣΗ) και πατήστε «🔗 Link σε λέξη»: γράφεται [ΔΗΛΩΣΗ](https://…) και στο PDF/στην επιστολή η λέξη γίνεται σύνδεσμος που ανοίγει με κλικ. Και οι σύνδεσμοι (https://… ή www.…) μένουν ενεργοί στο τελικό έγγραφο.</small></div>
 ${protoImageBox(x)}
@@ -322,8 +325,9 @@ function mountLetterForm(el, x, isNew) {
   for (const r of f.querySelectorAll('[name=page_mode]')) r.addEventListener('change', () => el.querySelector('[data-act=preview]').click());
   onSubmit(f, async (d) => {
     const emails = splitEmails(d.recipient_email), bad = emails.filter((e) => !EMAIL_RE.test(e));
-    if (bad.length) throw new Error('Μη έγκυρο email: ' + bad.join(', '));
-    const row = { subject: d.subject.trim(), body: d.body.trim(), template_id: d.template_id ? Number(d.template_id) : null, recipient_name: d.recipient_name.trim(),
+    const bccs = splitEmails(d.bcc_email), badB = bccs.filter((e) => !EMAIL_RE.test(e));
+    if (bad.length || badB.length) throw new Error('Μη έγκυρο email: ' + [...bad, ...badB].join(', '));
+    const row = { bcc_email: bccs.join(', '), subject: d.subject.trim(), body: d.body.trim(), template_id: d.template_id ? Number(d.template_id) : null, recipient_name: d.recipient_name.trim(),
       recipient_email: emails.join(', '), recipient_member_id: d.recipient_member_id ? Number(d.recipient_member_id) : null, visit_id: Number(d.visit_id) || x.visit_id || null, cc_name: String(d.cc_name || '').trim(), closing: String(d.closing || '').trim(), category: LETTER_CATEGORIES[d.category] ? d.category : 'ΕΠΙΣΤΟΛΗ', status: d.status, signer: d.signer, protocol_image: String(d.protocol_image || ''), page_mode: pageMode(d) };
     // Ημερομηνία: επεξεργάσιμη· αν αλλάξει από τον χρήστη μένει και όταν δοθεί αριθμός πρωτοκόλλου
     const ld = /^\d{4}-\d{2}-\d{2}$/.test(String(d.letter_date || '')) ? d.letter_date : (x.letter_date || today());
@@ -353,7 +357,7 @@ const MAIL_KINDS = { official: 1, general: 1 };
 const mailKind = (x) => { const t = x.template_id ? db.get('letter_templates', x.template_id) : null;
   return MAIL_KINDS[x.mail_kind] ? x.mail_kind : t && MAIL_KINDS[t.mail_kind] ? t.mail_kind : 'general'; };
 // ΣΓΥ: όλα τα μέλη του Συμβουλίου σε Bcc (όχι ορατά μεταξύ τους)· Επίσκεψη: οι σταθεροί παραλήπτες Bcc των Ρυθμίσεων
-const mailBcc = (x, to = '', cc = '') => bccWithout(mergeEmails(category(x) === 'ΕΠΙΣΚΕΨΗ' ? db.setting('visit_bcc') || '' : category(x) === 'ΣΓΥ' ? sgyEmails().join(', ') : '', db.setting('letter_default_bcc') || ''), to, cc);
+const mailBcc = (x, to = '', cc = '') => bccWithout(mergeEmails(category(x) === 'ΕΠΙΣΚΕΨΗ' ? db.setting('visit_bcc') || '' : category(x) === 'ΣΓΥ' ? sgyEmails().join(', ') : '', letterBcc(x)), to, cc);
 // PDF μιας επιστολής (χωρίς να είναι ανοιχτή στην οθόνη)
 export const letterFileName = (x) => fileName(x);
 export async function letterPdf(x) {
@@ -583,8 +587,8 @@ module({
       if (vis) query = { ...query, ...provinceLetter(vis) };
       // Μενού «Έγγραφα → + Έγκριση Εσωτερικού Κανονισμού»: το ενεργό πρότυπο με αυτό το όνομα (όποιος κι αν είναι ο αριθμός του)
       if (query.template === 'kanonismos') { const t = kanonismosTemplate(); if (t) query = { ...query, template_id: String(t.id) }; }
-      let x = { status: 'draft', signer: actor() };
-      if (query.copy_from) { const s = db.get('letters', query.copy_from); if (s) x = { ...x, template_id: s.template_id, subject: s.subject, body: s.body, recipient_name: s.recipient_name, recipient_email: s.recipient_email, recipient_member_id: s.recipient_member_id, cc_name: s.cc_name || '', closing: s.closing || '', category: s.category || 'ΕΠΙΣΤΟΛΗ', page_mode: pageMode(s), source_letter_id: s.id }; }
+      let x = { status: 'draft', signer: actor(), bcc_email: db.setting('letter_default_bcc') || '' }; // Κρυφή Κοιν.: προεπιλογή των Ρυθμίσεων
+      if (query.copy_from) { const s = db.get('letters', query.copy_from); if (s) x = { ...x, template_id: s.template_id, subject: s.subject, body: s.body, recipient_name: s.recipient_name, recipient_email: s.recipient_email, recipient_member_id: s.recipient_member_id, cc_name: s.cc_name || '', bcc_email: letterBcc(s), closing: s.closing || '', category: s.category || 'ΕΠΙΣΤΟΛΗ', page_mode: pageMode(s), source_letter_id: s.id }; }
       else if (query.template_id) { const t = db.get('letter_templates', query.template_id); if (t) x = { ...x, template_id: t.id, body: t.body, subject: t.subject || '', closing: t.closing || '', category: t.category || 'ΕΠΙΣΤΟΛΗ' }; }
       if (query.template_id && !x.template_id && db.get('letter_templates', query.template_id)) x.template_id = Number(query.template_id);
       if (query.to_name || query.to_email) Object.assign(x, { recipient_name: query.to_name || '', recipient_email: query.to_email || '' });

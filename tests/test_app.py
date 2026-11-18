@@ -4937,6 +4937,33 @@ def test_new_letter_default_recipients_and_bcc_from_settings(app):
     assert 'Παραλήπτες (Προς) που μπαίνουν σε κάθε νέα επιστολή' in app.text() and 'Κρυφή κοινοποίηση (Bcc) σε κάθε επιστολή' in app.text()
 
 
+def test_letter_bcc_field_saved_sent_not_printed(app):
+    # «Κρυφή Κοιν. (BCC)» κάτω από την «Κοιν.»: προεπιλογή από τις Ρυθμίσεις, επεξεργάσιμο, αποθηκεύεται, περνά ως bcc= στο Gmail, όχι στο έντυπο/PDF
+    app.connect_local()
+    app.page.evaluate("async () => { const {db} = await import('./core/store.js'); await db.save('x', (tx) => { tx.setting('letter_default_bcc', 'x@example.com, y@example.com'); }); }")
+    app.go('/letters/new')
+    assert app.page.input_value('[name=bcc_email]') == 'x@example.com, y@example.com'
+    assert app.page.evaluate("() => { const b = document.querySelector('[name=bcc_email]').closest('div'), c = document.querySelector('[name=cc_name]').closest('div'); return c.nextElementSibling === b; }")
+    app.pick('#rcptPick', 'Αθην')
+    app.fill(subject='Δοκιμή Bcc', body='Κείμενο.', bcc_email='x@example.com, z@example.com')
+    app.page.click('[data-act=preview]')
+    assert 'z@example.com' not in app.page.locator('#pv').inner_text()
+    app.click('💾 Αποθήκευση')
+    app.wait_saved()
+    lid = app.page.evaluate("async () => { const {db} = await import('./core/store.js'); const l = db.all('letters').find((x) => x.subject === 'Δοκιμή Bcc'); return [l.id, l.bcc_email]; }")
+    assert lid[1] == 'x@example.com, z@example.com', lid
+    app.go(f'/letters/{lid[0]}')
+    from urllib.parse import unquote
+    href = unquote(app.page.get_attribute('a.btn[href*="mail.google.com"]', 'href'))
+    assert 'z@example.com' in href and 'y@example.com' not in href and 'bcc=' in href, href
+    assert 'z@example.com' not in app.page.locator('.paper').first.inner_text()
+    app.go(f'/letters/{lid[0]}/edit')
+    assert app.page.input_value('[name=bcc_email]') == 'x@example.com, z@example.com'
+    app.go(f'/letters/new?copy_from={lid[0]}')
+    assert app.page.input_value('[name=bcc_email]') == 'x@example.com, z@example.com'
+    assert not app.errors, app.errors
+
+
 def test_deacon_dove_wins_over_template_office_image(app):
     # Το περιστέρι του Μεγάλου Διακόνου μπαίνει και όταν το πρότυπο έχει δική του «εικόνα αξιώματος» (εκείνη μένει για τα άλλα αξιώματα)·
     # και σε εκδομένο Διάταγμα με γραμμή αξιώματος που έχει μορφοποίηση

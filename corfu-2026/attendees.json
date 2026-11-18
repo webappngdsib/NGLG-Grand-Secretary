@@ -1,0 +1,23 @@
+{
+  "event": "Τακτική Μεγάλη Συνέλευση Κέρκυρα — 19 Δεκεμβρίου 2026",
+  "source_mailbox": "grand.secretary@nglgreece.gr",
+  "mode": "verified_snapshot",
+  "last_sync": "2026-11-18T18:16:00+02:00",
+  "refresh_hours": 2,
+  "attendees": [
+    {
+      "name": "ΦΙΛΙΠΠΟΣ ΔΗΜΗΤΡΙΟΥ",
+      "travel": "18–20/12/2026",
+      "room": "Δίκλινο",
+      "hotel_status": "Εκκρεμεί",
+      "declaration_date": "2026-11-18"
+    },
+    {
+      "name": "ΤΑΣΟΣ ΑΛΜΠΑΝΗΣ",
+      "travel": "18–20/12/2026",
+      "room": "Δίκλινο",
+      "hotel_status": "Εκκρεμεί",
+      "declaration_date": "2026-11-18"
+    }
+  ]
+}

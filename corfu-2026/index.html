@@ -24,7 +24,7 @@ button{font:inherit;padding:10px 13px;border-radius:8px;border:1px solid #aebed0
 button.primary{background:#19385f;color:white;border-color:#19385f}
 .notice{margin-bottom:17px;padding:12px 15px;border-radius:9px;background:#fff9ed;border:1px solid #ead7ab;color:#73531d;font-size:13px}
 .notice.live{background:#edfaf5;border-color:#b9e9d9;color:#126149}
-.tablebox{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:690px}th{background:#f8fafc;color:#50637d;text-align:left;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
+.tablebox{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:1100px}th{background:#f8fafc;color:#50637d;text-align:left;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
 th,td{padding:14px 16px;border-bottom:1px solid #edf0f4;vertical-align:middle}tbody tr:hover{background:#f8fafc}td:first-child{width:49px;color:#75859a}
 .name{font-weight:700;color:#142c48}.pill{display:inline-block;padding:4px 9px;border-radius:30px;font-size:12px;font-weight:700;white-space:nowrap;background:#e8f7f3;color:#117460}
 .pill.wait{background:#fff3da;color:#8f5c04}.pill.off{background:#edf2f7;color:#536274}
@@ -60,13 +60,13 @@ th,td{padding:14px 16px;border-bottom:1px solid #edf0f4;vertical-align:middle}tb
 <button id="printBtn" type="button" class="primary">Εκτύπωση</button>
 </div></div>
 <div class="tablebox"><table>
-<thead><tr><th>Α/Α</th><th>Ονοματεπώνυμο</th><th>Μετακίνηση</th><th>Τύπος δωματίου</th><th>Διαμονή στο ξενοδοχείο</th><th>Σχόλια</th></tr></thead>
-<tbody id="rows"><tr><td colspan="6" class="empty">Ανάκτηση δηλώσεων…</td></tr></tbody>
+<thead><tr><th>Α/Α</th><th>Ονοματεπώνυμο</th><th>Email</th><th>Αξίωμα (Επετηρίδα)</th><th>Έλεγχος</th><th>Μετακίνηση</th><th>Τύπος δωματίου</th><th>Διαμονή στο ξενοδοχείο</th><th>Σχόλια</th></tr></thead>
+<tbody id="rows"><tr><td colspan="9" class="empty">Ανάκτηση δηλώσεων…</td></tr></tbody>
 </table></div>
-<div class="footer"><span id="countShown"></span><span>Πηγή: δηλώσεις προς τη Μεγάλη Γραμματεία · χωρίς δημοσίευση email ή τηλεφώνων</span></div>
+<div class="footer"><span id="countShown"></span><span>Πηγή: δηλώσεις προς τη Μεγάλη Γραμματεία · χωρίς δημοσίευση τηλεφώνων ή κειμένων αλληλογραφίας</span></div>
 </section>
-<div class="instructions"><strong>Σημαντική διευκρίνιση</strong><p>Η δήλωση μετακίνησης <strong>δεν ισοδυναμεί</strong> με επιβεβαιωμένη κράτηση ξενοδοχείου. Ως «Εκκρεμεί» εμφανίζονται όσοι δεν έχουν ρητή επιβεβαίωση κράτησης.</p><p>Οι αλλαγές από το γραμματοκιβώτιο προγραμματίζονται ανά δύο ώρες, μετά την ενεργοποίηση του εξουσιοδοτημένου συγχρονισμού.</p></div>
-<p class="safeguard">Η σελίδα περιέχει μόνο ονόματα συμμετεχόντων και πληροφορίες οργάνωσης διαμονής. Δεν εμφανίζει το κείμενο ή τις διευθύνσεις των προσωπικών μηνυμάτων.</p>
+<div class="instructions"><strong>Σημαντική διευκρίνιση · δημόσια σελίδα</strong><p>Η δήλωση μετακίνησης <strong>δεν ισοδυναμεί</strong> με επιβεβαιωμένη κράτηση ξενοδοχείου. Ως «Εκκρεμεί» εμφανίζονται όσοι δεν έχουν ρητή επιβεβαίωση κράτησης.</p><p>Οι αλλαγές από το γραμματοκιβώτιο προγραμματίζονται ανά δύο ώρες, μετά την ενεργοποίηση του εξουσιοδοτημένου συγχρονισμού.</p></div>
+<p class="safeguard">Η σελίδα περιέχει μόνο ονόματα συμμετεχόντων και πληροφορίες οργάνωσης διαμονής. Εμφανίζει τις διευθύνσεις email των δηλωσάντων, όχι το περιεχόμενο της αλληλογραφίας.</p>
 </main>
 <script>
 "use strict";
@@ -81,8 +81,8 @@ function render(){
  el("nDouble").textContent=records.filter(x=>x.room==="Δίκλινο").length;
  el("nPending").textContent=records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length;
  el("countShown").textContent="Εμφανίζονται "+list.length+" από "+records.length+" δηλώσεις";
- if(!list.length){const tr=document.createElement("tr");add(tr,"td",records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη.","empty").colSpan=6;body.appendChild(tr);return}
- list.forEach((r,i)=>{const tr=document.createElement("tr");add(tr,"td",String(i+1));add(tr,"td",r.name,"name");const travel=add(tr,"td",r.travel||"18–20/12/2026");const hotel=add(tr,"td",r.room||"Δεν δηλώθηκε");const status=add(tr,"td",r.hotel_status||"Εκκρεμεί");status.className="";const badge=document.createElement("span");badge.className="pill "+(r.hotel_status==="Επιβεβαιωμένη κράτηση"?"":"wait");badge.textContent=status.textContent;status.replaceChildren(badge);add(tr,"td",r.comments||"—");body.appendChild(tr)});
+ if(!list.length){const tr=document.createElement("tr");add(tr,"td",records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη.","empty").colSpan=9;body.appendChild(tr);return}
+ list.forEach((r,i)=>{const tr=document.createElement("tr");add(tr,"td",String(i+1));add(tr,"td",r.name,"name");add(tr,"td",r.email||"Δεν δηλώθηκε");add(tr,"td",r.title||"Προς επαλήθευση");add(tr,"td",r.officer_status||"Δεν έχει επαληθευθεί");const travel=add(tr,"td",r.travel||"18–20/12/2026");const hotel=add(tr,"td",r.room||"Δεν δηλώθηκε");const status=add(tr,"td",r.hotel_status||"Εκκρεμεί");status.className="";const badge=document.createElement("span");badge.className="pill "+(r.hotel_status==="Επιβεβαιωμένη κράτηση"?"":"wait");badge.textContent=status.textContent;status.replaceChildren(badge);add(tr,"td",r.comments||"—");body.appendChild(tr)});
 }
 async function load(){
  const btn=el("refreshBtn");btn.disabled=true;
@@ -99,7 +99,7 @@ async function load(){
  finally{btn.disabled=false}
 }
 function exportCSV(){
- const lines=[["Ονοματεπώνυμο","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>[r.name,r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]));
+ const lines=[["Ονοματεπώνυμο","Email","Αξίωμα","Έλεγχος επετηρίδας","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>[r.name,r.email||"",r.title||"",r.officer_status||"",r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]));
  const csv="\uFEFF"+lines.map(c=>c.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="Kerkyra-2026-Diloseis.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }

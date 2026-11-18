@@ -4,7 +4,7 @@ import { db } from '../core/store.js';
 import { module, onSubmit, go, flash, toast, bind, confirmDo, table, notice, actor, ACTORS } from '../core/app.js';
 import { crud } from '../core/crud.js';
 import { esc, foldName, today, fmtDate, matches, sortBy, safeFileName, latinFileName, EMAIL_RE, splitEmails, download, outgoingProtocolBtn } from '../core/util.js';
-import { richPlain } from '../core/rich.js';
+import { richPlain, insertLink } from '../core/rich.js';
 import { letterPaper, printPaper, signerProfile, IMG, fitPaper, letterFields, LETTER_FIELDS, protocolImage, hasProtocolField, PAGE_MODES, pageMode, paginatePaper, overflowsPage } from '../core/paper.js';
 import { makeDocx, letterBlocks } from '../core/docx.js';
 import { docTitle, driveBox, saveDocToDrive, driveMaxProtocol, hasDriveToken, driveReady } from '../core/drive.js';
@@ -213,7 +213,7 @@ ${fillPanel(x, query)}
 <div><label>Email παραλήπτη</label><input name="recipient_email" value="${esc(x.recipient_email || '')}" inputmode="email" placeholder="πολλά με κόμμα"><input id="emailPick" class="subpick" placeholder="+ Προσθήκη email από επαφή ή ομάδα…" autocomplete="off"></div>
 <div class="full"><label>Κοιν. (στο έντυπο, κάτω από το «Προς»)</label><input id="ccPick" class="subpick" placeholder="🔎 Κοιν.: επαφή ή ομάδα (μπαίνει στο έντυπο και το email της στους παραλήπτες)…" autocomplete="off"><textarea name="cc_name" rows="2" style="min-height:0">${esc(x.cc_name || '')}</textarea></div>
 <div class="full"><label>Θέμα</label><input name="subject" value="${esc(x.subject || '')}" required></div>
-<div class="full"><label>Κείμενο</label><textarea name="body" required>${esc(x.body || '')}</textarea><small class="muted">Οι σύνδεσμοι (https://… ή www.…) μένουν ενεργοί στο τελικό έγγραφο.</small></div>
+<div class="full"><label>Κείμενο</label><textarea name="body" required>${esc(x.body || '')}</textarea><div class="toolbar noprint" style="margin-top:4px"><button type="button" class="btn small" data-act="linkword" title="Επιλέξτε μια λέξη στο Κείμενο και πατήστε">🔗 Link σε λέξη</button></div><small class="muted">Επιλέξτε μια λέξη (π.χ. ΔΗΛΩΣΗ) και πατήστε «🔗 Link σε λέξη»: γράφεται [ΔΗΛΩΣΗ](https://…) και στο PDF/στην επιστολή η λέξη γίνεται σύνδεσμος που ανοίγει με κλικ. Και οι σύνδεσμοι (https://… ή www.…) μένουν ενεργοί στο τελικό έγγραφο.</small></div>
 ${protoImageBox(x)}
 <div><label>Κατάσταση</label><select name="status"><option value="draft"${x.status !== 'ready' ? ' selected' : ''}>Πρόχειρη</option><option value="ready"${x.status === 'ready' ? ' selected' : ''}>Έτοιμη</option></select></div>
 <div><label>Υπογράφων</label><select name="signer">${Object.entries(ACTORS).map(([k, v]) => `<option value="${k}"${(x.signer || actor()) === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
@@ -302,7 +302,7 @@ function mountLetterForm(el, x, isNew) {
   if (!x.id && isKanonismos(tpl) && !f.protocol_image.value) setTimeout(() => { const b = el.querySelector('[data-act=approvalStamp]'); if (b && b.isConnected) b.click(); }, 0); // νέα επιστολή από το μενού «+ Έγκριση Εσωτ. Κανονισμού»
   const cur = () => ({ ...x, ...Object.fromEntries(new FormData(f)), letter_date: f.letter_date.value || x.letter_date || today() });
   if (hasDriveToken()) refreshDriveLast(el).catch(() => {}); // ήδη συνδεδεμένοι στο Drive: ζωντανά, χωρίς παράθυρο
-  bind(el, { driveLast: () => refreshDriveLast(el),
+  bind(el, { driveLast: () => refreshDriveLast(el), linkword: () => insertLink(f.body),
     protoImgDel: () => setProto(''),
     regDel() { regPending = null; f.reg_remove.value = '1'; pbox.querySelector('.reg-name').innerHTML = '<span class="muted">Δεν έχει επισυναφθεί PDF.</span>'; },
     async approvalStamp() { // η εφαρμογή «Έγκριση Εσωτερικού Κανονισμού»: η εικόνα μπαίνει ως ΕΙΚΟΝΑ ΠΡΩΤΟΚΟΛΛΟΥ

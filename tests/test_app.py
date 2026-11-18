@@ -2147,6 +2147,46 @@ def test_letter_body_formatting_bar(app):
     assert '%5Bb%5D' not in plain and '[b]' not in plain
 
 
+
+def test_letter_word_link_preview_pdf_and_plain(app):
+    # [ΔΗΛΩΣΗ](https://…): η λέξη γίνεται σύνδεσμος στην προεπισκόπηση και κλικαρίσιμη περιοχή (/Link /URI) στο PDF· στο απλό κείμενο «ΔΗΛΩΣΗ (url)»
+    import pypdf
+    app.connect_local()
+    app.go('/letters/new')
+    app.pick('#rcptPick', 'Αθην')
+    app.fill(subject='Δηλώσεις', body='Συμπληρώστε τη ΔΗΛΩΣΗ έως αύριο. <script>x</script> & www.nglgreece.gr.')
+    app.page.evaluate("() => { const t = document.querySelector('textarea[name=body]'); const i = t.value.indexOf('ΔΗΛΩΣΗ'); t.setSelectionRange(i, i + 6); }")
+    app.page.evaluate("() => { window.prompt = () => 'example.org/dilosi?a=1&b=2'; }")  # η διεύθυνση (χωρίς https://)
+    app.page.click('[data-act=linkword]')
+    body = app.page.input_value('textarea[name=body]')
+    assert '[ΔΗΛΩΣΗ](https://example.org/dilosi?a=1&b=2)' in body, body
+    app.page.click('[data-act=preview]')
+    a = app.page.locator('#pv .body a', has_text='ΔΗΛΩΣΗ')
+    expect(a).to_have_attribute('href', 'https://example.org/dilosi?a=1&b=2')
+    assert a.get_attribute('target') == '_blank' and 'noopener' in a.get_attribute('rel')
+    assert app.page.locator('#pv .body a[href="https://www.nglgreece.gr"]').count() == 1  # γυμνό www. (χωρίς την τελεία)
+    assert app.page.locator('#pv .body script').count() == 0 and '<script>x</script>' in app.page.locator('#pv .body').inner_text()
+    assert '](' not in app.page.locator('#pv .body').inner_text()
+    b64 = app.page.evaluate("""async () => { const { paperPdf } = await import('./core/pdf.js');
+      const b = new Uint8Array(await (await paperPdf(document.querySelector('#pv .paper'), { title: 't' })).arrayBuffer());
+      let s = ''; for (const c of b) s += String.fromCharCode(c); return btoa(s); }""")
+    reader = pypdf.PdfReader(io.BytesIO(base64.b64decode(b64)))
+    links = [an.get_object() for pg in reader.pages for an in (pg.get('/Annots') or [])]
+    uris = [l['/A']['/URI'] for l in links if l.get('/Subtype') == '/Link']
+    assert 'https://example.org/dilosi?a=1&b=2' in uris and 'https://www.nglgreece.gr' in uris, uris
+    r = [float(v) for v in next(l for l in links if l['/A']['/URI'].startswith('https://example.org'))['/Rect']]
+    x0, x1, y0, y1 = min(r[0], r[2]), max(r[0], r[2]), min(r[1], r[3]), max(r[1], r[3])
+    assert 0 < x0 and x1 < 595 and 0 < y0 and y1 < 842 and x1 - x0 > 10 and 5 < y1 - y0 < 40, r
+    plain = app.page.evaluate("""async () => { const t = document.querySelector('textarea[name=body]').value; const { richPlain, richHtml } = await import('./core/rich.js');
+      return [richPlain(t), (await import('./core/mail.js')).gmailUrl({ to: 'a@b.gr', subject: 's', body: t }), richHtml('[Μail](mailto:a@b.gr) [x](javascript:alert(1))'), richHtml('[ΔΗΛΩΣΗ](www.x.gr)', { links: false })]; }""")
+    assert 'ΔΗΛΩΣΗ (https://example.org/dilosi?a=1&b=2)' in plain[0] and '](' not in plain[0]
+    from urllib.parse import unquote
+    assert 'ΔΗΛΩΣΗ (https://example.org/dilosi?a=1&b=2)' in unquote(plain[1]) and '](' not in unquote(plain[1])
+    assert plain[2].startswith('<a href="mailto:a@b.gr"') and 'href="javascript' not in plain[2] and plain[2].count('<a ') == 1, plain[2]
+    assert plain[3] == 'ΔΗΛΩΣΗ'
+    assert not app.errors, app.errors
+
+
 GOOGLE_CSV = '''First Name,Middle Name,Last Name,Organization Name,Organization Title,Notes,Labels,E-mail 1 - Label,E-mail 1 - Value,E-mail 2 - Label,E-mail 2 - Value,Phone 1 - Label,Phone 1 - Value
 Άλφα,,Δοκιμαστής,ΜΑΞ,Μέγας Δοκιμαστής,"σημείωση
 

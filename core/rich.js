@@ -1,17 +1,17 @@
 // Μορφοποίηση κειμένου (Έντονα, Πλάγια, Μέγεθος) σε επιλεγμένο τμήμα: το κείμενο μένει απλό, με σημάνσεις
 //   [b]…[/b]  [i]…[/i]  [size=14]…[/size]   (μέγεθος σε pt)
 // richHtml → έντυπο/PDF/email HTML · richPlain → απλό κείμενο (email χωρίς HTML, WhatsApp) · richRuns → Word
-import { esc, linkify } from './util.js';
+import { linkify, linkPlain } from './util.js';
 
 export const SIZES = [['9', 'Μικρά'], ['13', 'Μεγάλα'], ['16', 'Πολύ μεγάλα'], ['20', 'Τίτλος']];
 const TAG = /\[(\/?)(b|i|size)(?:=(\d{1,2}))?\]/g;
 const okSize = (n) => Math.min(36, Math.max(6, Number(n) || 11.5));
 
-export const richPlain = (t) => String(t ?? '').replace(TAG, '');
+export const richPlain = (t) => linkPlain(String(t ?? '').replace(TAG, ''));
 
 // Ζεύγη σημάνσεων → HTML (ανοιχτές/μονές σημάνσεις απλώς αφαιρούνται)
 export function richHtml(t, { links = true } = {}) {
-  let h = links ? linkify(t) : esc(t), prev;
+  let h = linkify(t, { links }), prev; // [λέξη](url): σύνδεσμος (links=false → μόνο η λέξη)
   do {
     prev = h;
     h = h.replace(/\[b\]([\s\S]*?)\[\/b\]/g, '<b>$1</b>').replace(/\[i\]([\s\S]*?)\[\/i\]/g, '<i>$1</i>')
@@ -25,7 +25,7 @@ export function richRuns(t) {
   const out = [], st = { b: 0, i: 0, size: [] };
   let last = 0, m;
   const push = (s) => { if (s) out.push({ text: s, bold: st.b > 0, italic: st.i > 0, size: st.size.length ? okSize(st.size[st.size.length - 1]) : null }); };
-  const s = String(t ?? '');
+  const s = linkPlain(t); // Word: «λέξη (url)»
   TAG.lastIndex = 0;
   while ((m = TAG.exec(s))) {
     push(s.slice(last, m.index)); last = TAG.lastIndex;
@@ -74,6 +74,22 @@ export function formatBar(ta) {
     const k = e.key.toLowerCase();
     if (k === 'b' || k === 'i') { e.preventDefault(); wrap(`[${k}]`, `[/${k}]`); }
   });
+}
+// «🔗 Link σε λέξη»: η επιλεγμένη λέξη → [λέξη](https://…) (χωρίς επιλογή: ζητά και τη λέξη)
+export function insertLink(ta, ask = (m, d) => window.prompt(m, d)) {
+  if (!ta) return false;
+  const a = ta.selectionStart, z = ta.selectionEnd, v = ta.value;
+  let word = v.slice(a, z).replace(/[\[\]\n]+/g, ' ').trim();
+  if (!word) word = String(ask('Λέξη που θα γίνει σύνδεσμος (π.χ. ΔΗΛΩΣΗ):', '') || '').replace(/[\[\]\n]+/g, ' ').trim();
+  if (!word) return false;
+  let url = String(ask(`Διεύθυνση (link) για τη λέξη «${word}»:`, 'https://') || '').trim().replace(/\s+/g, '');
+  if (!url || /^https?:\/\/$/i.test(url)) return false;
+  if (!/^(https?:\/\/|mailto:)/i.test(url)) url = (/^[^@/]+@[^@/]+\.[^@/]+$/.test(url) ? 'mailto:' : 'https://') + url.replace(/^\/+/, '');
+  const ins = `[${word}](${url})`;
+  ta.value = v.slice(0, a) + ins + v.slice(z);
+  ta.setSelectionRange(a + ins.length, a + ins.length);
+  ta.focus(); ta.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
 }
 // Όλα τα «Κείμενο» της σελίδας
 export const attachFormatBars = (root) => root.querySelectorAll('textarea[name=body], textarea[name=g_body], textarea[data-rich]').forEach(formatBar);

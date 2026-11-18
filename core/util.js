@@ -33,14 +33,33 @@ export const validEmails = (s) => splitEmails(s).filter((e) => EMAIL_RE.test(e))
 
 export const grUpper = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().normalize('NFC');
 
-export function linkify(text) {
-  return esc(text).replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/g, (raw) => {
-    let trail = '';
+// Σύνδεσμοι στο κείμενο: [λέξη](https://…) (και www.… / mailto:…) → η λέξη γίνεται σύνδεσμος· γυμνά https://… / www.… → σύνδεσμοι.
+// Κοινός tokenizer για έντυπο/PDF (linkify), απλό κείμενο (linkPlain) και Word.
+export const LINK_RE = /\[([^\]\n]+)\]\(\s*((?:https?:\/\/|www\.|mailto:)[^\s()<>"]+)\s*\)|(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+)/gi;
+export const linkHref = (u) => (/^(https?:|mailto:)/i.test(u) ? u : 'https://' + u);
+// → [{ text }] ή [{ text, href, raw }] (raw: ο γυμνός σύνδεσμος· trail: σημεία στίξης μετά από γυμνό σύνδεσμο)
+export function linkTokens(text) {
+  const s = String(text ?? ''), out = [];
+  let last = 0, m;
+  LINK_RE.lastIndex = 0;
+  while ((m = LINK_RE.exec(s))) {
+    if (m.index > last) out.push({ text: s.slice(last, m.index) });
+    last = LINK_RE.lastIndex;
+    if (m[1]) { out.push({ text: m[1], href: linkHref(m[2]) }); continue; }
+    let raw = m[3], trail = '';
     while (raw && '.,;:!?)]}'.includes(raw.slice(-1))) { trail = raw.slice(-1) + trail; raw = raw.slice(0, -1); }
-    const href = raw.startsWith('http') ? raw : 'https://' + raw;
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${raw}</a>${trail}`;
-  });
+    out.push({ text: raw, href: linkHref(raw), raw: true });
+    if (trail) out.push({ text: trail });
+  }
+  if (last < s.length) out.push({ text: s.slice(last) });
+  return out;
 }
+// HTML (όλα τα υπόλοιπα escaped)· links=false → μόνο η λέξη/ο σύνδεσμος ως κείμενο
+export function linkify(text, { links = true } = {}) {
+  return linkTokens(text).map((t) => (t.href && links ? `<a href="${esc(t.href)}" target="_blank" rel="noopener noreferrer">${esc(t.text)}</a>` : esc(t.text))).join('');
+}
+// Απλό κείμενο (email χωρίς HTML, WhatsApp): [ΔΗΛΩΣΗ](https://…) → «ΔΗΛΩΣΗ (https://…)»
+export const linkPlain = (text) => linkTokens(text).map((t) => (t.href && !t.raw ? `${t.text} (${t.href})` : t.text)).join('');
 
 export function download(name, data, type = 'application/octet-stream') {
   const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));

@@ -60,8 +60,8 @@ th,td{padding:14px 16px;border-bottom:1px solid #edf0f4;vertical-align:middle}tb
 <button id="printBtn" type="button" class="primary">Εκτύπωση</button>
 </div></div>
 <div class="tablebox"><table>
-<thead><tr><th>Α/Α</th><th>Ονοματεπώνυμο</th><th>Μετακίνηση</th><th>Τύπος δωματίου</th><th>Διαμονή στο ξενοδοχείο</th></tr></thead>
-<tbody id="rows"><tr><td colspan="5" class="empty">Ανάκτηση δηλώσεων…</td></tr></tbody>
+<thead><tr><th>Α/Α</th><th>Ονοματεπώνυμο</th><th>Μετακίνηση</th><th>Τύπος δωματίου</th><th>Διαμονή στο ξενοδοχείο</th><th>Σχόλια</th></tr></thead>
+<tbody id="rows"><tr><td colspan="6" class="empty">Ανάκτηση δηλώσεων…</td></tr></tbody>
 </table></div>
 <div class="footer"><span id="countShown"></span><span>Πηγή: δηλώσεις προς τη Μεγάλη Γραμματεία · χωρίς δημοσίευση email ή τηλεφώνων</span></div>
 </section>
@@ -81,8 +81,8 @@ function render(){
  el("nDouble").textContent=records.filter(x=>x.room==="Δίκλινο").length;
  el("nPending").textContent=records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length;
  el("countShown").textContent="Εμφανίζονται "+list.length+" από "+records.length+" δηλώσεις";
- if(!list.length){const tr=document.createElement("tr");add(tr,"td",records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη.","empty").colSpan=5;body.appendChild(tr);return}
- list.forEach((r,i)=>{const tr=document.createElement("tr");add(tr,"td",String(i+1));add(tr,"td",r.name,"name");const travel=add(tr,"td",r.travel||"18–20/12/2026");const hotel=add(tr,"td",r.room||"Δεν δηλώθηκε");const status=add(tr,"td",r.hotel_status||"Εκκρεμεί");status.className="";const badge=document.createElement("span");badge.className="pill "+(r.hotel_status==="Επιβεβαιωμένη κράτηση"?"":"wait");badge.textContent=status.textContent;status.replaceChildren(badge);body.appendChild(tr)});
+ if(!list.length){const tr=document.createElement("tr");add(tr,"td",records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη.","empty").colSpan=6;body.appendChild(tr);return}
+ list.forEach((r,i)=>{const tr=document.createElement("tr");add(tr,"td",String(i+1));add(tr,"td",r.name,"name");const travel=add(tr,"td",r.travel||"18–20/12/2026");const hotel=add(tr,"td",r.room||"Δεν δηλώθηκε");const status=add(tr,"td",r.hotel_status||"Εκκρεμεί");status.className="";const badge=document.createElement("span");badge.className="pill "+(r.hotel_status==="Επιβεβαιωμένη κράτηση"?"":"wait");badge.textContent=status.textContent;status.replaceChildren(badge);add(tr,"td",r.comments||"—");body.appendChild(tr)});
 }
 async function load(){
  const btn=el("refreshBtn");btn.disabled=true;
@@ -99,7 +99,7 @@ async function load(){
  finally{btn.disabled=false}
 }
 function exportCSV(){
- const lines=[["Ονοματεπώνυμο","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου"]].concat(records.map(r=>[r.name,r.travel||"",r.room||"",r.hotel_status||""]));
+ const lines=[["Ονοματεπώνυμο","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>[r.name,r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]));
  const csv="\uFEFF"+lines.map(c=>c.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="Kerkyra-2026-Diloseis.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }

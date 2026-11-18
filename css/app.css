@@ -760,3 +760,23 @@ a[data-mail]{overflow-wrap:anywhere;word-break:break-word}
 .pagemode .seg input{position:absolute;opacity:0;pointer-events:none}
 .pagemode .seg label:has(input:checked){background:#0b2f63;color:#fff}
 .pagemode .pm-note{flex-basis:100%}
+/* «ℹ ΣΤΟΕΣ ΑΡ» (Νέα Επιστολή): κατάλογος ενεργών Στοών με αριθμό */
+.ln-titlebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ln-titlebar h1 { margin-right: auto; }
+.ln-btn { background: #eef4ff; border-color: #9db7e0; color: #123a74; font-weight: 700; }
+dialog.lodgenos { margin: auto; inset: 0; position: fixed; width: min(560px, calc(100vw - 16px)); max-width: none; max-height: min(88vh, 88dvh); padding: 14px; border: 1px solid #d6dbe4; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }
+dialog.lodgenos:not([open]) { display: none; }
+dialog.lodgenos::backdrop { background: rgba(11, 31, 58, .45); }
+.lodgenos .ln-head { display: flex; align-items: center; gap: 8px; }
+.lodgenos .ln-head h3 { margin: 0; flex: 1; font-size: 1.05rem; }
+.lodgenos .ln-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.lodgenos .ln-q { flex: 1 1 200px; min-width: 0; font-size: 16px; }
+.lodgenos .ln-meta { font-size: .85rem; min-height: 1.3em; }
+.lodgenos .ln-ok.ok { color: #187a3d; font-weight: 700; }
+.lodgenos .ln-ok.warn { color: #b42318; font-weight: 700; }
+.lodgenos .ln-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; border-top: 1px solid #e3e7ee; -webkit-overflow-scrolling: touch; }
+.lodgenos .ln-list li { display: flex; align-items: center; gap: 8px; padding: 5px 2px; border-bottom: 1px solid #eef1f5; }
+.lodgenos .ln-list li[hidden] { display: none; }
+.lodgenos .ln-list li.copied { background: #e9f7ee; }
+.lodgenos .ln-line { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: text; font-family: inherit; }
+.lodgenos .ln-list .btn { flex: none; min-width: 40px; min-height: 34px; }

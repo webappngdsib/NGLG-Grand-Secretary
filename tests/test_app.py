@@ -82,6 +82,54 @@ def test_letters_protocol_and_print(app):
     assert '2 επιστολές' in app.text()
 
 
+def test_letter_lodge_numbers_popup(app):
+    # «ℹ ΣΤΟΕΣ ΑΡ» στη Νέα Επιστολή: μόνο ενεργές Στοές, ταξινόμηση κατά αριθμό, αναζήτηση, αντιγραφή — η φόρμα δεν αλλάζει
+    app.page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+    app.connect_local()
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js'); await db.save('x', (tx) => {
+      const l7 = tx.find('lodges', (l) => String(l.number) === '8'); tx.update('lodges', l7.id, { status: 'Σε αργία' }); }); }""")
+    app.go('/letters/new').fill(subject='Θέμα που γράφτηκε', body='Κείμενο που γράφτηκε')
+    app.page.fill('[name=recipient_name]', 'Παραλήπτης Χ')
+    app.page.click('#lodgeNosBtn')
+    app.page.wait_for_selector('dialog.lodgenos[open]')
+    lines = app.page.locator('.lodgenos .ln-line').all_inner_texts()
+    assert "ΑΤΛΑΣ υπ.'αριθμ 118" in lines and "ΠΑΛΑΙΩΝ ΠΑΤΡΩΝ ΓΕΡΜΑΝΟΣ υπ.'αριθμ 1" == lines[0]
+    nums = [l.rsplit(' ', 1)[1] for l in lines]
+    ints = [int(n) for n in nums if n.isdigit()]
+    assert ints == sorted(ints) and all(n.isdigit() for n in nums[:len(ints)])
+    assert not any(n in ('8', '52', '62', '88', '109') for n in nums)  # σε αργία / ανενεργές
+    assert len(lines) == 83 - 1
+    # αναζήτηση: όνομα (χωρίς τόνους/πεζά) και αριθμός
+    app.page.fill('.lodgenos .ln-q', 'ατλας')
+    assert app.page.locator('.lodgenos .ln-list li:visible').all_inner_texts()[0].startswith("ΑΤΛΑΣ υπ.'αριθμ 118")
+    assert app.page.locator('.lodgenos .ln-list li:visible').count() == 1
+    app.page.fill('.lodgenos .ln-q', '118')
+    assert app.page.locator('.lodgenos .ln-list li:visible').count() == 1
+    # αντιγραφή μίας γραμμής
+    app.page.locator('.lodgenos .ln-list li:visible button').first.click()
+    app.page.wait_for_selector('.lodgenos .ln-ok.ok:has-text("Αντιγράφηκε")')
+    assert app.page.evaluate('() => navigator.clipboard.readText()') == "ΑΤΛΑΣ υπ.'αριθμ 118"
+    # αντιγραφή όλων: ολόκληρη η λίστα, μία ανά γραμμή (και με ενεργή αναζήτηση)
+    app.page.click('.lodgenos [data-ln=all]')
+    app.page.wait_for_selector('.lodgenos .ln-ok.ok:has-text("82 Στοές")')
+    assert app.page.evaluate('() => navigator.clipboard.readText()') == '\n'.join(lines)
+    app.page.click('.lodgenos [data-ln=close]')
+    app.page.wait_for_selector('dialog.lodgenos', state='detached')
+    assert app.page.input_value('[name=subject]') == 'Θέμα που γράφτηκε' and app.page.input_value('[name=body]') == 'Κείμενο που γράφτηκε'
+    assert app.page.input_value('[name=recipient_name]') == 'Παραλήπτης Χ'
+    assert app.page.url.endswith('#/letters/new')
+    # κινητό: το παράθυρο χωρά στην οθόνη, χωρίς οριζόντια κύλιση
+    app.page.set_viewport_size({'width': 375, 'height': 700})
+    app.page.click('#lodgeNosBtn')
+    app.page.wait_for_selector('dialog.lodgenos[open]')
+    box = app.page.locator('dialog.lodgenos').bounding_box()
+    assert box['x'] >= 0 and box['x'] + box['width'] <= 375 and box['height'] <= 700
+    assert app.page.evaluate("() => { const l = document.querySelector('.lodgenos .ln-list'); return l.scrollWidth <= l.clientWidth + 1; }")
+    app.page.keyboard.press('Escape')
+    app.page.wait_for_selector('dialog.lodgenos', state='detached')
+    assert app.page.input_value('[name=subject]') == 'Θέμα που γράφτηκε'
+
+
 def test_letter_page_mode_a4(app):
     # «📄 Σελιδοποίηση εγγράφου»: μακρύ κείμενο → Συνεχόμενο (ένα φύλλο, σμίκρυνση) ή Σελιδοποίηση Α4 (σελίδες) σε οθόνη, εκτύπωση, PDF
     app.connect_local()

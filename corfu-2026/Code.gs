@@ -8,6 +8,11 @@
  * Replies, forwards, cancellation-only messages and dinner-only confirmations are excluded.
  * Names + accommodation notes are publicly visible: obtain office approval before enabling.
  */
+const YEARBOOK_2026 = [
+  {name:'ΦΙΛΙΠΠΟΣ ΔΗΜΗΤΡΙΟΥ',title:'Μέγας Νομοφύλαξ',aliases:['ΔΗΜΗΤΡΙΟΥ ΦΙΛΙΠΠΟΣ']},
+  {name:'ΤΑΣΟΣ ΑΛΜΠΑΝΗΣ',title:'Αναπληρωτής Μέγας Διδάσκαλος',aliases:['ΑΝΑΣΤΑΣΙΟΣ ΑΛΜΠΑΝΗΣ','ΑΛΜΠΑΝΗΣ ΑΝΑΣΤΑΣΙΟΣ']}
+];
+// Προσοχή: συμπληρώνετε τον κατάλογο από την τρέχουσα επίσημη Επετηρίδα πριν νέα επαλήθευση.
 const CFG = {
   repo:'webappngdsib/NGLG-Grand-Secretary',
   path:'corfu-2026/attendees.json',
@@ -101,7 +106,10 @@ function extractDeclarations_(){
         if (/(ΔΕΝ ΘΑ (ΠΑΡΑΣΤ|ΜΕΤΑΒ|ΣΥΜΜΕΤ|ΕΡΘ)|ΑΚΥΡΩΝ|ΑΔΥΝΑΤ|ΔΕΝ ΜΠΟΡ)/.test(body))continue;
         if (!/(ΔΗΛΩΝΩ|ΘΑ ΜΕΤΑΣΧ|ΘΑ ΣΥΜΜΕΤ|ΘΑ ΕΡΘ|ΘΑ ΤΑΞΙΔΕΨ|ΕΠΙΒΕΒΑΙΩΝΩ|ΕΠΙΘΥΜΩ|ΣΥΜΜΕΤΟΧΗ ΜΟΥ)/.test(body)) continue;
         const room=/ΔΙΚΛΙΝ/.test(body)?'Δίκλινο':/ΜΟΝΟΚΛΙΝ/.test(body)?'Μονόκλινο':'Δεν δηλώθηκε';
-        const item={name,travel:'18–20/12/2026',room,
+        const sourceEmail = (String(msg.getFrom()||'').match(/<?([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,})>?/i)||[])[1] || '';
+        const officer = YEARBOOK_2026.find(o => [o.name,...o.aliases].some(a=>key_(a)===key_(name)));
+        const item={name,email:sourceEmail,title:officer?officer.title:'Προς επαλήθευση',
+          officer_status:officer?'Εν ενεργεία — Επετηρίδα 2026':'Δεν έχει επαληθευθεί',travel:'18–20/12/2026',room,
           hotel_status:'Εκκρεμεί',
           declaration_date:Utilities.formatDate(msg.getDate(),'Europe/Athens','yyyy-MM-dd'),
           comments:'',_time:msg.getDate().getTime()};

@@ -106,7 +106,7 @@ function extractDeclarations_(){
         if (/(ΔΕΝ ΘΑ (ΠΑΡΑΣΤ|ΜΕΤΑΒ|ΣΥΜΜΕΤ|ΕΡΘ)|ΑΚΥΡΩΝ|ΑΔΥΝΑΤ|ΔΕΝ ΜΠΟΡ)/.test(body))continue;
         if (!/(ΔΗΛΩΝΩ|ΘΑ ΜΕΤΑΣΧ|ΘΑ ΣΥΜΜΕΤ|ΘΑ ΕΡΘ|ΘΑ ΤΑΞΙΔΕΨ|ΕΠΙΒΕΒΑΙΩΝΩ|ΕΠΙΘΥΜΩ|ΣΥΜΜΕΤΟΧΗ ΜΟΥ)/.test(body)) continue;
         const room=/ΔΙΚΛΙΝ/.test(body)?'Δίκλινο':/ΜΟΝΟΚΛΙΝ/.test(body)?'Μονόκλινο':'Δεν δηλώθηκε';
-        const sourceEmail = (String(msg.getFrom()||'').match(/<?([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,})>?/i)||[])[1] || '';
+        const sourceEmail = (String(msg.getFrom()||'').match(/<?([A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,})>?/i)||[])[1] || '';
         const officer = YEARBOOK_2026.find(o => [o.name,...o.aliases].some(a=>key_(a)===key_(name)));
         const item={name,email:sourceEmail,title:officer?officer.title:'Προς επαλήθευση',
           officer_status:officer?'Εν ενεργεία — Επετηρίδα 2026':'Δεν έχει επαληθευθεί',travel:'18–20/12/2026',room,

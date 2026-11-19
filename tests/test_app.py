@@ -4885,13 +4885,13 @@ def test_award_former_worshipful_master(app):
     app.page.select_option('#dOffice', 'Σεβάσμιος Διδάσκαλος')
     app.page.wait_for_function("document.querySelector('#dprev') && document.querySelector('#dprev').innerText.includes('Πρώην Σεβασμίου Διδασκάλου')")
     # το κόσμημα του Πρώην Σεβασμίου δίπλα στον τίτλο, χωρίς να κρύβει το κείμενο
-    app.page.wait_for_selector('#dprev img.dec-jewel[src="img/jewels/sevasmios-proin.jpg"]')
+    app.page.wait_for_selector('#dprev img.dec-jewel[src="img/jewels/sevasmios-proin-asimi.jpg"]')
     assert app.page.evaluate("() => document.querySelector('#dprev img.dec-jewel').naturalWidth") > 0
     gap = app.page.evaluate("() => { const t = document.querySelector('#dprev .dec-office').getBoundingClientRect(), i = document.querySelector('#dprev img.dec-jewel').getBoundingClientRect(); return [Math.round(t.right), Math.round(i.left)]; }")
     assert gap[0] <= gap[1], gap
     app.page.select_option('#dOffice', 'Μέγας Γραμματεύς')
     app.page.wait_for_timeout(400)
-    assert app.page.locator('#dprev img[src="img/jewels/sevasmios-proin.jpg"]').count() == 0
+    assert app.page.locator('#dprev img[src="img/jewels/sevasmios-proin-asimi.jpg"]').count() == 0
 
 
 def test_member_page_sets_epeteirida_honorific_everywhere(app):

@@ -50,12 +50,14 @@ th,td{padding:14px 16px;border-bottom:1px solid #edf0f4;vertical-align:middle}tb
 <div class="metric"><strong id="nPending">—</strong><span>Εκκρεμείς κρατήσεις</span></div>
 </div>
 <div id="syncBanner" class="notice" role="status">Φόρτωση στοιχείων…</div>
+<div id="manualSyncStatus" class="notice" role="status" hidden></div>
 <section class="panel" aria-labelledby="listHeading">
 <div class="top">
 <div><h2 id="listHeading">Λίστα δηλωσάντων</h2><p class="sub" id="lastUpdate">Αναμένεται ενημέρωση</p></div>
 <div class="tools">
 <input type="search" id="searchBox" placeholder="Αναζήτηση ονοματεπώνυμου…" aria-label="Αναζήτηση ονοματεπώνυμου">
-<button id="refreshBtn" type="button">↻ Ανανέωση</button>
+<button id="syncBtn" type="button" class="primary">↻ Άμεση ενημέρωση από Gmail</button>
+<button id="refreshBtn" type="button">Επαναφόρτωση λίστας</button>
 <button id="csvBtn" type="button">Εξαγωγή CSV</button>
 <button id="printBtn" type="button" class="primary">Εκτύπωση</button>
 </div></div>
@@ -65,12 +67,12 @@ th,td{padding:14px 16px;border-bottom:1px solid #edf0f4;vertical-align:middle}tb
 </table></div>
 <div class="footer"><span id="countShown"></span><span>Πηγή: δηλώσεις προς τη Μεγάλη Γραμματεία · χωρίς δημοσίευση τηλεφώνων ή κειμένων αλληλογραφίας</span></div>
 </section>
-<div class="instructions"><strong>Σημαντική διευκρίνιση · δημόσια σελίδα</strong><p>Η δήλωση μετακίνησης <strong>δεν ισοδυναμεί</strong> με επιβεβαιωμένη κράτηση ξενοδοχείου. Ως «Εκκρεμεί» εμφανίζονται όσοι δεν έχουν ρητή επιβεβαίωση κράτησης.</p><p>Οι αλλαγές από το γραμματοκιβώτιο προγραμματίζονται ανά δύο ώρες, μετά την ενεργοποίηση του εξουσιοδοτημένου συγχρονισμού.</p></div>
+<div class="instructions"><strong>Σημαντική διευκρίνιση · δημόσια σελίδα</strong><p>Η δήλωση μετακίνησης <strong>δεν ισοδυναμεί</strong> με επιβεβαιωμένη κράτηση ξενοδοχείου. Ως «Εκκρεμεί» εμφανίζονται όσοι δεν έχουν ρητή επιβεβαίωση κράτησης.</p><p>Η «Άμεση ενημέρωση από Gmail» εκκινεί εξουσιοδοτημένο συγχρονισμό μέσω Apps Script. Η αυτοματοποιημένη ανανέωση ανά δύο ώρες λειτουργεί μετά την αρχική ενεργοποίησή του.</p></div>
 <p class="safeguard">Η σελίδα περιέχει μόνο ονόματα συμμετεχόντων και πληροφορίες οργάνωσης διαμονής. Εμφανίζει τις διευθύνσεις email των δηλωσάντων, όχι το περιεχόμενο της αλληλογραφίας.</p>
 </main>
 <script>
 "use strict";
-let records=[],lastPayload=null;
+let records=[],lastPayload=null,syncWebAppUrl="";
 const el=id=>document.getElementById(id);
 const plain=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("el-GR");
 const add=(parent,tag,txt,className)=>{const node=document.createElement(tag);node.textContent=txt;if(className)node.className=className;parent.appendChild(node);return node};
@@ -98,11 +100,42 @@ async function load(){
  }catch(err){el("syncBanner").className="notice";el("syncBanner").textContent="Δεν ήταν δυνατή η λήψη των ενημερωμένων στοιχείων. "+(records.length?"Εμφανίζονται τα τελευταία γνωστά δεδομένα.":"Ελέγξτε την πρόσβαση στη σελίδα.");render()}
  finally{btn.disabled=false}
 }
+async function loadSyncConfig(){
+ try{
+  const resp=await fetch("./sync-config.json?fresh="+Date.now(),{cache:"no-store"});
+  if(!resp.ok)throw Error("Configuration unavailable");
+  const conf=await resp.json(),value=String(conf.web_app_url||"");
+  if(/^https:\/\/script[.]google[.]com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(value))syncWebAppUrl=value;
+ }catch(error){console.warn("Manual Gmail sync is not configured",error)}
+}
+function syncStatus(message){
+ const node=el("manualSyncStatus");node.hidden=false;node.textContent=message;
+}
+function requestGmailSync(){
+ if(!syncWebAppUrl){
+  syncStatus("Η άμεση ενημέρωση Gmail δεν έχει ενεργοποιηθεί ακόμη. Χρειάζεται μία αρχική εγκατάσταση του Google Apps Script από τη Μεγάλη Γραμματεία και καταχώριση του συνδέσμου του στο sync-config.json.");
+  return;
+ }
+ const initial=lastPayload&&lastPayload.last_sync||"";
+ window.open(syncWebAppUrl+"?action=sync","_blank");
+ syncStatus("Άνοιξε νέα προστατευμένη καρτέλα για ανάγνωση Gmail. Ακολουθήστε τυχόν αίτημα σύνδεσης στον λογαριασμό Μεγάλης Γραμματείας. Ελέγχεται αυτόματα πότε θα δημοσιευτεί η ενημέρωση.");
+ let n=0;
+ const monitor=setInterval(async()=>{
+  n++;await load();
+  if(lastPayload&&lastPayload.last_sync!==initial){
+   clearInterval(monitor);
+   syncStatus("Η ενημέρωση από Gmail δημοσιεύθηκε επιτυχώς στις "+dateFmt(lastPayload.last_sync)+".");
+  }else if(n>=24){
+   clearInterval(monitor);
+   syncStatus("Δεν δημοσιεύθηκε ακόμη νέα λίστα. Ελέγξτε το αποτέλεσμα στη νέα καρτέλα και δοκιμάστε επαναφόρτωση.");
+  }
+ },10000);
+}
 function exportCSV(){
  const lines=[["Ονοματεπώνυμο","Email","Αξίωμα","Έλεγχος επετηρίδας","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>[r.name,r.email||"",r.title||"",r.officer_status||"",r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]));
  const csv="\uFEFF"+lines.map(c=>c.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="Kerkyra-2026-Diloseis.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-el("searchBox").addEventListener("input",render);el("refreshBtn").addEventListener("click",load);el("csvBtn").addEventListener("click",exportCSV);el("printBtn").addEventListener("click",()=>window.print());
-load();setInterval(load,5*60*1000);
+el("searchBox").addEventListener("input",render);el("refreshBtn").addEventListener("click",load);el("syncBtn").addEventListener("click",requestGmailSync);el("csvBtn").addEventListener("click",exportCSV);el("printBtn").addEventListener("click",()=>window.print());
+load();loadSyncConfig();setInterval(load,5*60*1000);
 </script></body></html>

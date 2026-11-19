@@ -4889,6 +4889,9 @@ def test_award_former_worshipful_master(app):
     assert app.page.evaluate("() => document.querySelector('#dprev img.dec-jewel').naturalWidth") > 0
     gap = app.page.evaluate("() => { const t = document.querySelector('#dprev .dec-office').getBoundingClientRect(), i = document.querySelector('#dprev img.dec-jewel').getBoundingClientRect(); return [Math.round(t.right), Math.round(i.left)]; }")
     assert gap[0] <= gap[1], gap
+    # οριζόντιο κόσμημα: πλατύτερο πλαίσιο (όχι τετράγωνο), μέσα στο δεξί περιθώριο της σελίδας (16mm)
+    wh = app.page.evaluate("() => { const i = document.querySelector('#dprev img.dec-jewel').getBoundingClientRect(), p = document.querySelector('#dprev .paper').getBoundingClientRect(); const e = document.querySelector('#dprev .paper'), k = p.width / e.offsetWidth; return [i.width / i.height, Math.round(p.right - 16 * 96 / 25.4 * k - i.right)]; }")
+    assert wh[0] > 1.15 and wh[1] >= 0, wh
     app.page.select_option('#dOffice', 'Μέγας Γραμματεύς')
     app.page.wait_for_timeout(400)
     assert app.page.locator('#dprev img[src="img/jewels/sevasmios-proin-asimi.jpg"]').count() == 0

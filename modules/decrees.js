@@ -172,22 +172,22 @@ export function decreePaper(d, opts = {}) {
 // κεντραρισμένη κάθετα στη γραμμή, στο κέντρο-δεξιά του Α4 (x = αριστερή άκρη σε mm από την άκρη της σελίδας), ώστε να μην ακουμπά το κείμενο·
 // dy = κάθετη μετατόπιση (mm) από το κέντρο της γραμμής
 export const OFFICE_DEFAULT = { size: 90, x: 150, dy: 0 };
-const officeStyle = (px, x, dy) => `width:${px}px;height:${px}px;left:calc(${x}mm - var(--padl, 16mm));transform:translateY(calc(-50% + .75em + ${dy}mm))`;
+const officeStyle = (px, x, dy, w = 1) => `width:${Math.round(px * w)}px;height:${px}px;left:calc(${x}mm - var(--padl, 16mm));transform:translateY(calc(-50% + .75em + ${dy}mm))`;
 // Κοσμήματα αξιωμάτων/τίτλων της εφαρμογής: μπαίνουν αυτόματα δίπλα στη γραμμή τους, όταν το πρότυπο δεν έχει δική του εικόνα αξιώματος
 export const JEWELS = [{ text: 'την Τάξιν του Μεγάλου Διδασκάλου', src: 'img/jewels/taxis-md-metallio.jpg', label: 'Κόσμημα Τάξεως Μεγάλου Διδασκάλου', size: 180 },
   // Πρώτος / Δεύτερος Μέγας Διάκονος — απονομή «Πρώην» και διορισμός εν ενεργεία: το κόσμημα του Διακόνου (περιστέρι με κλαδί ελαίας)
   { text: 'τον Τίτλον του Πρώην (?:Πρώτου|Δευτέρου) Μεγάλου Διακόνου', src: 'img/jewels/diakonos-peristeri.jpg', label: 'Κόσμημα Μεγάλου Διακόνου', size: 150, shift: 4 }, // η μακριά φράση 4 χαρακτήρες αριστερά, να μην την κρύβει το περιστέρι
   { text: '(?:ΠΡΩΤΟΝ|ΔΕΥΤΕΡΟΝ) ΜΕΓΑΝ ΔΙΑΚΟΝΟΝ', src: 'img/jewels/diakonos-peristeri.jpg', label: 'Κόσμημα Μεγάλου Διακόνου', size: 150 },
   // Σεβάσμιος / Πρώην Σεβάσμιος Διδάσκαλος: το κόσμημα του Πρώην Σεβασμίου (γνώμων με το 47ο πρόβλημα του Ευκλείδη) — ΑΣΗΜΕΝΙΟ (κόσμημα Στοάς, όχι Μεγάλης Στοάς)
-  { text: 'τον Τίτλον του (?:Πρώην )?Σεβασμίου Διδασκάλου', src: 'img/jewels/sevasmios-proin-asimi.jpg', label: 'Κόσμημα Πρώην Σεβασμίου Διδασκάλου (ασημένιο)', size: 150, shift: 3 },
-  { text: 'ΣΕΒΑΣΜΙΟΝ ΔΙΔΑΣΚΑΛΟΝ', src: 'img/jewels/sevasmios-proin-asimi.jpg', label: 'Κόσμημα Σεβασμίου Διδασκάλου (ασημένιο)', size: 150 }];
+  { text: 'τον Τίτλον του (?:Πρώην )?Σεβασμίου Διδασκάλου', src: 'img/jewels/sevasmios-proin-asimi.jpg', label: 'Κόσμημα Πρώην Σεβασμίου Διδασκάλου (ασημένιο)', size: 150, w: 1.2, x: 145, shift: 3 }, // w: πλατύτερο πλαίσιο (το κόσμημα είναι οριζόντιο)· x: λίγο αριστερότερα, να χωρά ολόκληρο
+  { text: 'ΣΕΒΑΣΜΙΟΝ ΔΙΔΑΣΚΑΛΟΝ', src: 'img/jewels/sevasmios-proin-asimi.jpg', label: 'Κόσμημα Σεβασμίου Διδασκάλου (ασημένιο)', size: 150, w: 1.2, x: 145 }];
 // Η γραμμή του κοσμήματος, όποια μορφοποίηση κι αν έχει (έντονα, μέγεθος, κενά στην αρχή/τέλος)
 const jewelRe = (k) => new RegExp(`^((?:<[^>]+>|[ \\t])*)(${k.text})((?:</[^>]+>|[ \\t])*)$`, 'gm');
 export function officeImage(html, L, urls = {}) {
   const o = L && L.office, own = !!(o && (o.file || urls.office)), j = o || {};
   // 1. Τα κοσμήματα της εφαρμογής (Τάξις Μ.Δ., Μέγας Διάκονος) έχουν πάντα προτεραιότητα — και όταν το πρότυπο έχει δική του εικόνα αξιώματος
-  const st = (k) => officeStyle(Math.min(300, Math.max(20, (own ? 0 : +j.size) || k.size || OFFICE_DEFAULT.size)), +j.x || OFFICE_DEFAULT.x, +j.dy || 0);
-  html = JEWELS.reduce((h, k) => h.replace(jewelRe(k), (_, a, t, b) => `${a}<span class="dec-office"${k.shift ? ` style="position:relative;left:-${k.shift}ch"` : ''}>${t}</span>${b}<img class="dec-office-img dec-jewel" data-layer="office" alt="${esc(k.label)}" src="${k.src}" style="${st(k)}">`), html);
+  const st = (k) => officeStyle(Math.min(300, Math.max(20, (own ? 0 : +j.size) || k.size || OFFICE_DEFAULT.size)), +j.x || k.x || OFFICE_DEFAULT.x, +j.dy || 0, k.w);
+  html = JEWELS.reduce((h, k) => h.replace(jewelRe(k), (_, a, t, b) => `${a}<span class="dec-office"${k.shift ? ` style="position:relative;left:-${k.shift}ch"` : ''}>${t}</span>${b}<img class="dec-office-img dec-jewel" data-layer="office" alt="${esc(k.label)}" src="${k.src}"${k.w ? ` data-w="${k.w}"` : ''} style="${st(k)}">`), html);
   if (!own) return html;
   // 2. Η εικόνα αξιώματος του προτύπου στις υπόλοιπες γραμμές αξιώματος
   const px = Math.min(300, Math.max(20, +o.size || OFFICE_DEFAULT.size)), x = +o.x || OFFICE_DEFAULT.x, dy = +o.dy || 0;
@@ -586,7 +586,7 @@ ${k === 'bg' ? '<label>Διαφάνεια<input type="range" min="0.05" max="1" 
       const placeOffice = () => {
         const p = box.querySelector('.paper'), o = L.office; if (!p || !o) return;
         const px = Math.min(300, Math.max(20, +o.size || OFFICE_DEFAULT.size));
-        p.querySelectorAll('.dec-office-img').forEach((i) => { i.style.cssText = officeStyle(px, +o.x || OFFICE_DEFAULT.x, +o.dy || 0); });
+        p.querySelectorAll('.dec-office-img').forEach((i) => { i.style.cssText = officeStyle(px, +o.x || OFFICE_DEFAULT.x, +o.dy || 0, +i.dataset.w || 1); });
         const i = p.querySelector('.dec-office-img'), h = p.querySelector('.dz-office'); if (!i || !h) return;
         const pr = p.getBoundingClientRect(), ir = i.getBoundingClientRect(), mm = A4.w / pr.width;
         Object.assign(h.style, { left: (ir.left - pr.left) * mm + 'mm', top: (ir.top - pr.top) * mm + 'mm', width: ir.width * mm + 'mm', height: ir.height * mm + 'mm' });

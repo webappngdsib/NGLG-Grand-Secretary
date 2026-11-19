@@ -70,8 +70,34 @@ function syncCorfu2026(){
       throw Error('GitHub update failed HTTP '+response.getResponseCode()+': '+response.getContentText().slice(0,250));
     }
     console.log('Synced '+attendees.length+' names');
+    return {count:attendees.length,last_sync:result.last_sync};
   } finally { lock.releaseLock(); }
 }
+
+/**
+ * Web app deployment must use:
+ *   Execute as: Me (grand.secretary@nglgreece.gr)
+ *   Who has access: Only myself — NEVER Anyone or Anyone with Google account.
+ * Only the signed-in owner may trigger Gmail reads and GitHub writes.
+ */
+function doGet(e) {
+  if (String((e && e.parameter && e.parameter.action) || '') !== 'sync') {
+    return HtmlService.createHtmlOutput('Δεν διατίθεται αυτή η ενέργεια.');
+  }
+  const owner=String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  if (owner !== CFG.mailbox.toLowerCase()) {
+    return HtmlService.createHtmlOutput('Εκτελέστε την εφαρμογή μόνο από τον λογαριασμό της Μεγάλης Γραμματείας.');
+  }
+  const page=[
+    '<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Συγχρονισμός Gmail — Κέρκυρα</title>',
+    '<style>body{font:16px system-ui;background:#f4f7fb;color:#183350;padding:28px;max-width:650px;margin:auto}main{background:#fff;padding:25px;border-radius:14px;box-shadow:0 3px 25px #152b4620}h1{font-size:23px}p{line-height:1.6}a{color:#145078;font-weight:bold}</style></head>',
+    '<body><main><h1>Κέρκυρα 2026 · Άμεση ενημέρωση Gmail</h1><p id="status">Γίνεται ανάγνωση δηλώσεων και αποστολή των ενημερωμένων δεδομένων στο GitHub…</p>',
+    '<p><a target="_blank" rel="noopener" href="https://webappngdsib.github.io/NGLG-Grand-Secretary/corfu-2026/">Επιστροφή στη λίστα μετακίνησης</a></p></main>',
+    '<script>google.script.run.withSuccessHandler(function(r){document.getElementById("status").textContent="Ο συγχρονισμός ολοκληρώθηκε. "+r.count+" εγγραφές στάλθηκαν στο GitHub. Η ενημέρωση του GitHub Pages ακολουθεί μετά τη δημοσίευση.";}).withFailureHandler(function(e){document.getElementById("status").textContent="Αποτυχία: "+(e&&e.message||"Άγνωστο σφάλμα");}).syncCorfu2026();</script></body></html>'
+  ].join('');
+  return HtmlService.createHtmlOutput(page).setTitle('Άμεση ενημέρωση Κέρκυρα 2026');
+}
+
 function githubFile_(){
   const token=PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN');
   const resp=UrlFetchApp.fetch('https://api.github.com/repos/'+CFG.repo+'/contents/'+CFG.path,{
@@ -94,17 +120,20 @@ function extractDeclarations_(){
         const subject=String(msg.getSubject()||'').trim();
         // Do not use replies, even if the original subject is quoted.
         if (/^(re|fw|fwd)\s*:/i.test(subject)) continue;
-        const match=subject.match(/^ΜΕΤΑΚΙΝΗΣΗ\s+ΚΕΡΚΥΡΑ\s+(.+)$/i)
-          || subject.match(/^ΚΕΡΚΥΡΑ\s+ΜΕΤΑΚΙΝΗΣΗ\s+(.+)$/i);
+        const match=subject.match(/^ΜΕΤΑΚΙΝΗΣΗ\s+ΚΕΡΚΥΡΑ(?:\s+(.+))?$/i)
+          || subject.match(/^ΚΕΡΚΥΡΑ\s+ΜΕΤΑΚΙΝΗΣΗ(?:\s+(.+))?$/i);
         if(!match)continue;
-        const rawName=match[1].replace(/[\s.,;:]+$/g,'').trim();
-        const names=rawName.split(/\s+/);
-        if(names.length<2 || names.length>5 || !names.every(s=>/^[\p{L}΄'’-]+$/u.test(s)))continue;
-        const name=key_(rawName);
         const first=String(msg.getPlainBody()||'').split(/\n\s*(?:On .+wrote:|Στις .+έγραψε:|From:|Από:|[-]{3,}\s*Forwarded)/i)[0].slice(0,2500);
+        // Subject may be exactly "ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ" with name only in a signed body.
+        // Require explicit title ("Σεβ. Αδ." etc.) to avoid treating ordinary prose as a name.
+        const signature=first.match(/(?:^|\n)\s*(?:(?:Πσεβ\.|Λ\.Σεβ\.|Σεβ\.|Αδ\.)\s*){1,4}([\p{L}΄'’-]+\s+[\p{L}΄'’-]+)\s*(?=\r?\n|$)/iu);
+        const rawName=String(match[1] || (signature&&signature[1]) || '').replace(/[\s.,;:]+$/g,'').trim();
+        const names=rawName.split(/\s+/);
+        if(names.length<2 || names.length>5 || !names.every(k=>/^[\p{L}΄'’-]+$/u.test(k)))continue;
+        const name=key_(rawName);
         const body=key_(first);
         if (/(ΔΕΝ ΘΑ (ΠΑΡΑΣΤ|ΜΕΤΑΒ|ΣΥΜΜΕΤ|ΕΡΘ)|ΑΚΥΡΩΝ|ΑΔΥΝΑΤ|ΔΕΝ ΜΠΟΡ)/.test(body))continue;
-        if (!/(ΔΗΛΩΝΩ|ΘΑ ΜΕΤΑΣΧ|ΘΑ ΣΥΜΜΕΤ|ΘΑ ΕΡΘ|ΘΑ ΤΑΞΙΔΕΨ|ΕΠΙΒΕΒΑΙΩΝΩ|ΕΠΙΘΥΜΩ|ΣΥΜΜΕΤΟΧΗ ΜΟΥ)/.test(body)) continue;
+        if (!/(ΔΗΛΩΝΩ|ΘΑ ΕΙΜΑΙ ΠΑΡΩΝ|ΘΑ ΜΕΤΑΣΧ|ΘΑ ΣΥΜΜΕΤ|ΘΑ ΕΡΘ|ΘΑ ΤΑΞΙΔΕΨ|ΕΠΙΒΕΒΑΙΩΝΩ|ΕΠΙΘΥΜΩ|ΣΥΜΜΕΤΟΧΗ ΜΟΥ)/.test(body)) continue;
         const room=/ΔΙΚΛΙΝ/.test(body)?'Δίκλινο':/ΜΟΝΟΚΛΙΝ/.test(body)?'Μονόκλινο':'Δεν δηλώθηκε';
         const sourceEmail = (String(msg.getFrom()||'').match(/<?([A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,})>?/i)||[])[1] || '';
         const officer = YEARBOOK_2026.find(o => [o.name,...o.aliases].some(a=>key_(a)===key_(name)));

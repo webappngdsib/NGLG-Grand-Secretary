@@ -1,41 +1,53 @@
 {
   "event": "Τακτική Μεγάλη Συνέλευση Κέρκυρα — 19 Δεκεμβρίου 2026",
   "source_mailbox": "grand.secretary@nglgreece.gr",
-  "mode": "verified_snapshot",
-  "last_sync": "2026-11-19T09:14:00+02:00",
+  "mode": "automatic",
+  "last_sync": "2026-11-19T10:21:26.630Z",
   "refresh_hours": 2,
   "attendees": [
     {
-      "name": "ΡΟΗΣ ΣΠΥΡΙΔΩΝ",
-      "travel": "Δεν διευκρινίστηκε",
+      "name": "ΑΝΔΡΕΑΣ ΤΣΑΓΚΡΙΝΟΣ",
+      "email": "andreas.tsagrinos@gmail.com",
+      "title": "Προς επαλήθευση",
+      "officer_status": "Δεν έχει επαληθευθεί",
+      "travel": "18–20/12/2026",
       "room": "Δεν δηλώθηκε",
       "hotel_status": "Εκκρεμεί",
       "declaration_date": "2026-11-19",
-      "email": "",
+      "comments": ""
+    },
+    {
+      "name": "ΡΟΗΣ ΣΠΥΡΙΔΩΝ",
+      "email": "administration@nglgreece.gr",
       "title": "Προς επαλήθευση",
-      "officer_status": "Δεν εντοπίστηκε στην Επετηρίδα 2026 — απαιτείται έλεγχος",
+      "officer_status": "Δεν έχει επαληθευθεί",
+      "travel": "18–20/12/2026",
+      "room": "Δεν δηλώθηκε",
+      "hotel_status": "Εκκρεμεί",
+      "declaration_date": "2026-11-19",
       "comments": "Δήλωση «Θα είμαι παρών» μέσω email με θέμα «ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ». Δεν δηλώθηκαν στοιχεία δωματίου."
     },
     {
       "name": "ΤΑΣΟΣ ΑΛΜΠΑΝΗΣ",
+      "email": "t.albanis61@gmail.com",
+      "title": "Αναπληρωτής Μέγας Διδάσκαλος",
+      "officer_status": "Εν ενεργεία — Επετηρίδα 2026",
       "travel": "18–20/12/2026",
       "room": "Δίκλινο",
       "hotel_status": "Εκκρεμεί",
       "declaration_date": "2026-11-18",
-      "email": "t.albanis61@gmail.com",
-      "title": "Αναπληρωτής Μέγας Διδάσκαλος",
-      "officer_status": "Εν ενεργεία — Επετηρίδα 2026 (Αναστάσιος Αλμπάνης)"
+      "comments": ""
     },
     {
       "name": "ΦΙΛΙΠΠΟΣ ΔΗΜΗΤΡΙΟΥ",
+      "email": "fil@dim.gr",
+      "title": "Μέγας Νομοφύλαξ",
+      "officer_status": "Εν ενεργεία — Επετηρίδα 2026",
       "travel": "18–20/12/2026",
       "room": "Δίκλινο",
       "hotel_status": "Εκκρεμεί",
       "declaration_date": "2026-11-18",
-      "comments": "Προτεινόμενη συγκατοίκηση σε δίκλινο με Σταύρο Καπνιά. Να επιβεβαιωθεί η δική του κράτηση.",
-      "email": "fil@dim.gr",
-      "title": "Μέγας Νομοφύλαξ",
-      "officer_status": "Εν ενεργεία — Επετηρίδα 2026"
+      "comments": "Προτεινόμενη συγκατοίκηση σε δίκλινο με Σταύρο Καπνιά. Να επιβεβαιωθεί η δική του κράτηση."
     }
   ]
 }

@@ -4994,3 +4994,44 @@ def test_all_mail_from_info(app):
     app.connect_local()
     r = app.page.evaluate("async () => { const m = await import('./core/mail.js'); return [m.senderFor('official'), m.senderFor('general')]; }")
     assert r == ['info@nglgreece.gr', 'info@nglgreece.gr'], r
+
+
+def test_decree_intent_letters_per_brother(app):
+    # «📨 Πρόθεση» δίπλα σε κάθε Διάταγμα στο Αρχείο: μία επιστολή «Πρόθεση Διορισμού – Απονομής» για κάθε Αδελφό,
+    # με κείμενο από το Διάταγμα (αξίωμα στη γενική, τεκτονικό έτος, τέλη και Κανόνα 270) και επιλογή «Είδους πρόθεσης» που αποθηκεύεται
+    app.connect_local()
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      await db.save('x', (tx) => {
+        tx.insert('decree_documents', { decree_no: 950, decree_year: 2026, decree_date: '2026-11-01', matter: 'Διορισμού Μεγάλων Αξιωματικών', body: 'x', template_key: 'decree-appoint',
+          rules: JSON.stringify({ action: 'appoint', decree_office: 'Μέγας Γραμματεύς', period: '2026 - 2027' }),
+          appointments: JSON.stringify([{ first_name: 'Γεώργιος', last_name: 'Δοκιμαστής', email: 'g@example.com', honorific: 'ΛΣεβ. Αδ.', office: 'Μέγας Γραμματεύς' }]) });
+        tx.insert('decree_documents', { decree_no: 951, decree_year: 2026, decree_date: '2026-11-02', matter: 'Απονομής', body: 'y', template_key: 'decree-provincial',
+          rules: JSON.stringify({ action: 'award', award_office: 'Σεβάσμιος Διδάσκαλος' }), appointments: JSON.stringify([{ first_name: 'Νίκος', last_name: 'Δοκιμος' }]) });
+        tx.insert('decree_documents', { decree_no: 952, decree_year: 2026, decree_date: '2026-11-03', matter: 'γενικό', body: 'z', template_key: 'decree-general', rules: JSON.stringify({ action: 'general' }) }); }); }""")
+    app.go('/decrees')
+    assert app.page.locator('tr', has_text='950/2026').locator('a:has-text("📨 Πρόθεση")').count() == 1
+    assert app.page.locator('tr', has_text='952/2026').locator('a:has-text("📨 Πρόθεση")').count() == 0
+    app.page.locator('tr', has_text='950/2026').locator('a:has-text("📨 Πρόθεση")').click()
+    app.page.wait_for_selector('.print-area .paper')
+    t = app.text('.print-area')
+    for s in ['Πρόθεση Διορισμού — Μέγας Γραμματεύς (2026-2027)', 'Λίαν Σεβάσμιε Αδελφέ', 'Σεβτ. Αδ. Ιωάννης Μπενετάτος, προτίθεται να σας διορίσει πρώτη φορά εις την θέσιν του Μεγάλου Γραμματέως διά τό τεκτονικόν έτος 2026-2027 Ε.Κ.\n',
+              '150€', 'Κανόνας 270.1', 'ΑΠΟΔΟΧΗ', 'αποδέχομαι τον διορισμό μου εις την θέση του Μεγάλου Γραμματέως', 'ΤΕΛΗ ΔΙΟΡΙΣΜΟΥ 2026 ΓΕΩΡΓΙΟΣ ΔΟΚΙΜΑΣΤΗΣ', 'Grand Secretary for the masonic year 2026-2027 A.D.']:
+        assert s in t, s
+    # αλλαγή είδους → Επαναδιορισμός (80€, 270.2), αποθηκεύεται στο Διάταγμα
+    app.page.select_option('select.intent-type', '2')
+    app.page.wait_for_function("() => document.querySelector('.print-area').innerText.includes('επαναδιορίσει')")
+    assert '80€' in app.text('.print-area') and 'Κανόνας 270.2 - επαναδιορισμός' in app.text('.print-area')
+    saved = app.page.evaluate("async () => { const {db} = await import('./core/store.js'); return db.all('decree_documents').find((d) => d.decree_no === 950).intent; }")
+    assert '"0":2' in saved, saved
+    # Ευχαριστίες: χωρίς τέλη / αποδοχή
+    app.page.select_option('select.intent-type', '8')
+    app.page.wait_for_function("() => document.querySelector('.print-area').innerText.includes('ευχαριστίες του Μεγάλου Διδασκάλου')")
+    assert 'ΑΠΟΔΟΧΗ' not in app.text('.print-area') and 'Σεβτ. Αδ. Ιωάννη Μπενετάτου, για το έργο' in app.text('.print-area')
+    assert '..' not in app.text('.print-area')
+    # Απονομή Πρώην Σεβασμίου: χωρίς τεκτονικό έτος, πρώτη φορά → 150€
+    app.go('/decrees')
+    app.page.locator('tr', has_text='951/2026').locator('a:has-text("📨 Πρόθεση")').click()
+    app.page.wait_for_selector('.print-area .paper')
+    t = app.text('.print-area')
+    assert 'απονείμει διά πρώτην φοράν το αξίωμα του Πρώην Σεβασμίου Διδασκάλου' in t and 'Πρόθεση Απονομής' in t and '150€' in t, t
+    assert app.page.locator('select.intent-type option').count() == 3  # 5, 7, 8 (μόνο είδη απονομής + ευχαριστίες)

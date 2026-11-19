@@ -781,3 +781,8 @@ dialog.lodgenos::backdrop { background: rgba(11, 31, 58, .45); }
 .lodgenos .ln-list li.copied { background: #e9f7ee; }
 .lodgenos .ln-line { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: text; font-family: inherit; }
 .lodgenos .ln-list .btn { flex: none; min-width: 40px; min-height: 34px; }
+/* Πρόθεση «επί τιμή ΜΔ»: το προβλεπόμενο ποσό διαγράφεται με κόκκινη διαγώνια γραμμή και δίπλα «ΜΔ» (και στην εκτύπωση/PDF) */
+.fee-free{white-space:nowrap}
+.fee-struck{position:relative;display:inline-block;padding:0 3px;font-weight:700}
+.fee-struck::after{content:'';position:absolute;left:-3px;right:-3px;top:50%;border-top:2px solid #d00;transform:rotate(-24deg);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.fee-md{color:#d00;margin-left:5px;-webkit-print-color-adjust:exact;print-color-adjust:exact}

@@ -13,7 +13,7 @@ module({
   menu: [
     M('✉ Έγγραφα', 10, [
       ['# Επιστολές'], ['+ Νέα Επιστολή', '#/letters/new'], ['Αρχείο Επιστολών', '#/letters'], ['📎 Καταχώριση έτοιμης επιστολής (PDF)', '#/letter-import'], ['🏛 + Έγκριση Εσωτερικού Κανονισμού', '#/letters/new?template=kanonismos'],
-      ['# Διατάγματα'], ['+ Διάταγμα ΕΝ ΕΝΕΡΓΕΙΑ', '#/decrees/new'], ['+ Διάταγμα ΠΡΩΗΝ', '#/decrees/new?kind=decree-provincial'], ['+ Διάταγμα ΤΑΞΗ ΜΔ', '#/decrees/new?kind=decree-service'], ['+ Γενικό Διάταγμα', '#/decrees/new?kind=decree-general'], ['Αρχείο Διαταγμάτων', '#/decrees'],
+      ['# Διατάγματα'], ['+ Διάταγμα ΕΝ ΕΝΕΡΓΕΙΑ', '#/decrees/new'], ['+ Διάταγμα ΠΡΩΗΝ', '#/decrees/new?kind=decree-provincial'], ['+ Διάταγμα ΤΑΞΗ ΜΔ', '#/decrees/new?kind=decree-service'], ['+ Γενικό Διάταγμα', '#/decrees/new?kind=decree-general'], ['Αρχείο Διαταγμάτων', '#/decrees'], ['📨 ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ', '#/intents'],
       ['# Έντυπα & Πρωτόκολλο'], ['🎓 + Δίπλωμα Διδασκάλου Τέκτονος (A3)', '#/members/diploma'], ['Πρότυπα (Επιστολές & Διατάγματα)', '#/templates'], ['📖 Βιβλίο Πρωτοκόλλου', '#/database/protocol']], 'letters'),
     M('👥 Μέλη', 20, [
       ['# Μητρώο'], ['Μητρώο Μελών', '#/members'], ['🪪 Κάρτα Μέλους', '#/members/card'],

@@ -11,6 +11,7 @@ import { AWARD_MAP } from './decree-catalog.js';
 import { decreeMeta, decreePeople } from './decree-sync.js';
 import { gmName } from './letter-fill.js';
 import { identify } from '../core/people.js';
+import { trackTable, saveTrackRow } from './intent-portal.js';
 
 // Είδη πρόθεσης (πίνακας της Μεγάλης Γραμματείας): ρήμα επιστολής, φράση αποδοχής, τέλη, Κανόνας, Αγγλικά
 export const INTENT_TYPES = {
@@ -70,6 +71,15 @@ export function autoType(d, a) {
   if (prev.some((o) => String(o.office || '').trim() === office)) return 2;
   return prev.length ? 1 : 3;
 }
+// Καταγραφή ανά Αδελφό (πεδίο intent_track του Διατάγματος): απάντηση, κατάθεση, ημερομηνία, κινητό, email και «επί τιμή ΜΔ» (μηδενική χρέωση)
+export const ANSWERS = { '': 'Δεν έχει απαντήσει', yes: 'ΝΑΙ', no: 'ΟΧΙ' };
+export const intentTrack = (d) => parse(d.intent_track, {}) || {};
+export const isFree = (d, i) => !!(intentTrack(d)[i] || {}).free;
+export function setTrack(tx, d, i, patch) {
+  const cur = tx.get('decree_documents', d.id) || d, t = intentTrack(cur);
+  t[i] = { ...(t[i] || {}), ...patch };
+  tx.update('decree_documents', d.id, { intent_track: JSON.stringify(t) });
+}
 export const intentType = (d, a, i) => { const t = Number(intentChoices(d)[i]); return INTENT_TYPES[t] ? t : autoType(d, a); };
 const isThanks = (t) => !!INTENT_TYPES[t].thanks;
 export const intentLabel = (t) => (isThanks(t) ? 'Ευχαριστίες' : INTENT_TYPES[t].kind === 'appoint' ? 'Πρόθεση Διορισμού' : 'Πρόθεση Απονομής');
@@ -92,13 +102,28 @@ export function intentLetter(d, a, i) {
   return { type: t, recipient, subject: `${intentLabel(t)} — ${off.nom}${yr ? ` (${yr})` : ''}`, body: [greet, '',
     `Σας γνωρίζουμε ότι ο Μέγας Διδάσκαλος της Εθνικής Μεγάλης Στοάς της Ελλάδος, Σεβτ. Αδ. ${gmName()}, προτίθεται να σας ${dot(what)}`,
     '',
-    `Παρακαλούμε να μας γνωρίσετε την αποδοχή σας, συμπληρώνοντας και υπογράφοντας το κατωτέρω σημείωμα, και να καταβάλετε τα προβλεπόμενα τέλη ύψους [b]${T.fee}€[/b] (${T.rule}). Στην αιτιολογία της κατάθεσης παρακαλούμε να αναγράψετε: «${ref}».`,
+    isFree(d, i) ? `Παρακαλούμε να μας γνωρίσετε την αποδοχή σας, συμπληρώνοντας και υπογράφοντας το κατωτέρω σημείωμα. Τα προβλεπόμενα τέλη ύψους ${FREE_MARK(T.fee)} (${T.rule}) δεν οφείλονται: η ${T.kind === 'appoint' ? 'πράξη γίνεται' : 'απονομή γίνεται'} [b]επί τιμή από τον Μέγα Διδάσκαλο[/b] (μηδενική χρέωση).`
+      : `Παρακαλούμε να μας γνωρίσετε την αποδοχή σας, συμπληρώνοντας και υπογράφοντας το κατωτέρω σημείωμα, και να καταβάλετε τα προβλεπόμενα τέλη ύψους [b]${T.fee}€[/b] (${T.rule}). Στην αιτιολογία της κατάθεσης παρακαλούμε να αναγράψετε: «${ref}».`,
     '', '────────────────────────────────', '[b]ΑΠΟΔΟΧΗ[/b]', '',
     `Ο υπογράφων ${recipient} αποδέχομαι ${dot(acc)}`, '', 'Ημερομηνία: ………………………          Υπογραφή: ………………………',
     ...(en ? ['', `[i]${en}[/i]`] : [])].join('\n') };
 }
+// «Επί τιμή»: στο έντυπο το προβλεπόμενο ποσό διαγράφεται με κόκκινη διαγώνια γραμμή και δίπλα μπαίνει «ΜΔ»
+const FREE_MARK = (fee) => `⟦ΕΠΙΤΙΜΗ:${fee}⟧`;
+const FREE_RE = /⟦ΕΠΙΤΙΜΗ:(\d+)⟧/g;
+export const freeHtml = (html) => String(html).replace(FREE_RE, '<span class="fee-free" title="Επί τιμή από τον Μέγα Διδάσκαλο — μηδενική χρέωση"><span class="fee-struck">$1€</span><b class="fee-md">ΜΔ</b></span>');
+export const freePlain = (text) => String(text).replace(FREE_RE, '$1€ → 0€ (επί τιμή από ΜΔ)');
 // Τα τέλη όλων των προθέσεων ενός Διατάγματος (για το σύνολο στη σελίδα)
 const feeOf = (t) => (isThanks(t) ? 0 : INTENT_TYPES[t].fee || 0);
+// Μία γραμμή καταγραφής ανά Αδελφό: προβλεπόμενο / οφειλόμενο (0 αν επί τιμή) / κατατέθηκε / υπόλοιπο
+export function intentRows(d) {
+  const tr = intentTrack(d);
+  return decreePeople(d).map((a, i) => {
+    const t = intentType(d, a, i), T = INTENT_TYPES[t], k = tr[i] || {}, fee = feeOf(t), free = !!k.free, due = free ? 0 : fee, paid = Number(k.paid) || 0;
+    return { i, name: name(a), honorific: a.honorific || '', office: officeOf(d, a).nom, type: t, label: isThanks(t) ? T.label : `${intentLabel(t)} · ${T.label}`, fee, free, due, answer: k.answer || '',
+      paid, paid_at: k.paid_at || '', remainder: Math.max(0, due - paid), mobile: k.mobile ?? a.mobile ?? '', email: k.email ?? a.email ?? '' };
+  });
+}
 // Αρ. πρωτοκόλλου της Πρόθεσης = ο αριθμός πρωτοκόλλου του αντίστοιχου Διατάγματος, με «ΠΡΟΘΕΣΗ» δίπλα (π.χ. «20546 ΠΡΟΘΕΣΗ»)
 export const intentProtocol = (d) => (d.protocol_seq ? `${d.protocol_seq} ΠΡΟΘΕΣΗ` : '');
 const fileName = (d, a, x) => safeFileName(`${intentProtocol(d) ? intentProtocol(d) + ' - ' : 'ΠΡΟΘΕΣΗ '}ΔΙΑΤΑΓΜΑ ${d.decree_no}-${d.decree_year} ${name(a)} ${x.subject.replace(/^.*? — /, '')}`.toLocaleUpperCase('el'));
@@ -113,15 +138,20 @@ function intentPage({ params, query }) {
   const shown = only == null ? xs : [xs[only]];
   const kindOk = (t) => INTENT_TYPES[t].kind === 'any' || INTENT_TYPES[t].kind === m.action;
   const opts = (sel) => Object.entries(INTENT_TYPES).filter(([k]) => kindOk(Number(k))).map(([k, T]) => `<option value="${k}"${Number(k) === sel ? ' selected' : ''}>${k}. ${esc(T.label)}${T.fee ? ` — ${T.fee}€` : ''}</option>`).join('');
-  const total = xs.reduce((s, r) => s + feeOf(r.x.type), 0);
-  const paper = (r) => letterPaper({ letter_date: d.decree_date || today(), protocol_no: intentProtocol(d) || 'ΠΡΟΘΕΣΗ — το Διάταγμα δεν έχει ακόμη αρ. πρωτοκόλλου', recipient_name: r.x.recipient, subject: r.x.subject, body: r.x.body, signer: 'dimitrios' });
+  const total = xs.reduce((s, r) => s + (isFree(d, r.i) ? 0 : feeOf(r.x.type)), 0);
+  const paper = (r) => freeHtml(letterPaper({ letter_date: d.decree_date || today(), protocol_no: intentProtocol(d) || 'ΠΡΟΘΕΣΗ — το Διάταγμα δεν έχει ακόμη αρ. πρωτοκόλλου', recipient_name: r.x.recipient, subject: r.x.subject, body: r.x.body, signer: 'dimitrios' }));
   return {
     title: `Πρόθεση — Διάταγμα ${d.decree_no}/${d.decree_year}`,
     html: `<div class="hero noprint"><div><h1>Πρόθεση Διορισμού – Απονομής</h1><p class="muted">Διάταγμα <a href="#/decrees/${d.id}"><b class="official-number">${esc(`${d.decree_no}/${d.decree_year}`)}</b></a> · ${esc(d.matter || '')} · Αρ. Πρωτ. Πρόθεσης: <b class="official-number">${esc(intentProtocol(d) || 'δεν έχει δοθεί — δώστε πρώτα αρ. πρωτοκόλλου στο Διάταγμα')}</b> · ${xs.length} ${xs.length === 1 ? 'Αδελφός' : 'Αδελφοί'} · σύνολο τελών <b>${total}€</b></p></div>
 <div class="toolbar"><button class="btn primary" data-act="pdf">⬇ PDF / Εκτύπωση${only == null ? ' όλων' : ''}</button>${only == null ? '' : `<a class="btn" href="#/decrees/${d.id}/intent">Όλες οι προθέσεις</a>`}<a class="btn" href="#/decrees/${d.id}">Το Διάταγμα</a><a class="btn" href="#/decrees">Αρχείο Διαταγμάτων</a></div></div>
 <div class="noprint intent-list">${intentTable(xs, opts, d)}</div>
+<details class="card fold noprint" open><summary><b>📋 Καταγραφή: απάντηση · κατάθεση · υπόλοιπο</b> <small class="muted">— ίδια με τη σελίδα <a href="#/intents">ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ</a></small></summary>${trackTable(d)}</details>
 <div class="print-area">${shown.map(paper).join('')}</div>`,
     mount(el) {
+      el.querySelectorAll('input.intent-free').forEach((c) => c.addEventListener('change', async () => {
+        await db.save(`Διάταγμα ${d.decree_no}/${d.decree_year}: ${c.checked ? 'επί τιμή ΜΔ' : 'κανονική χρέωση'}`, (tx) => setTrack(tx, d, c.dataset.i, { free: c.checked }));
+        toast(c.checked ? 'Επί τιμή από ΜΔ — μηδενική χρέωση.' : 'Κανονική χρέωση.'); go(`/decrees/${d.id}/intent`, query);
+      }));
       el.querySelectorAll('select.intent-type').forEach((s) => s.addEventListener('change', async () => {
         const c = { ...intentChoices(d), [s.dataset.i]: Number(s.value) };
         await db.save(`Διάταγμα ${d.decree_no}/${d.decree_year}: είδος πρόθεσης`, (tx) => tx.update('decree_documents', d.id, { intent: JSON.stringify(c) }));
@@ -129,6 +159,7 @@ function intentPage({ params, query }) {
       }));
       bind(el, {
         pdf: () => printPaper(only == null ? safeFileName(`${intentProtocol(d) ? intentProtocol(d) + ' - ' : ''}ΠΡΟΘΕΣΕΙΣ ΔΙΑΤΑΓΜΑΤΟΣ ${d.decree_no}-${d.decree_year}`) : fileName(d, xs[only].a, xs[only].x)),
+        async saveRow(_, b) { await saveTrackRow(b.closest('tr')); go(`/decrees/${d.id}/intent`, query); },
         async reset() { await db.save(`Διάταγμα ${d.decree_no}/${d.decree_year}: αυτόματα είδη πρόθεσης`, (tx) => tx.update('decree_documents', d.id, { intent: '' })); flash('Τα είδη πρόθεσης ξαναϋπολογίστηκαν από την Επετηρίδα.'); go(`/decrees/${d.id}/intent`); },
       });
     },
@@ -136,11 +167,12 @@ function intentPage({ params, query }) {
 }
 function intentTable(xs, opts, d) {
   const chosen = intentChoices(d);
-  return table(['Αδελφός', 'Αξίωμα', 'Είδος πρόθεσης', 'Τέλη', 'Ενέργειες'], xs.map(({ a, i, x }) => {
-    const T = INTENT_TYPES[x.type];
+  return table(['Αδελφός', 'Αξίωμα', 'Είδος πρόθεσης', 'Τέλη', 'Επί τιμή ΜΔ', 'Ενέργειες'], xs.map(({ a, i, x }) => {
+    const T = INTENT_TYPES[x.type], free = isFree(d, i);
     return [`<b>${esc(x.recipient)}</b>${a.email ? `<br><small>${esc(a.email)}</small>` : ''}`, esc(officeOf(d, a).nom),
-      `<select class="intent-type" data-i="${i}">${opts(x.type)}</select>${chosen[i] ? '' : '<br><small class="muted">αυτόματα από την Επετηρίδα</small>'}`, T.fee ? `<b>${T.fee}€</b><br><small>${esc(T.rule)}</small>` : '—',
-      `<a class="btn small" href="#/decrees/${d.id}/intent?p=${i}">📄 Μόνο αυτή / PDF</a> ${a.email ? mailButtons({ to: [a.email], subject: `${intentProtocol(d) ? `Αρ. Πρωτ. ${intentProtocol(d)} — ` : ''}${x.subject}`, body: x.body.replace(/\[\/?[bi]\]/g, ''), kind: 'official' }, '✉ Email') : ''}`];
+      `<select class="intent-type" data-i="${i}">${opts(x.type)}</select>${chosen[i] ? '' : '<br><small class="muted">αυτόματα από την Επετηρίδα</small>'}`, T.fee ? (free ? `<s class="vwarn">${T.fee}€</s> <b>0€</b><br><small>επί τιμή από ΜΔ</small>` : `<b>${T.fee}€</b><br><small>${esc(T.rule)}</small>`) : '—',
+      T.fee ? `<label class="chk"><input type="checkbox" class="intent-free" data-i="${i}"${free ? ' checked' : ''}> 0€ — επί τιμή</label>` : '—',
+      `<a class="btn small" href="#/decrees/${d.id}/intent?p=${i}">📄 Μόνο αυτή / PDF</a> ${a.email ? mailButtons({ to: [a.email], subject: `${intentProtocol(d) ? `Αρ. Πρωτ. ${intentProtocol(d)} — ` : ''}${x.subject}`, body: freePlain(x.body).replace(/\[\/?[bi]\]/g, ''), kind: 'official' }, '✉ Email') : ''}`];
   })) + `<div class="toolbar"><button type="button" class="btn small" data-act="reset">↺ Αυτόματα είδη από την Επετηρίδα</button><small class="muted">Το «Είδος πρόθεσης» αποθηκεύεται στο Διάταγμα· κάθε αλλαγή του Διατάγματος (αξίωμα, Αδελφοί, έτος) αλλάζει αυτόματα και το κείμενο.</small></div>`;
 }
 

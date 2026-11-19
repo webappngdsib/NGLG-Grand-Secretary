@@ -24,7 +24,7 @@ function setupCorfuSync(){
   if (!PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN')) {
     throw Error('Add Script Property GITHUB_TOKEN first.');
   }
-  ScriptApp.getProjectTriggers().filter(x=>x.getHandlerFunction()==='syncCorfu2026').forEach(ScriptApp.deleteTrigger);
+  ScriptApp.getProjectTriggers().filter(x=>x.getHandlerFunction()==='syncCorfu2026').forEach(trigger => ScriptApp.deleteTrigger(trigger));
   ScriptApp.newTrigger('syncCorfu2026').timeBased().everyHours(2).create();
   syncCorfu2026();
 }

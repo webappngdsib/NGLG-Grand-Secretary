@@ -7,7 +7,8 @@ import { makeDocx, letterBlocks } from '../core/docx.js';
 import { richHtml } from '../core/rich.js';
 import { docTitle, driveBox, saveDocToDrive } from '../core/drive.js';
 import { letterhead, IMG, printPaper, pageLayers, layoutTop, customHead, defaultHead, headOn, HEAD_COLORS } from '../core/paper.js';
-import { mailButtons, senderBanner } from '../core/mail.js';
+import { senderBanner } from '../core/mail.js';
+import { mailSheet } from '../core/gmail.js';
 import { attachPicker, memberItems, contactItems } from '../core/pickers.js';
 import { DECREE_KINDS, DECREE_PLACEHOLDERS, GENERAL_BODY, PROVINCIAL_OFFICES, keyFor, decreeKey, decreeTemplate, layoutOf } from './decree-templates.js';
 import { planDecreeSync, planChanges, planText, applyDecreeSync, revertDecreeSync, syncInfo, EP_LABEL, decreePeople } from './decree-sync.js';
@@ -62,7 +63,7 @@ export function decreeBody(matter, apps, iso, action = 'appoint', awardOffice = 
 }
 
 const meta = (d) => {
-  let r = d.rules;
+  let r = d.rules || {};
   try { if (typeof r === 'string') r = JSON.parse(r || '{}'); } catch { r = {}; }
   if (Array.isArray(r)) r = { rules: r };
   return { rules: r.rules || [], action: r.action || 'appoint', award_office: r.award_office || '', decree_office: r.decree_office || '', period: r.period || `${d.decree_year} - ${Number(d.decree_year) + 1}` };
@@ -445,6 +446,15 @@ async function addDecreeProtocol(d) {
   return true;
 }
 
+// «Επί τιμή ΜΔ» (μηδενική χρέωση) για όλους τους Αδελφούς του Διατάγματος — ίδιο πεδίο με τη σελίδα «Πρόθεση» και την «Ενημέρωση Πρόθεσης»
+const trackOf = (d) => { try { return JSON.parse(d.intent_track || '{}') || {}; } catch { return {}; } };
+function freeBox(d) {
+  const n = apps(d).length, t = trackOf(d), f = apps(d).filter((_, i) => (t[i] || {}).free).length;
+  return `<label class="chk free-box" title="Επί τιμή από τον Μέγα Διδάσκαλο: μηδενική χρέωση (0€) στην Πρόθεση"><input type="checkbox" data-free="${d.id}"${f && f === n ? ' checked' : ''}> 0€ επί τιμή ΜΔ${f && f < n ? ` (${f}/${n})` : ''}</label>`;
+}
+// Αποστολή email του Διατάγματος: ημερομηνία στο πεδίο sent_at (από «📤 Αποστολή τώρα» ή «✓ Σημείωση ως σταλμένο»)
+async function markDecreeSent(d) { await db.save(`Διάταγμα ${decreeNo(d)}: στάλθηκε με email`, (tx) => { tx.update('decree_documents', d.id, { sent_at: today() }); }); }
+export const sentBadge = (d) => (d.sent_at ? `<span class="vok">✓ Στάλθηκε email ${esc(fmtDate(d.sent_at))}</span>` : '<span class="vwarn">✉ Δεν έχει σταλεί email</span>');
 function viewDecree({ params }) {
   const d = db.get('decree_documents', params.id);
   if (!d) return '<h1>Δεν βρέθηκε το Διάταγμα</h1>';
@@ -453,14 +463,21 @@ function viewDecree({ params }) {
   return {
     title: d.subject,
     html: `<section class="card send-panel noprint"><h3>${esc(DECREE_KINDS[decreeKey(d)].name)} — Αποστολή & Αποθήκευση</h3>${senderBanner('official')}
-<div class="toolbar"><button class="btn primary" data-act="pdf">⬇ PDF / Εκτύπωση</button>${mailButtons({ to, cc: db.setting('decree_cc'), subject: d.subject, body: d.body, kind: 'official' }, '✉ Αποστολή με Email')}
+<p class="noprint decree-sent">${sentBadge(d)}${d.sent_at ? ' <button class="btn small" data-act="unsent">↺ Αναίρεση «Στάλθηκε»</button>' : ' <button class="btn small" data-act="markSent" title="Για email που στάλθηκε εκτός εφαρμογής (π.χ. «Άνοιγμα στο Gmail»)">✓ Σημείωση ως σταλμένο</button>'}</p><div class="mailsheet"></div>
+<div class="toolbar"><button class="btn primary" data-act="pdf">⬇ PDF / Εκτύπωση</button>
 <a class="btn" target="_blank" rel="noopener" href="${wa}">WhatsApp μήνυμα</a>${d.status === 'ready' ? '' : '<button class="btn primary" data-act="ready">✅ Έτοιμο: απόδοση αρ. πρωτοκόλλου</button>'}</div>
 <p class="send-help">Αρ. Πρωτ.: <b>${esc(d.protocol_no || 'δεν έχει δοθεί')}</b>${d.protocol_seq ? ' <button class="btn small" data-act="protocol">✏ Αλλαγή αρ. πρωτοκόλλου</button>' : ' <button class="btn small" data-act="addproto">➕ Αρ. πρωτοκόλλου</button>'} · Κοινοποίηση: ${esc(db.setting('decree_cc'))} (αλλαγή στις Ρυθμίσεις).</p>${driveBox(d, fileName(d))}
 <div class="toolbar"><button class="btn" data-act="word">⬇ Word</button></div></section>
 <div class="toolbar noprint">${decreeKey(d) !== 'decree-general' && apps(d).length ? `<a class="btn" href="#/decrees/${d.id}/intent">📨 Πρόθεση Διορισμού – Απονομής</a>` : ''}<a class="btn" href="#/decrees/${d.id}/edit">Επεξεργασία Διατάγματος</a><a class="btn" href="#/decrees/new?copy_from=${d.id}">Νέο πάνω σε αυτό</a><a class="btn" href="#/decrees">Αρχείο Διαταγμάτων</a>
 <button class="btn danger" data-act="del">Διαγραφή</button></div>${syncCard(d)}<div class="print-area">${decreePaper(d)}</div>`,
     mount(el) {
+      // Αποστολή email με το PDF του Διατάγματος: μετά την αποστολή σημειώνεται «✓ Στάλθηκε» (φαίνεται και στο Αρχείο Διαταγμάτων)
+      mailSheet(el, { kind: 'official', pdfName: fileName(d), onSent: () => markDecreeSent(d),
+        getMsg: () => ({ to: to.join(', '), cc: db.setting('decree_cc'), bcc: '', subject: d.subject, body: d.body }),
+        getPdf: async () => ({ blob: await (await import('../core/pdf.js')).paperPdf(el.querySelector('.print-area .paper'), { title: fileName(d) }), name: fileName(d) + '.pdf' }) });
       bind(el, {
+        async markSent() { await markDecreeSent(d); flash('Το Διάταγμα σημειώθηκε ως σταλμένο με email.'); go(`/decrees/${d.id}`); },
+        async unsent() { await db.save(`Διάταγμα ${decreeNo(d)}: αναίρεση «στάλθηκε»`, (tx) => { tx.update('decree_documents', d.id, { sent_at: '' }); }); flash('Αναιρέθηκε η σημείωση «Στάλθηκε».'); go(`/decrees/${d.id}`); },
         pdf: () => printPaper(fileName(d)),
         async word() { download(fileName(d) + '.docx', await decreeDocxBlob(d)); },
         async drive() { await saveDocToDrive('decree_documents', d.id, fileName(d), null, el.querySelector('.print-area .paper')); flash('Αποθηκεύτηκε στο Drive (Word + PDF).'); go(`/decrees/${d.id}`); },
@@ -815,13 +832,20 @@ function archive({ query }) {
     html: `<div class="hero"><div><h1>Αρχείο Διαταγμάτων</h1><p class="muted">Ανεξάρτητο από το Αρχείο Επιστολών.</p></div><div class="toolbar"><a class="btn primary" href="#/decrees/new">+ Νέο Διάταγμα</a>${protocolGreenBtn()}</div></div>${notice(query.msg)}
 <form class="filters" id="flt"><input name="q" value="${esc(query.q || '')}" placeholder="Αριθμός, περί, όνομα" autofocus><input type="date" name="from" value="${esc(query.from || '')}"><input type="date" name="to" value="${esc(query.to || '')}"><button>Αναζήτηση</button></form>
 ${pend.length ? `<div class="card sync-card warn"><b>⚠ ${pend.length} Διατάγματα δεν έχουν περάσει στην Επετηρίδα και στο Μητρώο:</b> ${pend.map((d) => `<a href="#/decrees/${d.id}">${esc(decreeNo(d))}</a>`).join(', ')} — ανοίξτε το καθένα και πατήστε «🔄 Ενημέρωση Επετηρίδας & Μητρώου».</div>` : ''}
-${table(['Αρ. Διατάγματος', 'Αρ. Πρωτ.', 'Ημερομηνία', 'Περί', 'Αδελφοί', 'Ενέργειες'], xs.slice(0, 500).map((d) => [`<span class="official-number">${esc(decreeNo(d))}</span>${syncInfo(d) ? '<br><small class="vok" title="Η Επετηρίδα και το Μητρώο ενημερώθηκαν">✓ Επετηρίδα</small>' : pendIds.has(d.id) ? '<br><small class="vwarn">⚠ Επετηρίδα</small>' : ''}`, d.protocol_seq ? `<span class="official-number">${esc(String(d.protocol_seq))}</span>` : `<button type="button" class="btn small" data-act="addproto" data-id="${d.id}">➕ Αρ. πρωτοκόλλου</button>`, esc(fmtDate(d.decree_date)), esc(d.matter), esc(d.recipient_name),
-  `<a href="#/decrees/${d.id}">Άνοιγμα</a> · ${decreeKey(d) !== 'decree-general' && apps(d).length ? `<a class="btn small intent-link" href="#/decrees/${d.id}/intent" title="Πρόθεση Διορισμού – Απονομής: μία επιστολή για κάθε Αδελφό του Διατάγματος">📨 Πρόθεση${d.protocol_seq ? ` <span class="official-number">${esc(String(d.protocol_seq))}</span>` : ''}</a> · ` : ''}<a href="#/decrees/${d.id}/edit">Επεξεργασία</a> · <a href="#/decrees/new?copy_from=${d.id}">Νέο πάνω σε αυτό</a> <button type="button" class="btn small danger" data-act="del" data-id="${d.id}">🗑 Διαγραφή</button>`]), 'Δεν βρέθηκαν Διατάγματα.')}`,
+${table(['Αρ. Διατάγματος', 'Αρ. Πρωτ.', 'Ημερομηνία', 'Περί', 'Αδελφοί', 'Email', 'Ενέργειες'], xs.slice(0, 500).map((d) => [`<span class="official-number">${esc(decreeNo(d))}</span>${syncInfo(d) ? '<br><small class="vok" title="Η Επετηρίδα και το Μητρώο ενημερώθηκαν">✓ Επετηρίδα</small>' : pendIds.has(d.id) ? '<br><small class="vwarn">⚠ Επετηρίδα</small>' : ''}`, d.protocol_seq ? `<span class="official-number">${esc(String(d.protocol_seq))}</span>` : `<button type="button" class="btn small" data-act="addproto" data-id="${d.id}">➕ Αρ. πρωτοκόλλου</button>`, esc(fmtDate(d.decree_date)), esc(d.matter), esc(d.recipient_name), sentBadge(d) + (d.sent_at ? '' : ` <button type="button" class="btn small" data-act="markSent" data-id="${d.id}" title="Για email που στάλθηκε εκτός εφαρμογής">✓ Στάλθηκε</button>`),
+  `<a href="#/decrees/${d.id}">Άνοιγμα</a> · ${decreeKey(d) !== 'decree-general' && apps(d).length ? `<a class="btn small intent-link" href="#/decrees/${d.id}/intent" title="Πρόθεση Διορισμού – Απονομής: μία επιστολή για κάθε Αδελφό του Διατάγματος">📨 Πρόθεση${d.protocol_seq ? ` <span class="official-number">${esc(String(d.protocol_seq))}</span>` : ''}</a> ${freeBox(d)} · ` : ''}<a href="#/decrees/${d.id}/edit">Επεξεργασία</a> · <a href="#/decrees/new?copy_from=${d.id}">Νέο πάνω σε αυτό</a> <button type="button" class="btn small danger" data-act="del" data-id="${d.id}">🗑 Διαγραφή</button>`]), 'Δεν βρέθηκαν Διατάγματα.')}`,
     mount(el) {
       onSubmit(el.querySelector('#flt'), (q) => go('/decrees', q));
+      el.querySelectorAll('input[data-free]').forEach((c) => c.addEventListener('change', async () => {
+        const d = db.get('decree_documents', Number(c.dataset.free)); if (!d) return;
+        const t = trackOf(d); apps(d).forEach((_, i) => { t[i] = { ...(t[i] || {}), free: c.checked }; });
+        await db.save(`Διάταγμα ${decreeNo(d)}: ${c.checked ? 'επί τιμή ΜΔ (0€)' : 'κανονική χρέωση'}`, (tx) => { tx.update('decree_documents', d.id, { intent_track: JSON.stringify(t) }); });
+        toast(c.checked ? `Διάταγμα ${decreeNo(d)}: επί τιμή από ΜΔ — μηδενική χρέωση.` : `Διάταγμα ${decreeNo(d)}: κανονική χρέωση.`); go('/decrees', query);
+      }));
       bind(el, {
         async del(x) { const d = db.get('decree_documents', Number(x.id)); if (d && await deleteDecree(d)) go('/decrees', query); },
         async addproto(x) { const d = db.get('decree_documents', Number(x.id)); if (d && await addDecreeProtocol(d)) go('/decrees', query); },
+        async markSent(x) { const d = db.get('decree_documents', Number(x.id)); if (d) { await markDecreeSent(d); toast(`Το Διάταγμα ${decreeNo(d)} σημειώθηκε ως σταλμένο.`); go('/decrees', query); } },
       });
     },
   };

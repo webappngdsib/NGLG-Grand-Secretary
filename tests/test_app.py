@@ -3627,7 +3627,7 @@ def test_members_export_active_lodge_province(app, tmp_path):
 def test_lodge_portal_apps_script_logic():
     # Ο server της Πύλης (lodge/apps-script/Code.gs) με ψεύτικο Drive/Mail: δημοσίευση → σύνδεση → αλλαγή (έκδοση + email) → λήψη → επαναφορά
     import subprocess
-    for t in ('lodge_portal.test.js', 'lodge_portal_admin.test.js', 'province_secretaries.test.js', 'lodge_email_login.test.js', 'announcements.test.js'):  # και σύνδεση διαχειριστή: OTP email / Google (super admin)
+    for t in ('lodge_portal.test.js', 'lodge_portal_admin.test.js', 'province_secretaries.test.js', 'lodge_email_login.test.js', 'announcements.test.js', 'intent_portal.test.js'):  # και σύνδεση διαχειριστή: OTP email / Google (super admin)
         r = subprocess.run(['node', str(ROOT / 'tests' / 'gas' / t)], capture_output=True, text=True)
         assert r.returncode == 0, t + ': ' + r.stdout + r.stderr
 
@@ -5038,3 +5038,110 @@ def test_decree_intent_letters_per_brother(app):
     assert 'ΠΡΟΘΕΣΗ — το Διάταγμα δεν έχει ακόμη αρ. πρωτοκόλλου' in t
     assert 'απονείμει διά πρώτην φοράν το αξίωμα του Πρώην Σεβασμίου Διδασκάλου' in t and 'Πρόθεση Απονομής' in t and '150€' in t, t
     assert app.page.locator('select.intent-type option').count() == 3  # 5, 7, 8 (μόνο είδη απονομής + ευχαριστίες)
+
+
+def test_decree_archive_shows_email_sent(app):
+    # Αρχείο Διαταγμάτων: στήλη «Email» — «✓ Στάλθηκε email <ημερ.>» ή «✉ Δεν έχει σταλεί email» (+ «✓ Στάλθηκε» για αποστολή εκτός εφαρμογής)
+    app.connect_local()
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      await db.save('x', (tx) => { tx.insert('decree_documents', { decree_no: 960, decree_year: 2026, decree_date: '2026-11-01', matter: 'α', body: 'x', template_key: 'decree-appoint', sent_at: '2026-11-05' });
+        tx.insert('decree_documents', { decree_no: 961, decree_year: 2026, decree_date: '2026-11-02', matter: 'β', body: 'y', template_key: 'decree-appoint' }); }); }""")
+    app.go('/decrees')
+    assert '✓ Στάλθηκε email 05/11/2026' in app.page.locator('tr', has_text='960/2026').inner_text()
+    row = app.page.locator('tr', has_text='961/2026')
+    assert '✉ Δεν έχει σταλεί email' in row.inner_text()
+    row.locator('button:has-text("✓ Στάλθηκε")').click()
+    app.page.wait_for_function("() => [...document.querySelectorAll('tr')].some((r) => r.innerText.includes('961/2026') && r.innerText.includes('✓ Στάλθηκε email'))")
+    # σελίδα Διατάγματος: ένδειξη, αναίρεση και φόρμα αποστολής (Gmail) με PDF
+    app.page.locator('tr', has_text='960/2026').locator('a:has-text("Άνοιγμα")').click()
+    app.page.wait_for_selector('.mailsheet [data-ms=send]')
+    assert '✓ Στάλθηκε email 05/11/2026' in app.text('.decree-sent')
+    app.click('↺ Αναίρεση «Στάλθηκε»')
+    app.page.wait_for_selector('text=✉ Δεν έχει σταλεί email')
+
+
+def test_intent_free_and_tracking(app):
+    # «Επί τιμή ΜΔ» (0€): στο έντυπο της Πρόθεσης το ποσό με κόκκινη διαγώνια γραμμή + «ΜΔ»· ίδιο πεδίο στο Αρχείο Διαταγμάτων,
+    # στη σελίδα «Πρόθεση» και στην «ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ» (απάντηση, κατάθεση, υπόλοιπο)
+    app.connect_local()
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      await db.save('x', (tx) => { tx.insert('decree_documents', { decree_no: 970, decree_year: 2026, decree_date: '2026-11-01', protocol_seq: 20700, protocol_no: '20700', matter: 'Διορισμού', body: 'x', template_key: 'decree-appoint',
+        rules: JSON.stringify({ action: 'appoint', decree_office: 'Μέγας Ξιφοφόρος', period: '2026 - 2027' }),
+        appointments: JSON.stringify([{ first_name: 'Πέτρος', last_name: 'Πρώτος', email: 'p@example.com', mobile: '6900000001', office: 'Μέγας Ξιφοφόρος' }, { first_name: 'Παύλος', last_name: 'Δεύτερος', office: 'Μέγας Ξιφοφόρος' }]) }); }); }""")
+    app.go('/decrees')
+    row = app.page.locator('tr', has_text='970/2026')
+    assert '0€ επί τιμή ΜΔ' in row.inner_text()
+    row.locator('input[data-free]').check()
+    app.page.wait_for_selector('text=επί τιμή από ΜΔ — μηδενική χρέωση')
+    tr = app.page.evaluate("async () => JSON.parse((await import('./core/store.js')).db.all('decree_documents').find((d) => d.decree_no === 970).intent_track)")
+    assert tr['0']['free'] and tr['1']['free'], tr
+    app.go('/decrees')
+    app.page.locator('tr', has_text='970/2026').locator('a:has-text("📨 Πρόθεση")').click()
+    app.page.wait_for_selector('.print-area .fee-free')
+    t = app.text('.print-area')
+    assert 'επί τιμή από τον Μέγα Διδάσκαλο' in t and 'ΤΕΛΗ ΔΙΟΡΙΣΜΟΥ' not in t
+    st = app.page.evaluate("() => { const s = document.querySelector('.print-area .fee-struck'), a = getComputedStyle(s, '::after'), m = document.querySelector('.print-area .fee-md'); return [s.innerText, a.borderTopColor, a.transform !== 'none', m.innerText, getComputedStyle(m).color]; }")
+    assert st[0] == '150€' and st[1] == 'rgb(221, 0, 0)' and st[2] and st[3] == 'ΜΔ' and st[4] == 'rgb(221, 0, 0)', st
+    # ο πρώτος σε κανονική χρέωση από τη σελίδα «Πρόθεση»
+    app.page.locator('input.intent-free[data-i="0"]').uncheck()
+    app.page.wait_for_function("() => document.querySelectorAll('.print-area .fee-free').length === 1")
+    # καταγραφή: απάντηση ΝΑΙ, κατάθεση 100 → υπόλοιπο 50€
+    app.go('/intents')
+    assert 'ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ' in app.text('h1')
+    r0 = app.page.locator('tr[data-i="0"]')
+    assert '20700 ΠΡΟΘΕΣΗ' in r0.inner_text() and r0.locator('[data-k=mobile]').input_value() == '6900000001'
+    r0.locator('[data-k=answer]').select_option('yes')
+    r0.locator('[data-k=paid]').fill('100')
+    r0.locator('[data-k=paid_at]').fill('2026-11-19')
+    r0.locator('[data-act=saveRow]').click()
+    app.page.wait_for_function("() => document.querySelector('tr[data-i=\"0\"] td[data-label=Υπόλοιπο]').innerText.trim() === '50€'")
+    c = app.text('.intent-stats')
+    assert 'ΝΑΙ 1' in c and 'επί τιμή ΜΔ 1' in c and 'οφειλόμενα 150€' in c and 'κατατέθηκαν 100€' in c and 'υπόλοιπο 50€' in c, c
+    # δημοσίευση στον server: διατάγματα, προθέσεις και email πρόσβασης
+    pl = app.page.evaluate("async () => { const m = await import('./modules/intent-portal.js'); return m.decreePayload(); }")
+    p0 = pl[0]['people'][0]
+    assert pl[0]['protocol'] == '20700 ΠΡΟΘΕΣΗ' and p0['answer'] == 'yes' and p0['paid'] == 100 and p0['fee'] == 150 and not p0['free'] and pl[0]['people'][1]['free'], pl
+
+
+def test_intent_public_page(browser, base_url):
+    # Δημόσια σελίδα prothesi/: email → κωδικός SKIADO#### → Αρχείο Διαταγμάτων + πίνακας καταγραφής → αποθήκευση γραμμής
+    import json as _j
+    API = 'https://script.google.com/macros/s/TESTINTENT/exec'
+    dec = {'id': 7, 'no': '520', 'year': '2026', 'date': '2026-11-01', 'matter': 'Διορισμού', 'protocol': '20601 ΠΡΟΘΕΣΗ', 'kind': 'ΕΝ ΕΝΕΡΓΕΙΑ', 'sent': '2026-11-02',
+           'people': [{'i': 0, 'name': 'Γεώργιος Δοκιμαστής', 'honorific': 'ΛΣεβ. Αδ.', 'office': 'Μέγας Γραμματεύς', 'label': 'Πρόθεση Διορισμού', 'fee': 150, 'answer': '', 'paid': 0, 'paid_at': '', 'mobile': '', 'email': '', 'free': False},
+                      {'i': 1, 'name': 'Νίκος Δεύτερος', 'honorific': '', 'office': 'Μέγας Ξιφοφόρος', 'label': 'Πρόθεση Διορισμού', 'fee': 80, 'answer': '', 'paid': 0, 'paid_at': '', 'mobile': '', 'email': '', 'free': True}]}
+    saved = []
+
+    def api(route):
+        b = _j.loads(route.request.post_data or '{}')
+        if b.get('action') == 'intent_otp_send':
+            return route.fulfill(json={'ok': True, 'sent': True})
+        if b.get('action') == 'intent_otp_verify':
+            return route.fulfill(json={'ok': True, 'session': 's' * 40, 'email': 'v@example.com', 'decrees': [dec]} if b.get('code') == 'SKIADO1234' else {'ok': False, 'error': 'otp_wrong'})
+        if b.get('action') == 'intent_save':
+            saved.append(b)
+            p = dict(dec['people'][b['i']]); p.update({k: b[k] for k in ('answer', 'paid_at', 'mobile', 'email', 'free')}); p['paid'] = float(b['paid'] or 0)
+            return route.fulfill(json={'ok': True, 'person': p})
+        return route.fulfill(json={'ok': False, 'error': 'unknown_action'})
+    page = browser.new_page()
+    page.route('**/lodge/portal.json*', lambda r: r.fulfill(json={'api_url': API, 'lodges': []}))
+    page.route(API, api)
+    page.goto(base_url + 'prothesi/')
+    assert 'ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ' in page.inner_text('h1')
+    page.fill('#email', 'v@example.com'); page.click('#send')
+    page.wait_for_selector('#step2:not([hidden])')
+    page.fill('#code', 'SKIADO0000'); page.click('#verify')
+    page.wait_for_selector('text=Λάθος κωδικός')
+    page.fill('#code', 'SKIADO1234'); page.click('#verify')
+    page.wait_for_selector('#work:not([hidden])')
+    assert '520/2026' in page.inner_text('#archive') and '20601 ΠΡΟΘΕΣΗ' in page.inner_text('#archive') and '✓ 02/11/2026' in page.inner_text('#archive')
+    s = page.inner_text('#stats')
+    assert 'Οφειλόμενα 150€' in s and 'Επί τιμή ΜΔ 1' in s, s
+    assert page.locator('tr[data-i="1"] .struck').inner_text() == '80€' and page.locator('tr[data-i="1"] .md').inner_text() == 'ΜΔ'
+    r = page.locator('tr[data-i="0"]')
+    r.locator('[data-k=answer]').select_option('yes'); r.locator('[data-k=paid]').fill('150'); r.locator('[data-k=paid_at]').fill('2026-11-19')
+    r.locator('[data-k=mobile]').fill('6900000000'); r.locator('[data-save]').click()
+    page.wait_for_selector('tr[data-i="0"] .saved:has-text("✓ Αποθηκεύτηκε")')
+    assert saved[0]['session'] == 's' * 40 and saved[0]['decree_id'] == 7 and saved[0]['answer'] == 'yes' and saved[0]['paid'] == '150' and saved[0]['free'] is False
+    assert '✓ 0€' in page.inner_text('tr[data-i="0"] .rem') and 'Κατατέθηκαν 150€' in page.inner_text('#stats')
+    page.close()

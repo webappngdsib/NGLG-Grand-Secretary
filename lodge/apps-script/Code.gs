@@ -16,7 +16,7 @@
  * Ο κώδικας είναι δημόσιος: δεν περιέχει κωδικούς, email ή δεδομένα μελών. Οδηγίες: lodge/README.md
  */
 
-const VERSION = 6;
+const VERSION = 7;
 const SESSION_SECONDS = 21600; // σύνδεση διαχειριστή: 6 ώρες
 const OTP_SECONDS = 600, OTP_MAX_SENDS = 5, OTP_MAX_TRIES = 5;
 const ROOT_NAME = 'Μητρώα Στοών — Πύλη Γραμματέων';
@@ -71,6 +71,13 @@ function doPost(e) {
       case 'admin_prov_push': admin_(b); return json_(withLock_(() => provPush_(b)));
       case 'admin_prov_pull': admin_(b); return json_({ ok: true, changes: provChanges_() });
       case 'admin_prov_ack': admin_(b); return json_(withLock_(() => provAck_(b)));
+      case 'intent_otp_send': return json_(intentOtpSend_(b));
+      case 'intent_otp_verify': return json_(intentOtpVerify_(b));
+      case 'intent_load': return json_(intentLoad_(b));
+      case 'intent_save': return json_(withLock_(() => intentSave_(b)));
+      case 'admin_intent_push': admin_(b); return json_(withLock_(() => intentPush_(b)));
+      case 'admin_intent_pull': admin_(b); return json_({ ok: true, changes: intentChanges_() });
+      case 'admin_intent_ack': admin_(b); return json_(withLock_(() => intentAck_(b)));
       case 'admin_otp_send': return json_(otpSend_(b));
       case 'admin_otp_verify': return json_(otpVerify_(b));
       case 'admin_google': return json_(googleLogin_(b));
@@ -532,6 +539,104 @@ function provSave_(b) {
   xs.push({ id: 'p' + no + '-' + Date.now(), at: new Date().toISOString(), by: s.email, lodge: no, lodge_name: target.name, values: v, check: check });
   provSaveChanges_(xs);
   return { ok: true, lodge: provView_({ lodges: [target] }).lodges[0] };
+}
+
+// ---------------------------------------------------------------- ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ (σελίδα prothesi/)
+// Η εφαρμογή δημοσιεύει (admin_intent_push) τα Διατάγματα με τις προθέσεις διορισμού/απονομής ανά Αδελφό και τα email που έχουν πρόσβαση.
+// Όποιος έχει πρόσβαση γράφει το email του και λαμβάνει κωδικό «SKIADO» + 4 ψηφία, που ισχύει 1 ώρα· καταγράφει απάντηση (ΝΑΙ/ΟΧΙ),
+// κατάθεση (ποσό, ημερομηνία), κινητό, email και «επί τιμή ΜΔ» (μηδενική χρέωση). Η εφαρμογή παίρνει τις αλλαγές (admin_intent_pull / ack).
+const INTENT_SECONDS = 3600, INTENT_MAX_TRIES = 8;
+function intentDir_() { return sub_(root_(), '_προθέσεις'); }
+function intentData_() { const it = intentDir_().getFilesByName('προθέσεις.json'); return it.hasNext() ? JSON.parse(it.next().getBlob().getDataAsString()) : { decrees: [], emails: [] }; }
+function intentSaveData_(d) { putFile_(intentDir_(), 'προθέσεις.json', JSON.stringify(d)); }
+function intentChanges_() { const it = intentDir_().getFilesByName('αλλαγές.json'); return it.hasNext() ? JSON.parse(it.next().getBlob().getDataAsString()) : []; }
+function intentSaveChanges_(xs) { putFile_(intentDir_(), 'αλλαγές.json', JSON.stringify(xs)); }
+const INTENT_TRACK = ['answer', 'paid', 'paid_at', 'mobile', 'email', 'free'];
+function intentClean_(v) {
+  const o = {};
+  if ('answer' in v) { const a = String(v.answer || ''); o.answer = a === 'yes' || a === 'no' ? a : ''; }
+  if ('paid' in v) { const n = Math.round(Number(String(v.paid == null ? '' : v.paid).replace(',', '.')) * 100) / 100; o.paid = isFinite(n) && n > 0 ? Math.min(n, 100000) : 0; }
+  if ('paid_at' in v) { const d = String(v.paid_at || ''); o.paid_at = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ''; }
+  if ('mobile' in v) o.mobile = str_(v.mobile).slice(0, 30);
+  if ('email' in v) { const e = str_(v.email).toLowerCase(); if (e && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('bad_email'); o.email = e; }
+  if ('free' in v) o.free = v.free === true || v.free === 1 || v.free === '1' || v.free === 'true';
+  return o;
+}
+function intentPush_(b) {
+  const emails = (Array.isArray(b.emails) ? b.emails : []).map(function (e) { return String(e || '').trim().toLowerCase(); }).filter(function (e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); });
+  const decrees = (Array.isArray(b.decrees) ? b.decrees : []).slice(0, 3000).map(function (d) {
+    return { id: Number(d.id), no: str_(d.no), year: str_(d.year), date: str_(d.date), matter: str_(d.matter), protocol: str_(d.protocol), kind: str_(d.kind), sent: str_(d.sent),
+      people: (Array.isArray(d.people) ? d.people : []).slice(0, 300).map(function (p) {
+        const t = intentClean_(p);
+        return { i: Number(p.i), name: str_(p.name), honorific: str_(p.honorific), office: str_(p.office), label: str_(p.label), fee: Math.max(0, Number(p.fee) || 0),
+          answer: t.answer || '', paid: t.paid || 0, paid_at: t.paid_at || '', mobile: t.mobile || '', email: t.email || '', free: !!t.free };
+      }) };
+  });
+  // αλλαγές της σελίδας που δεν έχει πάρει ακόμη η εφαρμογή: μένουν
+  const pend = intentChanges_();
+  pend.forEach(function (c) { decrees.forEach(function (d) { if (d.id === Number(c.decree_id)) d.people.forEach(function (p) { if (p.i === Number(c.i)) Object.keys(c.values).forEach(function (k) { p[k] = c.values[k]; }); }); }); });
+  intentSaveData_({ decrees: decrees, emails: emails, at: new Date().toISOString() });
+  return { ok: true, decrees: decrees.length, people: decrees.reduce(function (a, d) { return a + d.people.length; }, 0), emails: emails.length, pending: pend.length };
+}
+function intentAck_(b) {
+  const ids = Array.isArray(b.ids) ? b.ids.map(String) : [];
+  const rest = intentChanges_().filter(function (c) { return ids.indexOf(String(c.id)) === -1; });
+  intentSaveChanges_(rest);
+  return { ok: true, left: rest.length };
+}
+function intentAllowed_(email) { const e = String(email || '').trim().toLowerCase(); return !!e && intentData_().emails.indexOf(e) !== -1; }
+// Κωδικός «SKIADO» + 4 ψηφία, ισχύει 1 ώρα (μπορεί να ξαναχρησιμοποιηθεί μέσα στην ώρα για να ανοίξει η σελίδα)
+function intentOtpSend_(b) {
+  const email = String(b.email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('bad_email');
+  if (!intentAllowed_(email)) { Utilities.sleep(800); return { ok: true, sent: true }; } // ίδια απάντηση: δεν αποκαλύπτεται ποια email έχουν πρόσβαση
+  const cache = CacheService.getScriptCache(), nKey = 'iotpn_' + email, n = Number(cache.get(nKey) || 0);
+  if (n >= OTP_MAX_SENDS) throw new Error('too_many_tries');
+  const code = 'SKIADO' + String(parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 12), 16) % 10000).padStart(4, '0');
+  cache.put('iotp_' + email, otpHash_(email, code), INTENT_SECONDS); cache.put('iotpt_' + email, '0', INTENT_SECONDS); cache.put(nKey, String(n + 1), 900);
+  const html = '<div style="font-family:Georgia,serif;max-width:560px;margin:auto;border:1px solid #d9cfb4;border-radius:10px;overflow:hidden">'
+    + '<div style="background:#1d2f5e;color:#fff;padding:18px 22px;text-align:center"><div style="font-size:18px;letter-spacing:.06em">ΕΘΝΙΚΗ ΜΕΓΑΛΗ ΣΤΟΑ ΤΗΣ ΕΛΛΑΔΟΣ</div><div style="font-size:12px;letter-spacing:.3em;color:#e5c98d;margin-top:4px">ΜΕΓΑΛΗ ΓΡΑΜΜΑΤΕΙΑ</div></div>'
+    + '<div style="padding:22px;color:#1f2937;font-size:15px;line-height:1.6"><p><b>ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ</b></p>'
+    + '<p>Ο κωδικός σας για τη σελίδα «Ενημέρωση Πρόθεσης Διορισμών» της Μεγάλης Γραμματείας είναι:</p>'
+    + '<div style="text-align:center;margin:18px 0"><span style="display:inline-block;font-size:30px;letter-spacing:.2em;font-weight:bold;color:#1d2f5e;background:#f7f3e8;border:1px solid #d9cfb4;border-radius:8px;padding:10px 18px">' + code + '</span></div>'
+    + '<p>Γράψτε τον στο πεδίο «Κωδικός» της σελίδας. <b>Ισχύει για μία ώρα.</b></p>'
+    + '<p style="color:#6b7280;font-size:13px">Αν δεν ζητήσατε εσείς τον κωδικό, αγνοήστε αυτό το μήνυμα.</p>'
+    + '<p style="margin-top:22px">Με αδελφικούς χαιρετισμούς,<br><b>Μεγάλη Γραμματεία ΕΜΣτΕ</b></p></div></div>';
+  MailApp.sendEmail({ to: email, subject: 'ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ — κωδικός ' + code, htmlBody: html,
+    body: 'ΕΝΗΜΕΡΩΣΗ ΠΡΟΘΕΣΗΣ ΔΙΟΡΙΣΜΩΝ\n\nΚωδικός: ' + code + ' (ισχύει μία ώρα).', name: 'Μεγάλη Γραμματεία ΕΜΣτΕ' });
+  return { ok: true, sent: true };
+}
+function intentOtpVerify_(b) {
+  const email = String(b.email || '').trim().toLowerCase(), code = 'SKIADO' + String(b.code || '').toUpperCase().replace(/^\s*SKIADO/, '').replace(/\D/g, '');
+  const cache = CacheService.getScriptCache(), want = cache.get('iotp_' + email), tries = Number(cache.get('iotpt_' + email) || 0);
+  if (!want || tries >= INTENT_MAX_TRIES) throw new Error('otp_expired');
+  if (!/^SKIADO\d{4}$/.test(code) || otpHash_(email, code) !== want) { cache.put('iotpt_' + email, String(tries + 1), INTENT_SECONDS); throw new Error('otp_wrong'); }
+  if (!intentAllowed_(email)) throw new Error('unauthorized');
+  const sid = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  cache.put('isess_' + sid, email, INTENT_SECONDS);
+  return intentView_(email, sid);
+}
+function intentSession_(b) {
+  const sid = String(b.session || ''), email = /^[\w-]{20,80}$/.test(sid) ? CacheService.getScriptCache().get('isess_' + sid) : '';
+  if (!email || !intentAllowed_(email)) throw new Error('unauthorized');
+  return email;
+}
+function intentView_(email, sid) { const d = intentData_(); return { ok: true, session: sid, email: email, at: d.at || '', decrees: d.decrees }; }
+function intentLoad_(b) { return intentView_(intentSession_(b), String(b.session)); }
+function intentSave_(b) {
+  const email = intentSession_(b), d = intentData_(), id = Number(b.decree_id), i = Number(b.i);
+  let dec = null, p = null;
+  d.decrees.forEach(function (x) { if (x.id === id) { dec = x; x.people.forEach(function (y) { if (y.i === i) p = y; }); } });
+  if (!p) throw new Error('not_found');
+  const v = intentClean_(b);
+  Object.keys(v).forEach(function (k) { p[k] = v[k]; });
+  intentSaveData_(d);
+  const key = id + ':' + i, xs = intentChanges_().filter(function (c) { return c.key !== key; });
+  const prev = intentChanges_().filter(function (c) { return c.key === key; })[0];
+  const values = {}; INTENT_TRACK.forEach(function (k) { values[k] = p[k]; });
+  xs.push({ id: 'i' + id + '-' + i + '-' + Date.now(), key: key, decree_id: id, i: i, at: new Date().toISOString(), by: email, name: p.name, decree: dec.no + '/' + dec.year, values: values, prev_id: prev ? prev.id : '' });
+  intentSaveChanges_(xs);
+  return { ok: true, person: p };
 }
 
 // ---------------------------------------------------------------- Αναγγελίες: κάθε αλλαγή μέλους → Επαρχία της Στοάς + Μεγάλη Γραμματεία

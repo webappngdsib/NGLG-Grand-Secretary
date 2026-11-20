@@ -26,7 +26,7 @@ export function dressRole(d, a = decreePeople(d)[0] || {}) {
   const o = a.office || m.decree_office || '';
   if (o === 'Μέγας Διδάσκαλος') return ['grand', 'gm'];
   if (o === 'Μέγας Γραμματεύς') return ['grand', 'grand_secretary'];
-  // Μεγάλοι Επιμεληταί: Σεβάσμιος (με προσφώνηση Σεβ./ΛΣεβ./Πσεβ./Σεβτ.) → περίζωμα με ρόδακες, αλλιώς Αδελφός → περίζωμα με Ταυ
+  // Μεγάλοι Επιμεληταί: Σεβάσμιος (με προσφώνηση Σεβ./ΛΣεβ./Πσεβ./Σεβτ.) → περίζωμα με τα τρία Ταυ, αλλιώς Αδελφός → περίζωμα με ρόδακες
   if (/^Μέγας Επιμελητής/.test(o)) return ['stewards', /Σεβ/.test(a.honorific || '') ? 'steward_wm' : 'steward_bro'];
   if (PROVINCIAL.test(o)) return ['province', 'pgm'];
   if (/^Αντικαταστάτης (Επαρχιακός|Περιφερειακός)/.test(o)) return ['province', 'prov_officer'];

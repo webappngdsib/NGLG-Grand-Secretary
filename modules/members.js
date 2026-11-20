@@ -4,7 +4,7 @@
 import { db } from '../core/store.js';
 import { module, onSubmit, go, flash, bind, confirmDo, table, notice, pager, toast } from '../core/app.js';
 import { esc, fold, sortBy, readXlsx, XLSX, parsePasted, fmtDate, today } from '../core/util.js';
-import { memberVisits } from './visits.js';
+import { memberVisits, masonicYear } from './visits.js';
 import { lodgeNoKey, lodgesAll, lodgeByNumber, lodgeMemberCounts } from './lodges.js';
 import { lodgeOfficer, officesOf, provinceOfLodge } from '../core/officers.js';
 import { provincialChoices, provinceRoles } from './provinces.js';
@@ -21,6 +21,7 @@ import { diplomasPage } from './diplomas.js';
 import { memberCardPage } from './member-card.js';
 import { diplomaIssuePage } from './diploma.js';
 import { sgyRegistryPage } from './sgy.js';
+import { stewardsPage, officersPage, stewardOf, STEWARDS_HREF, OFFICERS_HREF } from './grand-stewards.js';
 
 // Αρ. Μητρώου: μοναδικός και μόνιμος αριθμός κάθε προσώπου που είναι ή υπήρξε μέλος της ΕΜΣτΕ (και διαγραμμένου).
 // Ξεκινά από το 1200, δίνεται αυτόματα στο νέο μέλος (επόμενος ελεύθερος) και δεν αλλάζει ποτέ· μόνο ο διαχειριστής
@@ -326,7 +327,7 @@ ${status === 'dereg' ? `<a class="btn small primary" href="#/members/deregistere
   return {
     title: 'Μητρώο Μελών',
     html: `<h1>Μητρώο Μελών</h1>${notice(query.msg)}<div class="toolbar"><a class="btn primary" href="#/members/new">+ Προσθήκη Μέλους</a>${(() => { const n = sameNameGroups().length; return n ? `<a class="btn" href="#/members/duplicates">Διπλές εγγραφές (${n})</a>` : ''; })()}<button class="btn" data-act="export" title="Όλο το Μητρώο">⬇ Excel (όλο)</button><a class="btn" href="#/members/diplomas">🎓 Διπλώματα Διδασκάλου</a><a class="btn" href="#/members/small-lodges">🏛 Στοές με &lt; 12 κύρια μέλη</a><a class="btn" href="#/members/lodges">📇 Αρχείο Στοών</a></div>
-<div class="mc-cta"><a class="btn mc-cta-btn" href="#/members/card">🪪 <b>ΚΑΡΤΑ ΜΕΛΟΥΣ</b><small>αναζήτηση μέλους · προβολή · εκτύπωση · αποστολή με email</small></a><a class="btn mc-cta-btn" href="#/members/sgy">🏛 <b>ΜΗΤΡΩΟ ΜΕΛΩΝ ΣΓΥ</b><small>Συμβούλιο Γενικών Υποθέσεων · επιστολή · email · WhatsApp</small></a></div>
+<div class="mc-cta"><a class="btn mc-cta-btn" href="#/members/card">🪪 <b>ΚΑΡΤΑ ΜΕΛΟΥΣ</b><small>αναζήτηση μέλους · προβολή · εκτύπωση · αποστολή με email</small></a><a class="btn mc-cta-btn" href="#/members/sgy">🏛 <b>ΜΗΤΡΩΟ ΜΕΛΩΝ ΣΓΥ</b><small>Συμβούλιο Γενικών Υποθέσεων · επιστολή · email · WhatsApp</small></a><a class="btn mc-cta-btn" href="${OFFICERS_HREF}" id="goBtn">🏛 <b>ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΑΞΙΩΜΑΤΙΚΟΙ</b><small>${esc(masonicYear().label)} · από την Επετηρίδα και το Μητρώο · εκτύπωση · Excel</small></a><a class="btn mc-cta-btn" href="${STEWARDS_HREF}" id="gsBtn">🎖 <b>ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ</b><small>από την Επετηρίδα και το Μητρώο · εκτύπωση · Excel</small></a></div>
 <div class="card member-search"><h3 style="margin-top:0">Αναζήτηση μέλους</h3><form class="msearch" id="ms"><fieldset class="msfield"><legend>1. Τι θα δώσετε;</legend>
 ${MEMBER_FIELDS.map(([k, v]) => `<label class="chip"><input type="radio" name="field" value="${k}"${k === field ? ' checked' : ''}><span>${esc(v)}</span></label>`).join('')}</fieldset>
 <div><label for="msq" id="msqlabel">2. ${esc(qlabel)}</label><input id="msq" name="q" value="${esc(q)}" autofocus autocomplete="off" type="${itype}" placeholder="${esc(ph)}"${field === 'lodge' ? ' list="lodgelist"' : ''}>
@@ -353,6 +354,11 @@ ${importBox()}`,
 // Πού εμφανίζεται το μέλος (οι λίστες δείχνουν σε αυτό — δεν κρατούν δικά τους αντίγραφα)
 // Εκπροσωπήσεις του Μεγάλου Διδασκάλου από το μέλος (από τις Επισκέψεις Στοών — ίδια δεδομένα, καμία χωριστή καταγραφή)
 // Αξιώματα και Επαρχία του μέλους: ποιος είναι ο ΕπΜΔ και ο ΕπΜΓρ. της Επαρχίας του (από τις Στοές του)
+// Εν ενεργεία Μέγας Επιμελητής: κουμπί προς τον κατάλογο ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ (ίδια εγγραφή της Επετηρίδας)
+function stewardBanner(m) {
+  const r = stewardOf(m.id); if (!r) return '';
+  return `<div class="card gs-member"><b>🎖 ${esc(r.current || r.title)}</b>${r.province ? ` · Στοά <b>${esc(r.province)}</b>` : ''} <a class="btn small primary" href="${STEWARDS_HREF}" id="gsMemberBtn">ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ →</a></div>`;
+}
 function officesCard(m) {
   const offs = officesOf(m.id), byM = lodgesByMember(), seen = new Set(), provs = [];
   for (const ml of (byM[m.id] || []).filter((x) => !lodgeDeregged(x))) { const p = provinceOfLodge(lodgeByNumber(ml.lodge_number)); if (p && !seen.has(p.id)) { seen.add(p.id); provs.push(p); } }
@@ -435,7 +441,7 @@ function formPage(m) {
   const offices = m ? sortBy(db.all('member_degrees_offices').filter((o) => o.member_id === m.id), (o) => -(o.decree_year || 0)) : [];
   return {
     title: m ? `Μέλος #${m.id}` : 'Νέο Μέλος',
-    html: `<p><a href="#/members">← Μητρώο Μελών</a></p><h1>${m ? `${esc(m.surname)} ${esc(m.first_name)} <small class="muted">#${m.id}</small>` : 'Νέο Μέλος'}</h1>${m ? `<div class="toolbar"><a class="btn primary" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a><a class="btn" href="#/members/diploma?id=${m.id}">🎓 Δίπλωμα Διδασκάλου</a></div>` : ''}${noContact(m) ? `<div class="card nocontact">${NO_CONTACT}</div>` : ''}${m ? officesCard(m) + usesOf(m) + visitsCard(m) : ''}
+    html: `<p><a href="#/members">← Μητρώο Μελών</a></p><h1>${m ? `${esc(m.surname)} ${esc(m.first_name)} <small class="muted">#${m.id}</small>` : 'Νέο Μέλος'}</h1>${m ? `<div class="toolbar"><a class="btn primary" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a><a class="btn" href="#/members/diploma?id=${m.id}">🎓 Δίπλωμα Διδασκάλου</a></div>` : ''}${noContact(m) ? `<div class="card nocontact">${NO_CONTACT}</div>` : ''}${m ? stewardBanner(m) : ''}${m ? officesCard(m) + usesOf(m) + visitsCard(m) : ''}
 <form id="mf"><div class="grid card"><div class="full regcode-row"><label>Αρ. Μητρώου</label><div class="regcode">${m ? regBadge(m) : '<span class="muted">αυτόματα (M + επόμενος ελεύθερος· MM + αριθμός Διπλώματος, αν υπάρχει)</span>'}</div></div>
 ${isAdmin() ? f('diploma_no', 'Δίπλωμα Διδασκάλου Τέκτονος <small class="muted">(Certificate Master Mason) — ο πραγματικός αριθμός μητρώου</small>', 'inputmode="numeric" placeholder="αριθμός διπλώματος"')
   : `<div><label>Δίπλωμα Διδασκάλου Τέκτονος</label><input value="${esc(x.diploma_no || '—')}" disabled></div>`}
@@ -797,6 +803,8 @@ module({
     '/members/diploma': diplomaIssuePage,
     '/members/deregistered': deregisteredPage,
     '/members/import': importPage,
+    '/members/stewards': stewardsPage,
+    '/members/officers': officersPage,
     '/members/sgy': (ctx) => sgyRegistryPage(ctx), // κυκλική εισαγωγή: κλήση τη στιγμή της πλοήγησης
     '/members/diplomas/print': memberCardPage, // παλιός σύνδεσμος
     '/members/:id': ({ params }) => { const m = db.get('member_registry', params.id); return m ? formPage(m) : '<h1>Δεν βρέθηκε το μέλος</h1>'; },

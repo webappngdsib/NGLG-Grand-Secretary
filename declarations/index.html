@@ -357,6 +357,29 @@
     .officer-filter {
       margin-bottom: 8px;
     }
+    /* Αποτελέσματα αναζήτησης ως κουμπιά: δουλεύουν σε κινητά (iPhone/Android), όπου η λίστα 1.2 κλείνει σε dropdown */
+    .officer-results { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
+    .officer-results[hidden] { display: none; }
+    .officer-results .pick-hint { font-size: 13px; color: #1d2f5e; font-weight: 600; }
+    .officer-pick {
+      text-align: left; width: 100%; padding: 12px 14px; border: 2px solid #c9a64a; border-radius: 8px;
+      background: #fffaf0; color: #1d2f5e; font: inherit; font-size: 15px; cursor: pointer;
+    }
+    .officer-pick small { display: block; color: #64748b; font-size: 12px; margin-top: 2px; }
+    .officer-pick:hover, .officer-pick:focus { background: #f6ecd2; outline: none; }
+    .officer-picked {
+      background: #ecfdf5; color: #065f46; border: 2px solid #10b981; border-radius: 8px;
+      padding: 10px 14px; font-weight: 700; margin: 0 0 10px;
+    }
+    .officer-picked[hidden] { display: none; }
+    .other-work-note {
+      background: #fff7e6; border-left: 5px solid #c9a64a; border-radius: 8px;
+      padding: 12px 14px; margin: 0 0 15px; font-size: 14px; color: #1d2f5e; line-height: 1.5;
+    }
+    .other-work-note b { display: block; margin-bottom: 4px; }
+    .other-work-note a { color: #1d2f5e; font-weight: 700; word-break: break-all; }
+    .other-work-note .subj { display: inline-block; font-family: monospace; background: #fff; border: 1px dashed #c9a64a; border-radius: 4px; padding: 2px 6px; }
+    .officer-picked small { display: block; font-weight: 400; font-size: 12px; margin-top: 2px; }
     /* Ο Μέγας Διδάσκαλος στην κορυφή του καταλόγου */
     .gm-line {
       background: #1d2f5e;
@@ -637,7 +660,7 @@
         <h2 class="card-title">Τι είναι αυτή η σελίδα</h2>
         <p>Σε αυτή τη σελίδα οι Μεγάλοι Αξιωματικοί δηλώνουν σε ποιες Εγκαταστάσεις Σεβασμίων Διδασκάλων μπορούν να εκπροσωπήσουν τον Σεβασμιώτατο Μεγάλο Διδάσκαλο.</p>
         <ol>
-          <li>Γράψτε το όνομά σας (1.1) και επιλέξτε το από τον κατάλογο (1.2).</li>
+          <li>Γράψτε το όνομά σας (1.1) και πατήστε το όνομά σας στα αποτελέσματα (ή επιλέξτε το από τον κατάλογο 1.2) — θα δείτε «✓ Επιλέχθηκε».</li>
           <li>Σημειώστε τις Στοές που μπορείτε να επισκεφθείτε.</li>
           <li>Πατήστε «Υποβολή Δήλωσης Διάθεσης». Αν αλλάξει κάτι, μπορείτε να ακυρώσετε τη δήλωσή σας.</li>
         </ol>
@@ -650,8 +673,10 @@
           <p class="gm-line">Σεβασμιώτατος Αδ. Ιωάννης Μπενετάτος — Μέγας Διδάσκαλος<small>Προηγείται όλων · Ο Μέγας Διδάσκαλος δεν υποβάλλει δήλωση εκπροσώπησης</small></p>
           <label for="officer-filter"><span class="fno">1.1</span>Αν δεν είστε ο Μέγας Διδάσκαλος, γράψτε το όνομά σας:</label>
           <input type="text" id="officer-filter" class="officer-filter" placeholder="π.χ. Παπαδόπουλος ή Γεώργιος…" autocomplete="off" autocorrect="off" spellcheck="false" oninput="buildOfficerSelect(this.value)">
+          <div id="officer-results" class="officer-results" hidden></div>
+          <p id="officer-picked" class="officer-picked" role="status" hidden></p>
           <label for="officer-select"><span class="fno">1.2</span>Επιλέξτε το Ονοματεπώνυμό σας & Αξίωμα:</label>
-          <select id="officer-select" autocomplete="off">
+          <select id="officer-select" autocomplete="off" onchange="showPickedOfficer()">
             <option value="">-- Επιλέξτε από τον κατάλογο --</option>
           </select>
           <p id="no-match" class="no-match" hidden>Δεν βρέθηκε όνομα. Ελέγξτε την ορθογραφία ή επικοινωνήστε με τη Μεγάλη Γραμματεία.</p>
@@ -661,6 +686,12 @@
 
       <div class="card">
         <h2 class="card-title">2. Επιλογή Εργασιών για Εκπροσώπηση <span class="months-sub"></span></h2>
+        <div class="other-work-note" id="other-work-note">
+          <b>ΕΔΩ ΑΝΑΦΕΡΟΝΤΑΙ ΚΥΡΙΩΣ ΟΙ ΕΡΓΑΣΙΕΣ ΣΤΟΩΝ ΠΟΥ ΕΧΟΥΝ ΕΓΚΑΤΑΣΤΑΣΗ ΑΡΧΩΝ.</b>
+          Εάν επιθυμείτε να εκπροσωπήσετε τον Μ.Δ. σε άλλη Εργασία που δεν είναι εδώ, στείλτε email στο
+          <a href="mailto:grand.secretary@nglgreece.gr?subject=%CE%95%CE%9A%CE%A0%CE%A1%CE%9F%CE%A3%CE%A9%CE%A0%CE%97%CE%A3%CE%97%20%CE%9C%CE%94%20-%20">grand.secretary@nglgreece.gr</a>
+          με θέμα: <span class="subj">ΕΚΠΡΟΣΩΠΗΣΗ ΜΔ - ΤΣΙΓΚΑΣ (το επώνυμό σας) - 22 Φεβρουαρίου - ΜΠΕΝΑΚΗΣ 61</span>
+        </div>
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">
           <span class="fno">2.x</span>Επιλέξτε μία ή περισσότερες Στοές στις οποίες έχετε τη δυνατότητα και επιθυμείτε να εκπροσωπήσετε τον Μέγα Διδάσκαλο:
         </p>
@@ -878,6 +909,54 @@
       if (q && picks.length) select.size = Math.max(2, Math.min(select.options.length + select.querySelectorAll("optgroup").length, 12)); else select.removeAttribute("size");
       if (q && picks.length === 1) select.value = picks[0].value;
       document.getElementById("no-match").hidden = !(q && !picks.length);
+      renderOfficerResults(q, picks);
+      showPickedOfficer();
+    }
+
+    // Τα ονόματα που ταιριάζουν ως κουμπιά κάτω από το 1.1: ένα πάτημα επιλέγει το όνομα
+    function renderOfficerResults(q, picks) {
+      const box = document.getElementById("officer-results");
+      const select = document.getElementById("officer-select");
+      box.innerHTML = "";
+      if (!q || !picks.length || (picks.length === 1 && select.value === picks[0].value)) { box.hidden = true; return; }
+      const hint = document.createElement("div");
+      hint.className = "pick-hint";
+      hint.textContent = "Πατήστε το όνομά σας:";
+      box.appendChild(hint);
+      picks.slice(0, 15).forEach(opt => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "officer-pick";
+        b.textContent = opt.textContent;
+        const g = opt.parentElement && opt.parentElement.label;
+        if (g) { const sm = document.createElement("small"); sm.textContent = g; b.appendChild(sm); }
+        b.onclick = () => pickOfficer(opt.value);
+        box.appendChild(b);
+      });
+      box.hidden = false;
+    }
+
+    function pickOfficer(value) {
+      const select = document.getElementById("officer-select");
+      select.value = value;
+      document.getElementById("officer-results").hidden = true;
+      showPickedOfficer();
+      const grid = document.getElementById("meetings-list");
+      if (grid) grid.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // Επιβεβαίωση ότι το όνομα επιλέχθηκε (πράσινο πλαίσιο)
+    function showPickedOfficer() {
+      const select = document.getElementById("officer-select");
+      const el = document.getElementById("officer-picked");
+      const opt = select.selectedOptions[0];
+      if (!select.value || !opt) { el.hidden = true; el.textContent = ""; return; }
+      el.textContent = "✓ Επιλέχθηκε: " + opt.textContent;
+      const sm = document.createElement("small");
+      sm.textContent = "Συνεχίστε στο 2: σημειώστε τις Στοές και πατήστε «Υποβολή Δήλωσης Διάθεσης».";
+      el.appendChild(sm);
+      el.hidden = false;
+      document.getElementById("officer-results").hidden = true;
     }
 
     // Επιστρέφει { officer, rank } ή εμφανίζει μήνυμα και null

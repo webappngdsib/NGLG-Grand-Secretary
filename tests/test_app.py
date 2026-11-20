@@ -2603,6 +2603,13 @@ def test_declarations_constitution_helper_and_decree_signature(app):
     assert len(left[0]) == 3 and all('Σκιαδόπουλος' in t for t in left[0]) and left[1] == 3 and left[2] > 1, left
     fr.evaluate("() => buildOfficerSelect('διαβατ')")
     assert fr.evaluate("() => document.getElementById('officer-select').value") == 'Διαβάτης Χρήστος (Βοηθός Μέγας Γραμματεύς)'
+    assert '✓ Επιλέχθηκε' in fr.evaluate("() => document.getElementById('officer-picked').innerText")
+    # Πολλά αποτελέσματα: κουμπιά κάτω από το 1.1 (για κινητά)· ένα πάτημα επιλέγει το όνομα
+    fr.evaluate("() => buildOfficerSelect('σκιαδ')")
+    assert fr.evaluate("() => document.querySelectorAll('#officer-results .officer-pick').length") == 3
+    fr.evaluate("() => document.querySelector('#officer-results .officer-pick').click()")
+    assert fr.evaluate("() => document.getElementById('officer-select').value") == 'Σκιαδόπουλος Δημήτριος (Μέγας Γραμματεύς)'
+    assert fr.evaluate("() => document.getElementById('officer-results').hidden && !document.getElementById('officer-picked').hidden")
     fr.evaluate("() => buildOfficerSelect('')")
     app.go('/declarations?view=form')  # παλιός σύνδεσμος → η μία σελίδα
     app.page.wait_for_selector('#declFrame')

@@ -224,7 +224,7 @@ async function load(){
   el("lastUpdate").textContent="Τελευταίος συγχρονισμός: "+dateFmt(data.last_sync)+" · Πηγή: "+(data.mode==="automatic"?"Gmail (αυτόματα)":"ελεγμένες καταχωρίσεις");
   const banner=el("syncBanner");const active=data.mode==="automatic";
   banner.className="notice"+(active?" live":"");
-  banner.textContent=active?"Ο αυτόματος συγχρονισμός Gmail είναι ενεργός. Προγραμματισμένη ενημέρωση ανά 2 ώρες.":"Προσωρινή αρχική λίστα από ελεγμένα email. Η αυτόματη ενημέρωση ανά 2 ώρες χρειάζεται μία αρχική ενεργοποίηση από τον διαχειριστή.";
+  banner.textContent=active?"Ο αυτόματος συγχρονισμός Gmail είναι ενεργός. Προγραμματισμένη ενημέρωση ανά "+(Number(data.refresh_hours)||2)+" ώρες.":"Προσωρινή αρχική λίστα από ελεγμένα email. Η αυτόματη ενημέρωση ανά 2 ώρες χρειάζεται μία αρχική ενεργοποίηση από τον διαχειριστή.";
   render();renderMax();
  }catch(err){el("syncBanner").className="notice";el("syncBanner").textContent="Δεν ήταν δυνατή η λήψη των ενημερωμένων στοιχείων. "+(records.length?"Εμφανίζονται τα τελευταία γνωστά δεδομένα.":"Ελέγξτε την πρόσβαση στη σελίδα.");render()}
  finally{btn.disabled=false}

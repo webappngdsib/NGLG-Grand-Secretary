@@ -5317,3 +5317,21 @@ def test_corfu_page_fits_comments_rows_and_pinakio(browser, base_url, width):
             assert name in d.suggested_filename and open(d.path(), 'rb').read(5) == b'%PDF-'
     assert not errors, errors
     ctx.close()
+
+
+def test_corfu_sync_local_uses_code_gs_rules(tmp_path):
+    """Το corfu-2026/tools/sync-local.js εφαρμόζει τους κανόνες του Code.gs (χωρίς να γράψει με --dry-run)."""
+    import json as _json, subprocess as _sp
+    body = ('Πσεβ. Αδ. Μεγάλε Γραμματέα,\n\nΕπιθυμώ να σας ενημερώσω ότι δεν θα κάνω χρήση του λεωφορείου, θα μεταβώ με δικό μου μέσο.\n'
+            'Επιθυμώ να παραμείνω μόνος μου σε δίκλινο δωμάτιο.\n\nΜε αδελφικούς χαιρετισμούς,\n\nΔοκιμαστής Δοκιμαστικός')
+    msgs = [
+        {'subject': 'Μετακίνηση και διαμονή', 'from': 'GS <grand.secretary@nglgreece.gr>', 'cc': 'test@example.org', 'body': body, 'date': '2026-11-21T08:00:00Z'},
+        {'subject': 'ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ ΑΡΝΗΤΗΣ ΔΟΚΙΜΑΣΤΙΚΟΣ', 'from': 'a <no@example.org>', 'cc': '', 'body': 'Δυστυχώς δεν θα μπορέσω.', 'date': '2026-11-21T08:00:00Z'},
+        {'subject': 'ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ Τάδε Δείνα', 'from': 'GS <grand.secretary@nglgreece.gr>', 'cc': '', 'body': 'Σας έχω συμπεριλάβει στη μετακίνηση.', 'date': '2026-11-21T08:00:00Z'},
+        {'subject': 'Re: ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ', 'from': 'b <yes@example.org>', 'cc': '', 'body': 'Δηλώνω συμμετοχή', 'date': '2026-11-21T08:00:00Z'},
+    ]
+    f = tmp_path / 'messages.json'
+    f.write_text(_json.dumps(msgs, ensure_ascii=False), encoding='utf-8')
+    out = _sp.run(['node', str(ROOT / 'corfu-2026' / 'tools' / 'sync-local.js'), str(f), '--dry-run'], capture_output=True, text=True, check=True)
+    r = _json.loads(out.stdout)
+    assert r['added'] == ['ΔΟΚΙΜΑΣΤΗΣ ΔΟΚΙΜΑΣΤΙΚΟΣ'] and r['written'] is False, r

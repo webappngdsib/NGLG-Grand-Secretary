@@ -29,7 +29,11 @@ function setupCorfuSync(){
   ScriptApp.newTrigger('syncCorfu2026').timeBased().everyHours(2).create();
   syncCorfu2026();
 }
-function testCorfuSync(){ const rows = extractDeclarations_(); console.log(JSON.stringify(rows,null,2)); }
+function testCorfuSync(){ const prev=JSON.parse(githubFile_().content||'{"attendees":[]}'); const rows = extractDeclarations_(knownByEmail_(prev.attendees)); console.log(JSON.stringify(rows,null,2)); }
+// email → ονοματεπώνυμο από όσους έχουν ήδη δηλώσει (για συμπληρωματικά email χωρίς όνομα, π.χ. «ΔΙΑΜΟΝΗ ΚΕΡΚΥΡΑ»)
+// Χειροκίνητο σχόλιο + νέες αυτόματες σημειώσεις (κάθε πρόταση μία φορά)
+function mergeNotes_(manual,auto){ const m=String(manual||'').trim(); const add=String(auto||'').split(/(?<=\.)\s+/).map(x=>x.trim()).filter(x=>x&&!m.includes(x)); return [m,...add].filter(Boolean).join(' '); }
+function knownByEmail_(list){ const m={}; (list||[]).forEach(a=>{ const e=String(a.email||'').toLowerCase(); if(e && e!==CFG.mailbox.toLowerCase()) m[e]=a.name; }); return m; }
 function syncCorfu2026(){
   const lock=LockService.getScriptLock();
   if (!lock.tryLock(30000)) return;
@@ -37,12 +41,12 @@ function syncCorfu2026(){
     const previous=githubFile_();
     const old=JSON.parse(previous.content || '{"attendees":[]}');
     const existing=new Map((old.attendees||[]).map(x=>[key_(x.name),x]));
-    const extracted=extractDeclarations_();
+    const extracted=extractDeclarations_(knownByEmail_(old.attendees));
     if (!extracted.length && (old.attendees||[]).length) throw Error('No declarations; abort to preserve existing list');
     const attendees=extracted.map(x=>{
       const prior=existing.get(key_(x.name));
       if (!prior) return x;
-      return {...x,comments:prior.comments||x.comments||'',hotel_status:
+      return {...x,email:x.email||prior.email||'',comments:mergeNotes_(prior.comments,x.comments),hotel_status:
         prior.hotel_status==='Επιβεβαιωμένη κράτηση'?'Επιβεβαιωμένη κράτηση':x.hotel_status};
     }).sort((a,b)=>a.name.localeCompare(b.name,'el'));
     // Maintain entries previously manually verified if extraction does not find the source yet.
@@ -131,7 +135,8 @@ function bodyHeaderName_(text){
   }
   return '';
 }
-function extractDeclarations_(){
+function extractDeclarations_(known){
+  known=known||{};
   const found=new Map();let start=0;
   while(true){
     const threads=GmailApp.search(CFG.query,start,100);
@@ -159,7 +164,8 @@ function extractDeclarations_(){
         // (4) από το όνομα κάτω από την αποφώνηση («Με αδελφικούς χαιρετισμούς,» → «Γεώργιος Γκρίλλας»).
         const closing=first.match(/(?:χαιρετισμούς|χαιρετισμοί|αγάπη|εκτίμηση|αφοσίωση|ΜτΤΑΑ)[^\n]*\n(?:\s*\r?\n)*\s*([\p{L}΄'’-]+\s+[\p{L}΄'’-]+(?:\s+[\p{L}΄'’-]+)?)\s*(?:\r?\n|$)/iu);
         const candidates=[cleanName_(match[1]), cleanName_(signature&&signature[1]), bodyHeaderName_(first), cleanName_(closing&&closing[1])];
-        const rawName=candidates.find(isName_)||'';
+        // (5) αλλιώς: ο αποστολέας έχει ήδη δηλώσει → συμπληρωματικό email (διαμονή κ.λπ.) για τον ίδιο
+        const rawName=candidates.find(isName_)||(!own && known[fromEmail.toLowerCase()])||'';
         if(!rawName)continue;
         const name=key_(rawName);
         const body=key_(first);
@@ -174,7 +180,7 @@ function extractDeclarations_(){
         if (!positive && residual.length>40) continue;
         const room=/ΔΙΚΛΙΝ/.test(body)?'Δίκλινο':/ΜΟΝΟΚΛΙΝ/.test(body)?'Μονόκλινο':'Δεν δηλώθηκε';
         const ownTransport=/(ΙΔΙΩΤΙΚΟ ΟΧΗΜΑ|ΔΙΚΟ ΜΟΥ (ΑΥΤΟΚΙΝΗΤΟ|ΜΕΣΟ|ΟΧΗΜΑ)|ΙΔΙΟ ΜΕΣΟ|ΔΕΝ ΘΑ ΧΡΕΙΑΣΤΩ ΤΗΝ .{0,40}ΜΕΤΑΦΟΡΑ|ΔΕΝ ΘΑ (ΚΑΝΩ ΧΡΗΣΗ|ΧΡΗΣΙΜΟΠΟΙΗΣΩ) (ΤΟΥ |ΤΟ )?(ΛΕΩΦΟΡΕΙ|ΠΟΥΛΜΑΝ))/.test(body);
-        const singleInDouble=/ΔΙΚΛΙΝ/.test(body) && /(ΜΟΝΟΣ ΜΟΥ|ΧΩΡΙΣ ΔΕΥΤΕΡΟ|ΗΜΙΣΥ|ΜΙΣΟ ΚΟΣΤΟΣ|ΤΑ ΜΙΣΑ)/.test(body);
+        const singleInDouble=/ΔΙΚΛΙΝ/.test(body) && /(ΜΟΝΟΣ ΜΟΥ|ΜΕΙΝΩ ΜΟΝΟΣ|ΧΩΡΙΣ ΔΕΥΤΕΡΟ|ΗΜΙΣΥ|ΜΙΣΟ ΚΟΣΤΟΣ|ΤΑ ΜΙΣΑ|ΤΗ?Ν? ΔΙΑΦΟΡΑ)/.test(body);
         // Αυτόματη σημείωση (μένει μόνο αν δεν υπάρχει ήδη χειροκίνητο σχόλιο).
         const autoNote=[ownTransport?'Δεν θα χρησιμοποιήσει το λεωφορείο (ίδιο μέσο).':'',
           singleInDouble?'Μόνος σε δίκλινο, με το ήμισυ του κόστους δίκλινου.':'',
@@ -187,7 +193,18 @@ function extractDeclarations_(){
           declaration_date:Utilities.formatDate(msg.getDate(),'Europe/Athens','yyyy-MM-dd'),
           comments:autoNote,_time:msg.getDate().getTime()};
         const k=key_(name);
-        if(!found.has(k)||found.get(k)._time<item._time)found.set(k,item);
+        // Πολλά email του ίδιου: συνδυάζονται (το νεότερο υπερισχύει, αλλά δεν χάνονται δωμάτιο/μετακίνηση/σημειώσεις)
+        const prev=found.get(k);
+        if(!prev){ found.set(k,item); }
+        else {
+          const [older,newer]=prev._time<=item._time?[prev,item]:[item,prev];
+          const notes=[...new Set([older.comments,newer.comments].join(' ').split(/(?<=\.)\s+/).map(x=>x.trim()).filter(Boolean))].join(' ');
+          found.set(k,{...older,...newer,
+            name:older.name, email:older.email||newer.email,
+            room:newer.room!=='Δεν δηλώθηκε'?newer.room:older.room,
+            travel:/Ιδιωτικό/.test(newer.travel+older.travel)?'Ιδιωτικό όχημα (όχι πούλμαν) — 18–20/12/2026':newer.travel,
+            declaration_date:older.declaration_date, comments:notes});
+        }
       }
     }
     if(threads.length<100)break;

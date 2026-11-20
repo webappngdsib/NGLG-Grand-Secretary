@@ -5184,7 +5184,7 @@ def test_decree_dress_page_single_brother(app):
     assert app.page.locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/"][target=_blank]').count() >= 1
 
 
-GS_TSV = 'Ανδρέας\tΔοκιμάκης\t30 Μέγας Επιμελητής\tΔοκιμή 12\nΒασίλειος\tΠαράδειγμος\t30 Μέγας Επιμελητής\tΤεστ 1882 97\nΓεώργιος\tΆγνωστάκης\t30 Μέγας Επιμελητής\tΔοκιμή 12 12\n'
+GS_TSV = 'Μιχάλης\tΠαραλλάκτης\t30 Μέγας Επιμελητής\tΗράκλειτος 10\nΑνδρέας\tΔοκιμάκης\t30 Μέγας Επιμελητής\tΔοκιμή 12\nΒασίλειος\tΠαράδειγμος\t30 Μέγας Επιμελητής\tΤεστ 1882 97\nΓεώργιος\tΆγνωστάκης\t30 Μέγας Επιμελητής\tΔοκιμή 12 12\n'
 
 
 def test_grand_stewards_from_epeteirida_and_registry(app):
@@ -5195,13 +5195,17 @@ def test_grand_stewards_from_epeteirida_and_registry(app):
         const a2 = tx.insert('member_registry', { surname: 'Δοκιμάκης', first_name: 'Ανδρέας', email: 'other@example.com', active: 1 });
         const b = tx.insert('member_registry', { surname: 'Παράδειγμος', first_name: 'Βασίλειος', active: 1 });
         const old = tx.insert('member_registry', { surname: 'Παλαιός', first_name: 'Δημήτριος', active: 1 });
+        const c = tx.insert('member_registry', { surname: 'Παραλλάκτης', first_name: 'Μιχαήλ', active: 1 });
+        tx.insert('member_lodges', { member_id: c.id, seq: 1, lodge_name: 'ΗΡΑΚΛΕΙΤΟΣ', lodge_number: '10', member_status: 'ΕΝΕΡΓΟ' });
+        tx.insert('epeteirida', { aa: 9, member_id: c.id, full_name: 'Παραλλάκτης Μιχαήλ', title: 'Πρώην Μέγας Σημαιοφόρος', active: 0, province: '', current: '' });
         tx.insert('member_lodges', { member_id: a.id, seq: 1, lodge_name: 'ΔΟΚΙΜΗ', lodge_number: '12', member_status: 'ΕΝΕΡΓΟ' });
         tx.insert('member_lodges', { member_id: a2.id, seq: 1, lodge_name: 'ΑΛΛΗ', lodge_number: '5', member_status: 'ΕΝΕΡΓΟ' });
         tx.insert('member_lodges', { member_id: b.id, seq: 1, lodge_name: 'ΤΕΣΤ 1882', lodge_number: '97', member_status: 'ΕΝΕΡΓΟ' });
         tx.insert('epeteirida', { aa: 1, member_id: b.id, full_name: 'Παράδειγμος Βασίλειος', title: 'Μέγας Επιμελητής', active: 0, province: '', current: '' });
         tx.insert('epeteirida', { aa: 2, member_id: old.id, full_name: 'Παλαιός Δημήτριος', title: 'Μέγας Επιμελητής', active: 1, province: 'Χ 1', current: 'Μέγας Επιμελητής 2025–2026' });
-        return [a.id, b.id, old.id]; }); }""")
-    a, b, old = ids
+        return [a.id, b.id, old.id, c.id]; }); }""")
+    a, b, old, c = ids
+    n0 = app.page.evaluate("async () => (await import('./core/store.js')).db.all('member_registry').length")
     app.go('/members')
     app.page.click('#gsBtn')
     app.page.wait_for_selector('#gsimp')
@@ -5210,12 +5214,17 @@ def test_grand_stewards_from_epeteirida_and_registry(app):
     app.page.fill('#gsYear', '2026–2027')
     app.page.fill('#gsPaste', GS_TSV)
     app.page.click('[data-act=save]')
-    app.page.wait_for_selector('text=3 · 2 συνδέθηκαν με το Μητρώο')
+    app.page.wait_for_selector('text=4 · 3 συνδέθηκαν με το Μητρώο')
     t = app.text('#gstab')
     assert 'Δοκιμάκης' in t and ' 12' in t and '1882 97' in t and '2026–2027' in t and 'a@example.com' in t
     assert 'Παλαιός' not in t and 'χωρίς σύνδεση' in t  # ο Άγνωστάκης μένει με το όνομα
     rows = app.page.evaluate("async () => (await import('./core/store.js')).db.all('epeteirida')")
     ro = [r for r in rows if r['member_id'] == old][0]
+    # «Μιχάλης» = «Μιχαήλ» μέσα στη Στοά 10· χωρίς διπλή γραμμή: το παλιό «Πρώην …» μένει στο Ανώτατο αξίωμα
+    rc = [r for r in rows if r['member_id'] == c]
+    assert len(rc) == 1 and rc[0]['title'] == 'Μέγας Επιμελητής' and rc[0]['rank'] == 'Πρώην Μέγας Σημαιοφόρος' and rc[0]['active'] == 1
+    assert 'ΕπΜΣτ. Αθηνών' in t
+    assert app.page.evaluate("async () => (await import('./core/store.js')).db.all('member_registry').length") == n0  # κανένα νέο μέλος
     assert ro['active'] == 0 and ro['title'] == 'Πρώην Μέγας Επιμελητής'
     rb = [r for r in rows if r['member_id'] == b]
     assert len(rb) == 1 and rb[0]['active'] == 1 and rb[0]['province'].endswith('1882 97') and rb[0]['current'] == 'Μέγας Επιμελητής 2026–2027'

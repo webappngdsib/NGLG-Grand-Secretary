@@ -110,6 +110,26 @@ function githubFile_(){
   return {sha:f.sha,content:Utilities.newBlob(Utilities.base64Decode(f.content.replace(/\s/g,''))).getDataAsString('UTF-8')};
 }
 function key_(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('el-GR').replace(/\s+/g,' ').trim();}
+// Καθαρίζει υποψήφιο ονοματεπώνυμο: αφαιρεί παύλες/άνω-κάτω τελεία στην αρχή και (παρενθέσεις).
+function cleanName_(s){
+  return String(s||'').replace(/\([^)]*\)/g,' ').replace(/^[\s\-–—:,.]+/,'').replace(/[\s\-–—.,;:]+$/,'').replace(/\s+/g,' ').trim();
+}
+function isName_(s){
+  const w=String(s||'').split(/\s+/).filter(Boolean);
+  return w.length>=2 && w.length<=5 && w.every(k=>/^[\p{L}΄'’-]+$/u.test(k));
+}
+// Όνομα από τις πρώτες γραμμές του σώματος, όταν είναι γραμμένο ΚΕΦΑΛΑΙΑ (π.χ. «ΛΑΓΙΟΣ ΦΩΤΗΣ (Μεγ. Επιμελητής)»).
+function bodyHeaderName_(text){
+  const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,3);
+  for(const line of lines){
+    const c=cleanName_(line);
+    if(!isName_(c) || c.split(/\s+/).length>4) continue;
+    if(c!==c.toLocaleUpperCase('el-GR')) continue;
+    if(/ΜΕΤΑΚΙΝΗΣΗ|ΚΕΡΚΥΡΑ/.test(key_(c))) continue;
+    return c;
+  }
+  return '';
+}
 function extractDeclarations_(){
   const found=new Map();let start=0;
   while(true){
@@ -119,26 +139,34 @@ function extractDeclarations_(){
       for(const msg of thread.getMessages()){
         const subject=String(msg.getSubject()||'').trim();
         // Do not use replies, even if the original subject is quoted.
-        if (/^(re|fw|fwd)\s*:/i.test(subject)) continue;
+        if (/^(re|fw|fwd|απ|σχετ)\s*:/i.test(subject)) continue;
+        const sourceEmail = (String(msg.getFrom()||'').match(/<?([A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,})>?/i)||[])[1] || '';
+        // Μηνύματα που έστειλε η ίδια η Γραμματεία δεν είναι δηλώσεις.
+        if (sourceEmail.toLowerCase()===CFG.mailbox.toLowerCase()) continue;
         const match=subject.match(/^ΜΕΤΑΚΙΝΗΣΗ\s+ΚΕΡΚΥΡΑ(?:\s+(.+))?$/i)
           || subject.match(/^ΚΕΡΚΥΡΑ\s+ΜΕΤΑΚΙΝΗΣΗ(?:\s+(.+))?$/i);
         if(!match)continue;
         const first=String(msg.getPlainBody()||'').split(/\n\s*(?:On .+wrote:|Στις .+έγραψε:|From:|Από:|[-]{3,}\s*Forwarded)/i)[0].slice(0,2500);
-        // Subject may be exactly "ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ" with name only in a signed body.
-        // Require explicit title ("Σεβ. Αδ." etc.) to avoid treating ordinary prose as a name.
+        // Το όνομα: (1) από το θέμα, (2) από ρητή υπογραφή με τίτλο («Σεβ. Αδ. …»),
+        // (3) από γραμμή με ΚΕΦΑΛΑΙΑ στην αρχή του σώματος.
         const signature=first.match(/(?:^|\n)\s*(?:(?:Πσεβ\.|Λ\.Σεβ\.|Σεβ\.|Αδ\.)\s*){1,4}([\p{L}΄'’-]+\s+[\p{L}΄'’-]+)\s*(?=\r?\n|$)/iu);
-        const rawName=String(match[1] || (signature&&signature[1]) || '').replace(/[\s.,;:]+$/g,'').trim();
-        const names=rawName.split(/\s+/);
-        if(names.length<2 || names.length>5 || !names.every(k=>/^[\p{L}΄'’-]+$/u.test(k)))continue;
+        const candidates=[cleanName_(match[1]), cleanName_(signature&&signature[1]), bodyHeaderName_(first)];
+        const rawName=candidates.find(isName_)||'';
+        if(!rawName)continue;
         const name=key_(rawName);
         const body=key_(first);
-        if (/(ΔΕΝ ΘΑ (ΠΑΡΑΣΤ|ΜΕΤΑΒ|ΣΥΜΜΕΤ|ΕΡΘ)|ΑΚΥΡΩΝ|ΑΔΥΝΑΤ|ΔΕΝ ΜΠΟΡ)/.test(body))continue;
-        if (!/(ΔΗΛΩΝΩ|ΘΑ ΕΙΜΑΙ ΠΑΡΩΝ|ΘΑ ΜΕΤΑΣΧ|ΘΑ ΣΥΜΜΕΤ|ΘΑ ΕΡΘ|ΘΑ ΤΑΞΙΔΕΨ|ΕΠΙΒΕΒΑΙΩΝΩ|ΕΠΙΘΥΜΩ|ΣΥΜΜΕΤΟΧΗ ΜΟΥ)/.test(body)) continue;
+        if (/(ΔΕΝ ΘΑ (ΠΑΡΑΣΤ|ΜΕΤΑΒ|ΣΥΜΜΕΤ|ΕΡΘ|ΜΠΟΡ)|ΑΚΥΡΩΝ|ΑΔΥΝΑΤ|ΔΕΝ ΜΠΟΡ|ΔΥΣΤΥΧΩΣ)/.test(body))continue;
+        const positive=/(ΔΗΛΩΝΩ|ΘΑ ΕΙΜΑΙ ΠΑΡΩΝ|ΘΑ ΜΕΤΑΣΧ|ΘΑ ΣΥΜΜΕΤ|ΘΑ ΕΡΘ|ΘΑ ΤΑΞΙΔΕΨ|ΕΠΙΒΕΒΑΙΩ|ΕΠΙΘΥΜΩ|ΣΥΜΜΕΤΟΧΗ ΜΟΥ|ΣΥΜΠΕΡΙΛΑΒ|ΘΑ ΜΕΤΑΚΙΝΗΘ|ΚΡΑΤΗΣΤΕ|ΚΡΑΤΗΣΗ ΘΕΣΗΣ)/.test(body);
+        // Σύντομη δήλωση: θέμα «ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ» και σώμα μόνο με το όνομα (π.χ. «Sent from my iPhone»).
+        const residual=body.replace(/ΜΕΤΑΚΙΝΗΣΗ|ΚΕΡΚΥΡΑ/g,' ').split(key_(rawName)).join(' ')
+          .replace(/SENT FROM MY \S+|ΣΤΑΛΘΗΚΕ ΑΠΟ \S+( \S+)?|GET OUTLOOK FOR \S+/g,' ').replace(/[^\p{L}]+/gu,'');
+        if (!positive && residual.length>40) continue;
         const room=/ΔΙΚΛΙΝ/.test(body)?'Δίκλινο':/ΜΟΝΟΚΛΙΝ/.test(body)?'Μονόκλινο':'Δεν δηλώθηκε';
-        const sourceEmail = (String(msg.getFrom()||'').match(/<?([A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,})>?/i)||[])[1] || '';
+        const ownTransport=/(ΙΔΙΩΤΙΚΟ ΟΧΗΜΑ|ΔΙΚΟ ΜΟΥ ΑΥΤΟΚΙΝΗΤΟ|ΔΕΝ ΘΑ ΧΡΕΙΑΣΤΩ ΤΗΝ .{0,40}ΜΕΤΑΦΟΡΑ)/.test(body);
         const officer = YEARBOOK_2026.find(o => [o.name,...o.aliases].some(a=>key_(a)===key_(name)));
         const item={name,email:sourceEmail,title:officer?officer.title:'Προς επαλήθευση',
-          officer_status:officer?'Εν ενεργεία — Επετηρίδα 2026':'Δεν έχει επαληθευθεί',travel:'18–20/12/2026',room,
+          officer_status:officer?'Εν ενεργεία — Επετηρίδα 2026':'Δεν έχει επαληθευθεί',
+          travel:ownTransport?'Ιδιωτικό όχημα (όχι πούλμαν) — 18–20/12/2026':'18–20/12/2026',room,
           hotel_status:'Εκκρεμεί',
           declaration_date:Utilities.formatDate(msg.getDate(),'Europe/Athens','yyyy-MM-dd'),
           comments:'',_time:msg.getDate().getTime()};

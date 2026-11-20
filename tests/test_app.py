@@ -5279,3 +5279,41 @@ def test_grand_steward_set_from_member_page(app):
     mine = [r for r in rows if r['member_id'] == mid]
     assert len(mine) == 1 and mine[0]['title'] == 'Πρώην Μέγας Επιμελητής' and mine[0]['active'] == 0
     assert not app.errors, app.errors
+
+
+@pytest.mark.parametrize('width', [1280, 1024, 390])
+def test_corfu_page_fits_comments_rows_and_pinakio(browser, base_url, width):
+    """Κέρκυρα 2026: καμία στήλη δεν κόβεται, σχόλια σε γραμμή πλήρους πλάτους, Πινάκιο ΜΑΞ πράσινο/κόκκινο, PDF A4."""
+    ctx = browser.new_context(viewport={'width': width, 'height': 850}, accept_downloads=True)
+    page = ctx.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(base_url + 'corfu-2026/')
+    page.wait_for_selector('#mainTable td.name')
+    box = page.evaluate("""() => { const tb = document.querySelector('#mainTable').closest('.tablebox');
+      return { scroll: tb.scrollWidth - tb.clientWidth, page: document.documentElement.scrollWidth - innerWidth,
+               cols: document.querySelectorAll('#mainTable thead th').length,
+               comments: [...document.querySelectorAll('#mainTable tr.crow td')].every(td => td.colSpan === 8) } }""")
+    assert box['scroll'] <= 1 and box['page'] <= 1 and box['cols'] == 8 and box['comments'], box
+    # Πινάκιο ΜΑΞ: συνθετικές δηλώσεις → ο πρώτος εν ενεργεία πράσινος (και με υποκοριστικό), οι υπόλοιποι κόκκινοι έντονοι
+    page.click('#maxBtn')
+    page.wait_for_selector('#maxTable tr.bad')
+    res = page.evaluate("""() => { const act = officers.filter(isActive).sort((a, b) => a.rank - b.rank);
+      const [sur, first] = act[1].name.split(' ');
+      records = [{ name: (first + ' ' + sur).toUpperCase(), declaration_date: '2026-11-20' }, { name: 'ΑΓΝΩΣΤΟΣ ΔΟΚΙΜΑΣΤΙΚΟΣ' }];
+      renderMax(); const ok = [...document.querySelectorAll('#maxTable tr.ok')], bad = document.querySelector('#maxTable tr.bad td');
+      return { active: act.length, ok: ok.length, okName: ok[0] && ok[0].cells[2].textContent, want: act[1].name,
+               bad: document.querySelectorAll('#maxTable tr.bad').length, weight: getComputedStyle(bad).fontWeight,
+               red: getComputedStyle(bad).color, extra: document.querySelector('#maxExtra').textContent,
+               nick: matchKind({ name: 'ΤΑΣΟΣ ΑΛΜΠΑΝΗΣ' }, { name: 'Αλμπάνης Αναστάσιος' }) } }""")
+    assert res['active'] >= 20 and res['ok'] == 1 and res['okName'] == res['want'] and res['bad'] == res['active'] - 1, res
+    assert int(res['weight']) >= 700 and res['red'] == 'rgb(192, 29, 29)' and 'ΑΓΝΩΣΤΟΣ ΔΟΚΙΜΑΣΤΙΚΟΣ' in res['extra'], res
+    assert res['nick'] == 'full', res
+    if width == 1280:
+        for btn, name in (('#maxPdfBtn', 'Pinakio-MAX'), ('#pdfBtn', 'Metakinisi-Diamoni')):
+            with page.expect_download() as dl:
+                page.click(btn)
+            d = dl.value
+            assert name in d.suggested_filename and open(d.path(), 'rb').read(5) == b'%PDF-'
+    assert not errors, errors
+    ctx.close()

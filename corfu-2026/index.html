@@ -7,7 +7,7 @@
 <meta name="description" content="Δηλώσεις μετακίνησης και εκκρεμότητες διαμονής για την Τακτική Μεγάλη Συνέλευση στην Κέρκυρα, 19 Δεκεμβρίου 2026.">
 <title>Κέρκυρα 2026 | Μετακίνηση & Διαμονή — ΕΜΣτΕ</title>
 <style>
-:root{--navy:#10223d;--blue:#244d80;--gold:#af893e;--paper:#f5f7fb;--line:#dfe5ee;--muted:#64748b;--green:#0f766e}*{box-sizing:border-box}
+:root{--navy:#10223d;--blue:#244d80;--gold:#af893e;--paper:#f5f7fb;--line:#dfe5ee;--muted:#64748b;--green:#0f766e;--ok:#0d7a3e;--okbg:#e6f6ec;--bad:#c01d1d;--badbg:#fdecec}*{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:#172640;font:15px/1.55 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
 header{background:linear-gradient(120deg,#10223d,#203e65);color:#fff;padding:33px 24px 37px;border-bottom:4px solid var(--gold)}
 .wrap{max-width:1150px;margin:auto}header .eyebrow{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#e9d7b3;font-weight:700}
@@ -16,24 +16,46 @@ main{max-width:1150px;margin:0 auto;padding:22px 20px 50px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin:0 0 20px}
 .metric{background:white;border:1px solid var(--line);border-radius:13px;padding:17px 20px;box-shadow:0 2px 12px #0a18300a}
 .metric strong{display:block;font-size:31px;color:var(--navy);line-height:1.2}.metric span{color:var(--muted);font-size:13px}
-.panel{background:#fff;border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:0 2px 12px #0a18300a}
+.panel{background:#fff;border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:0 2px 12px #0a18300a;margin-bottom:20px}
 .top{padding:20px;display:flex;gap:14px;justify-content:space-between;flex-wrap:wrap;align-items:end;border-bottom:1px solid var(--line)}
 h2{font-size:20px;margin:0 0 4px}.sub{font-size:13px;color:var(--muted);margin:0}
 .tools{display:flex;gap:8px;flex-wrap:wrap}input{border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;min-width:255px;max-width:100%;font:inherit;background:white}
-button{font:inherit;padding:10px 13px;border-radius:8px;border:1px solid #aebed0;background:white;color:#1a3859;font-weight:650;cursor:pointer}button:hover{background:#eef4fb}
+button{font:inherit;padding:10px 13px;border-radius:8px;border:1px solid #aebed0;background:white;color:#1a3859;font-weight:650;cursor:pointer}button:hover{background:#eef4fb}button:disabled{opacity:.6;cursor:wait}
 button.primary{background:#19385f;color:white;border-color:#19385f}
+.pdfbtn{background:#a8322b;color:#fff;border-color:#a8322b}.pdfbtn:hover{background:#8c271f}
+.maxbtn{background:var(--gold);color:#fff;border-color:var(--gold)}.maxbtn:hover{background:#94732f}.maxbtn[aria-expanded="true"]{background:#7d6026;border-color:#7d6026}
 .notice{margin-bottom:17px;padding:12px 15px;border-radius:9px;background:#fff9ed;border:1px solid #ead7ab;color:#73531d;font-size:13px}
 .notice.live{background:#edfaf5;border-color:#b9e9d9;color:#126149}
-.tablebox{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:1100px}th{background:#f8fafc;color:#50637d;text-align:left;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
-th,td{padding:14px 16px;border-bottom:1px solid #edf0f4;vertical-align:middle}tbody tr:hover{background:#f8fafc}td:first-child{width:49px;color:#75859a}
+/* Πίνακας δηλώσεων: κάθε εγγραφή = <tbody> με κύρια γραμμή + γραμμή σχολίων σε όλο το πλάτος */
+.tablebox{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{background:#f8fafc;color:#50637d;text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;padding:11px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px 10px;vertical-align:top;overflow-wrap:break-word;hyphens:auto}
+tbody.rec{border-bottom:1px solid #e3e8ef}tbody.rec:nth-of-type(even){background:#fafbfd}tbody.rec:hover{background:#f3f7fc}
+td.aa{width:36px;color:#75859a}td.email{overflow-wrap:anywhere;hyphens:none;color:#41546d;min-width:110px}
+tr.crow td{padding:0 10px 10px 46px;color:#41546d;font-size:13px}tr.crow .clabel{font-weight:700;color:#8a6a2c;margin-right:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 .name{font-weight:700;color:#142c48}.pill{display:inline-block;padding:4px 9px;border-radius:30px;font-size:12px;font-weight:700;white-space:nowrap;background:#e8f7f3;color:#117460}
-.pill.wait{background:#fff3da;color:#8f5c04}.pill.off{background:#edf2f7;color:#536274}
+.pill.wait{background:#fff3da;color:#8f5c04}.verified{color:var(--ok);font-weight:650}
 .footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:15px 20px;border-top:1px solid var(--line);color:#64748b;font-size:12px}
 .empty{padding:50px;text-align:center;color:#64748b}
-.instructions{margin:19px 0 0;padding:16px 19px;border:1px solid var(--line);border-radius:12px;color:#50637a;background:#fff;font-size:13px}
+/* Πινάκιο ΜΑΞ */
+.chips{display:flex;gap:9px;flex-wrap:wrap;padding:14px 20px 0}.chip{border:1px solid var(--line);border-radius:30px;padding:6px 13px;font-size:13px;background:#f8fafc}.chip b{font-size:15px}
+.chip.ok{background:var(--okbg);border-color:#b5e2c5;color:var(--ok)}.chip.bad{background:var(--badbg);border-color:#f2b8b8;color:var(--bad)}
+.filters{display:flex;gap:6px;padding:12px 20px 14px;flex-wrap:wrap}.filters button{padding:7px 12px;font-size:13px}.filters button[aria-pressed="true"]{background:#19385f;color:#fff;border-color:#19385f}
+#maxTable tr.ok td{background:var(--okbg);color:var(--ok)}#maxTable tr.ok td.who{font-weight:700}
+#maxTable tr.bad td{background:var(--badbg);color:var(--bad);font-weight:800}
+#maxTable td{border-bottom:1px solid #fff}#maxTable td.st{white-space:nowrap}
+.extra{padding:14px 20px;border-top:1px solid var(--line);font-size:13px;color:#41546d}.extra h3{font-size:14px;margin:0 0 6px;color:var(--navy)}.extra ul{margin:0;padding-left:20px}
+.instructions{margin:0;padding:16px 19px;border:1px solid var(--line);border-radius:12px;color:#50637a;background:#fff;font-size:13px}
 .instructions p{margin:3px 0}.safeguard{margin-top:12px;color:#637083;font-size:12px}
-@media(max-width:650px){header{padding:26px 18px}main{padding:16px 12px}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.metric{padding:13px 11px}.metric strong{font-size:23px}.metric span{font-size:11px}.top{padding:15px}.tools,input{width:100%}.tools button{flex:1}h1{font-size:27px}}
-@media print{header{background:white;color:#000;border:0}header p,header .eyebrow{color:#333}body{background:white}.tools,.notice,.instructions,.safeguard{display:none}.metric,.panel{box-shadow:none}}
+.signature{margin:20px 0 0;padding:18px 20px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;font-size:14px;line-height:1.55}.signature b{color:var(--navy)}
+/* Κινητό/tablet: κάθε δήλωση γίνεται κάρτα — καμία στήλη δεν κόβεται */
+@media(max-width:1000px){#mainTable,#mainTable thead,#mainTable tbody,#mainTable tr,#mainTable td{display:block;width:100%}#mainTable thead{display:none}
+ #mainTable tbody.rec{padding:12px 15px}#mainTable td{padding:3px 0;display:grid;grid-template-columns:128px 1fr;gap:10px}
+ #mainTable td::before{content:attr(data-label);font-size:11px;font-weight:700;color:#7a8aa0;text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
+ #mainTable td.name{font-size:16px}#mainTable td.empty{display:block}#mainTable td.empty::before{content:none}
+ #mainTable tr.crow td{padding:6px 0 0;display:block}#mainTable tr.crow td::before{content:none}}
+@media(max-width:650px){header{padding:26px 18px}main{padding:16px 12px}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.metric{padding:13px 11px}.metric strong{font-size:23px}.metric span{font-size:11px}.top{padding:15px}.tools,input{width:100%}.tools button{flex:1}h1{font-size:27px}#maxTable td{padding:8px 6px;font-size:12.5px}}
+@page{size:A4 landscape;margin:12mm}@media print{header{background:white;color:#000;border:0}header p,header .eyebrow{color:#333}body{background:white}.tools,.notice,.instructions,.safeguard,.filters{display:none}.metric,.panel{box-shadow:none}}
 </style>
 </head>
 <body>
@@ -51,41 +73,148 @@ th,td{padding:14px 16px;border-bottom:1px solid #edf0f4;vertical-align:middle}tb
 </div>
 <div id="syncBanner" class="notice" role="status">Φόρτωση στοιχείων…</div>
 <div id="manualSyncStatus" class="notice" role="status" hidden></div>
+
+<section class="panel" id="maxPanel" aria-labelledby="maxHeading" hidden>
+<div class="top">
+<div><h2 id="maxHeading">Πινάκιο ΜΑΞ · Μεγάλοι Αξιωματικοί εν ενεργεία</h2><p class="sub" id="maxSource">Φόρτωση καταλόγου Επετηρίδας…</p></div>
+<div class="tools"><button id="maxPdfBtn" type="button" class="pdfbtn">📄 PDF Πινακίου</button><button id="maxCloseBtn" type="button">✕ Κλείσιμο</button></div>
+</div>
+<div class="chips" id="maxChips"></div>
+<div class="filters" role="group" aria-label="Φίλτρο Πινακίου">
+<button type="button" data-f="all" aria-pressed="true">Όλοι</button>
+<button type="button" data-f="bad" aria-pressed="false">Μόνο όσοι ΔΕΝ δήλωσαν</button>
+<button type="button" data-f="ok" aria-pressed="false">Μόνο όσοι δήλωσαν</button>
+</div>
+<div class="tablebox"><table id="maxTable">
+<thead><tr><th>Α/Α</th><th>Αξίωμα</th><th>Ονοματεπώνυμο</th><th>Μετακίνηση</th></tr></thead>
+<tbody id="maxRows"><tr><td colspan="4" class="empty">Φόρτωση…</td></tr></tbody>
+</table></div>
+<div class="extra" id="maxExtra" hidden></div>
+</section>
+
 <section class="panel" aria-labelledby="listHeading">
 <div class="top">
 <div><h2 id="listHeading">Λίστα δηλωσάντων</h2><p class="sub" id="lastUpdate">Αναμένεται ενημέρωση</p></div>
 <div class="tools">
 <input type="search" id="searchBox" placeholder="Αναζήτηση ονοματεπώνυμου…" aria-label="Αναζήτηση ονοματεπώνυμου">
+<button id="maxBtn" type="button" class="maxbtn" aria-expanded="false" aria-controls="maxPanel" title="Όλοι οι Μεγάλοι Αξιωματικοί εν ενεργεία: πράσινοι όσοι δήλωσαν, κόκκινοι όσοι όχι">🏛 Πινάκιο ΜΑΞ</button>
 <button id="syncBtn" type="button" class="primary">↻ Άμεση ενημέρωση από Gmail</button>
 <button id="refreshBtn" type="button">Επαναφόρτωση λίστας</button>
 <button id="csvBtn" type="button">Εξαγωγή CSV</button>
-<button id="printBtn" type="button" class="primary">Εκτύπωση</button>
+<button id="pdfBtn" type="button" class="pdfbtn" title="Λήψη PDF A4 με όλες τις στήλες">📄 PDF A4</button>
+<button id="printBtn" type="button">Εκτύπωση</button>
 </div></div>
-<div class="tablebox"><table>
-<thead><tr><th>Α/Α</th><th>Ονοματεπώνυμο</th><th>Email</th><th>Αξίωμα (Επετηρίδα)</th><th>Έλεγχος</th><th>Μετακίνηση</th><th>Τύπος δωματίου</th><th>Διαμονή στο ξενοδοχείο</th><th>Σχόλια</th></tr></thead>
-<tbody id="rows"><tr><td colspan="9" class="empty">Ανάκτηση δηλώσεων…</td></tr></tbody>
+<div class="tablebox"><table id="mainTable">
+<thead><tr><th>Α/Α</th><th>Ονοματεπώνυμο</th><th>Email</th><th>Αξίωμα (Επετηρίδα)</th><th>Έλεγχος</th><th>Μετακίνηση</th><th>Τύπος δωματίου</th><th>Διαμονή στο ξενοδοχείο</th></tr></thead>
+<tbody id="rowsEmpty"><tr><td colspan="8" class="empty">Ανάκτηση δηλώσεων…</td></tr></tbody>
 </table></div>
 <div class="footer"><span id="countShown"></span><span>Πηγή: δηλώσεις προς τη Μεγάλη Γραμματεία · χωρίς δημοσίευση τηλεφώνων ή κειμένων αλληλογραφίας</span></div>
 </section>
-<div class="instructions"><strong>Σημαντική διευκρίνιση · δημόσια σελίδα</strong><p>Η δήλωση μετακίνησης <strong>δεν ισοδυναμεί</strong> με επιβεβαιωμένη κράτηση ξενοδοχείου. Ως «Εκκρεμεί» εμφανίζονται όσοι δεν έχουν ρητή επιβεβαίωση κράτησης.</p><p>Η «Άμεση ενημέρωση από Gmail» εκκινεί εξουσιοδοτημένο συγχρονισμό μέσω Apps Script. Η αυτοματοποιημένη ανανέωση ανά δύο ώρες λειτουργεί μετά την αρχική ενεργοποίησή του.</p></div>
+<div class="instructions"><strong>Σημαντική διευκρίνιση · δημόσια σελίδα</strong><p>Η δήλωση μετακίνησης <strong>δεν ισοδυναμεί</strong> με επιβεβαιωμένη κράτηση ξενοδοχείου. Ως «Εκκρεμεί» εμφανίζονται όσοι δεν έχουν ρητή επιβεβαίωση κράτησης.</p><p>Η «Άμεση ενημέρωση από Gmail» εκκινεί εξουσιοδοτημένο συγχρονισμό μέσω Apps Script. Η αυτοματοποιημένη ανανέωση ανά δύο ώρες λειτουργεί μετά την αρχική ενεργοποίησή του.</p><p>Το «Πινάκιο ΜΑΞ» συγκρίνει τις δηλώσεις με τον κατάλογο εν ενεργεία Μεγάλων Αξιωματικών της Επετηρίδας (αντιστοίχιση κατά ονοματεπώνυμο).</p></div>
+<div class="signature">Με Αφοσίωση και Αδελφική Αγάπη,<br><b>Μέγας Γραμματέας</b><br>Πσεβ. Αδ. Δημήτριος Σκιαδόπουλος<br>6951097562 · <a href="mailto:grand.secretary@nglgreece.gr">grand.secretary@nglgreece.gr</a></div>
 <p class="safeguard">Η σελίδα περιέχει μόνο ονόματα συμμετεχόντων και πληροφορίες οργάνωσης διαμονής. Εμφανίζει τις διευθύνσεις email των δηλωσάντων, όχι το περιεχόμενο της αλληλογραφίας.</p>
 </main>
 <script>
 "use strict";
-let records=[],lastPayload=null,syncWebAppUrl="";
+let records=[],lastPayload=null,syncWebAppUrl="",officers=null,officerSource="",maxFilter="all";
 const el=id=>document.getElementById(id);
-const plain=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("el-GR");
-const add=(parent,tag,txt,className)=>{const node=document.createElement(tag);node.textContent=txt;if(className)node.className=className;parent.appendChild(node);return node};
+const plain=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLocaleLowerCase("el-GR");
+const esc=v=>String(v==null?"":v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const dateFmt=value=>{if(!value)return "—";const d=new Date(value);return isNaN(d.getTime())?"—":new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Athens"}).format(d)};
+const shortDate=v=>{const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"/"+m[2]:""};
+
+// ── Αντιστοίχιση δηλώσεων ↔ Επετηρίδα (εν ενεργεία Μεγάλοι Αξιωματικοί) ──
+const NICK={ΤΑΣΟΣ:"ΑΝΑΣΤΑΣΙΟΣ",ΑΝΑΣΤΑΣΗΣ:"ΑΝΑΣΤΑΣΙΟΣ",ΝΑΣΟΣ:"ΑΘΑΝΑΣΙΟΣ",ΘΑΝΑΣΗΣ:"ΑΘΑΝΑΣΙΟΣ",ΘΑΝΟΣ:"ΑΘΑΝΑΣΙΟΣ",ΦΩΤΗΣ:"ΦΩΤΙΟΣ",ΝΙΚΟΣ:"ΝΙΚΟΛΑΟΣ",
+ ΣΠΥΡΟΣ:"ΣΠΥΡΙΔΩΝ",ΣΠΥΡΙΔΩΝΑΣ:"ΣΠΥΡΙΔΩΝ",ΓΙΑΝΝΗΣ:"ΙΩΑΝΝΗΣ",ΓΙΑΝΝΟΣ:"ΙΩΑΝΝΗΣ",ΓΙΩΡΓΟΣ:"ΓΕΩΡΓΙΟΣ",ΚΩΣΤΑΣ:"ΚΩΝΣΤΑΝΤΙΝΟΣ",ΝΤΙΝΟΣ:"ΚΩΝΣΤΑΝΤΙΝΟΣ",
+ ΔΗΜΗΤΡΗΣ:"ΔΗΜΗΤΡΙΟΣ",ΤΑΚΗΣ:"ΔΗΜΗΤΡΙΟΣ",ΜΙΧΑΛΗΣ:"ΜΙΧΑΗΛ",ΠΑΝΟΣ:"ΠΑΝΑΓΙΩΤΗΣ",ΒΑΣΙΛΗΣ:"ΒΑΣΙΛΕΙΟΣ",ΑΝΤΩΝΗΣ:"ΑΝΤΩΝΙΟΣ",ΘΟΔΩΡΗΣ:"ΘΕΟΔΩΡΟΣ",
+ ΑΛΕΞΗΣ:"ΑΛΕΞΑΝΔΡΟΣ",ΜΑΝΟΣ:"ΕΜΜΑΝΟΥΗΛ",ΜΑΝΩΛΗΣ:"ΕΜΜΑΝΟΥΗΛ",ΛΕΥΤΕΡΗΣ:"ΕΛΕΥΘΕΡΙΟΣ",ΣΤΕΛΙΟΣ:"ΣΤΥΛΙΑΝΟΣ",ΑΡΗΣ:"ΑΡΙΣΤΕΙΔΗΣ",ΣΤΑΘΗΣ:"ΕΥΣΤΑΘΙΟΣ",
+ ΓΡΗΓΟΡΗΣ:"ΓΡΗΓΟΡΙΟΣ",ΧΑΡΗΣ:"ΧΑΡΑΛΑΜΠΟΣ",ΜΠΑΜΠΗΣ:"ΧΑΡΑΛΑΜΠΟΣ",ΣΩΤΗΡΗΣ:"ΣΩΤΗΡΙΟΣ",ΠΕΤΡΟΣ:"ΠΕΤΡΟΣ",ΑΚΗΣ:"",ΦΙΛΙΠΠΑΣ:"ΦΙΛΙΠΠΟΣ"};
+const toks=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLocaleUpperCase("el-GR").replace(/\([^)]*\)/g," ").split(/[^A-ZΑ-Ω]+/u).filter(t=>t.length>1);
+const canon=t=>NICK[t]||t;
+const isActive=o=>!/^Πρώην/.test(String(o.group||o.title||"").trim());
+function matchKind(att,off){
+ const ot=toks(off.name);if(ot.length<2)return "";
+ const sur=ot[0],first=ot.slice(1),at=toks(att.name);
+ if(!at.includes(sur))return "";
+ const rest=at.filter(t=>t!==sur);
+ if(rest.some(a=>first.some(f=>canon(a)===canon(f)||(a.length>3&&f.length>3&&a.slice(0,4)===f.slice(0,4)))))return "full";
+ return "surname";
+}
+// → [{officer, attendee|null, kind}] σε τάξη προβαδίσματος + δηλώσεις που δεν αντιστοιχούν σε εν ενεργεία ΜΑΞ
+function pinakio(){
+ const act=(officers||[]).filter(isActive).sort((a,b)=>(a.rank||0)-(b.rank||0));
+ const surCount={};act.forEach(o=>{const s=toks(o.name)[0];surCount[s]=(surCount[s]||0)+1});
+ const used=new Set();
+ const rows=act.map(o=>{
+  let hit=records.find(r=>!used.has(r)&&matchKind(r,o)==="full"),kind="full";
+  if(!hit&&surCount[toks(o.name)[0]]===1){hit=records.find(r=>!used.has(r)&&matchKind(r,o)==="surname");kind="surname"}
+  if(hit)used.add(hit);
+  return {officer:o,attendee:hit||null,kind:hit?kind:""};
+ });
+ return {rows,others:records.filter(r=>!used.has(r))};
+}
+function officerFor(r){if(!officers)return null;const p=pinakio();const x=p.rows.find(y=>y.attendee===r);return x?x.officer:null}
+async function loadOfficers(){
+ try{
+  const resp=await fetch("../declarations/officers.json?fresh="+Date.now(),{cache:"no-store"});
+  if(!resp.ok)throw Error("HTTP "+resp.status);
+  const d=await resp.json();if(!Array.isArray(d.officers)||d.officers.length<20)throw Error("κενός κατάλογος");
+  officers=d.officers;officerSource="Επετηρίδα της εφαρμογής (officers.json)";
+ }catch(e){
+  try{await loadLib("../declarations/officers.js");/* global OFFICERS */officers=typeof OFFICERS!=="undefined"?OFFICERS:[];officerSource="εφεδρικός κατάλογος Επετηρίδας (officers.js)"}
+  catch(err){officers=[];officerSource="ο κατάλογος δεν φορτώθηκε"}
+ }
+ render();renderMax();
+}
+
+// ── Λίστα δηλωσάντων ──
+const LABELS=["Α/Α","Ονοματεπώνυμο","Email","Αξίωμα","Έλεγχος","Μετακίνηση","Δωμάτιο","Διαμονή"];
+function view(r){
+ const o=(r.title&&r.title!=="Προς επαλήθευση")?null:officerFor(r);
+ return {title:o?o.title:(r.title||"Προς επαλήθευση"),check:o?"Εν ενεργεία — Επετηρίδα":(r.officer_status||"Δεν έχει επαληθευθεί"),verified:!!o||/Εν ενεργεία/.test(r.officer_status||"")};
+}
 function render(){
- const q=plain(el("searchBox").value),list=records.filter(x=>plain(x.name).includes(q)),body=el("rows");body.replaceChildren();
+ const q=plain(el("searchBox").value),list=records.filter(x=>plain(x.name).includes(q)),table=el("mainTable");
+ table.querySelectorAll("tbody").forEach(t=>t.remove());
  el("nTotal").textContent=records.length;
  el("nDouble").textContent=records.filter(x=>x.room==="Δίκλινο").length;
  el("nPending").textContent=records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length;
  el("countShown").textContent="Εμφανίζονται "+list.length+" από "+records.length+" δηλώσεις";
- if(!list.length){const tr=document.createElement("tr");add(tr,"td",records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη.","empty").colSpan=9;body.appendChild(tr);return}
- list.forEach((r,i)=>{const tr=document.createElement("tr");add(tr,"td",String(i+1));add(tr,"td",r.name,"name");add(tr,"td",r.email||"Δεν δηλώθηκε");add(tr,"td",r.title||"Προς επαλήθευση");add(tr,"td",r.officer_status||"Δεν έχει επαληθευθεί");const travel=add(tr,"td",r.travel||"18–20/12/2026");const hotel=add(tr,"td",r.room||"Δεν δηλώθηκε");const status=add(tr,"td",r.hotel_status||"Εκκρεμεί");status.className="";const badge=document.createElement("span");badge.className="pill "+(r.hotel_status==="Επιβεβαιωμένη κράτηση"?"":"wait");badge.textContent=status.textContent;status.replaceChildren(badge);add(tr,"td",r.comments||"—");body.appendChild(tr)});
+ if(!list.length){table.insertAdjacentHTML("beforeend",`<tbody><tr><td colspan="8" class="empty">${records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη."}</td></tr></tbody>`);return}
+ list.forEach((r,i)=>{
+  const v=view(r),status=r.hotel_status||"Εκκρεμεί";
+  const cells=[[String(i+1),"aa"],[r.name,"name"],[r.email||"Δεν δηλώθηκε","email"],[v.title],[v.check,v.verified?"verified":""],[r.travel||"18–20/12/2026"],[r.room||"Δεν δηλώθηκε"],
+   [`<span class="pill ${status==="Επιβεβαιωμένη κράτηση"?"":"wait"}">${esc(status)}</span>`,"status",true]];
+  const main="<tr>"+cells.map(([t,c,html],k)=>`<td${c?` class="${c}"`:""} data-label="${LABELS[k]}">${html?t:esc(t)}</td>`).join("")+"</tr>";
+  const com=r.comments?`<tr class="crow"><td colspan="8"><span class="clabel">Σχόλια</span>${esc(r.comments)}</td></tr>`:"";
+  table.insertAdjacentHTML("beforeend",`<tbody class="rec">${main}${com}</tbody>`);
+ });
 }
+
+// ── Πινάκιο ΜΑΞ ──
+function renderMax(){
+ if(el("maxPanel").hidden)return;
+ if(!officers){el("maxRows").innerHTML='<tr><td colspan="4" class="empty">Φόρτωση καταλόγου…</td></tr>';return}
+ const {rows,others}=pinakio(),ok=rows.filter(x=>x.attendee).length,bad=rows.length-ok;
+ el("maxSource").textContent="Πηγή: "+officerSource+" · "+rows.length+" εν ενεργεία Μεγάλοι Αξιωματικοί";
+ el("maxChips").innerHTML=`<span class="chip">Εν ενεργεία: <b>${rows.length}</b></span><span class="chip ok">✔ Δήλωσαν μετακίνηση: <b>${ok}</b></span><span class="chip bad">✖ Δεν έχουν δηλώσει: <b>${bad}</b></span>`;
+ const shown=rows.filter(x=>maxFilter==="all"||(maxFilter==="ok")===!!x.attendee);
+ el("maxRows").innerHTML=shown.length?shown.map((x,i)=>{
+  const a=x.attendee;
+  const st=a?`✔ Δήλωσε${a.declaration_date?" "+shortDate(a.declaration_date):""}${x.kind==="surname"?" · (έλεγχος ονόματος: "+esc(a.name)+")":""}`:"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ";
+  return `<tr class="${a?"ok":"bad"}"><td class="aa">${i+1}</td><td>${esc(x.officer.title)}</td><td class="who">${esc(x.officer.name)}</td><td class="st">${st}</td></tr>`;
+ }).join(""):'<tr><td colspan="4" class="empty">Καμία εγγραφή σε αυτό το φίλτρο.</td></tr>';
+ const ex=el("maxExtra");ex.hidden=!others.length;
+ ex.innerHTML=others.length?`<h3>Δηλώσεις εκτός καταλόγου εν ενεργεία ΜΑΞ (${others.length})</h3><ul>${others.map(r=>`<li>${esc(r.name)}${r.title&&r.title!=="Προς επαλήθευση"?" — "+esc(r.title):""}</li>`).join("")}</ul>`:"";
+}
+function toggleMax(force){
+ const p=el("maxPanel"),open=force!=null?force:p.hidden;
+ p.hidden=!open;el("maxBtn").setAttribute("aria-expanded",String(open));
+ if(open){renderMax();p.scrollIntoView({behavior:"smooth",block:"start"});if(location.hash!=="#max")history.replaceState(null,"","#max")}
+ else if(location.hash==="#max")history.replaceState(null,"",location.pathname+location.search);
+}
+
+// ── Φόρτωση δεδομένων / συγχρονισμός ──
 async function load(){
  const btn=el("refreshBtn");btn.disabled=true;
  try{
@@ -96,7 +225,7 @@ async function load(){
   const banner=el("syncBanner");const active=data.mode==="automatic";
   banner.className="notice"+(active?" live":"");
   banner.textContent=active?"Ο αυτόματος συγχρονισμός Gmail είναι ενεργός. Προγραμματισμένη ενημέρωση ανά 2 ώρες.":"Προσωρινή αρχική λίστα από ελεγμένα email. Η αυτόματη ενημέρωση ανά 2 ώρες χρειάζεται μία αρχική ενεργοποίηση από τον διαχειριστή.";
-  render();
+  render();renderMax();
  }catch(err){el("syncBanner").className="notice";el("syncBanner").textContent="Δεν ήταν δυνατή η λήψη των ενημερωμένων στοιχείων. "+(records.length?"Εμφανίζονται τα τελευταία γνωστά δεδομένα.":"Ελέγξτε την πρόσβαση στη σελίδα.");render()}
  finally{btn.disabled=false}
 }
@@ -132,10 +261,83 @@ function requestGmailSync(){
  },10000);
 }
 function exportCSV(){
- const lines=[["Ονοματεπώνυμο","Email","Αξίωμα","Έλεγχος επετηρίδας","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>[r.name,r.email||"",r.title||"",r.officer_status||"",r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]));
- const csv="\uFEFF"+lines.map(c=>c.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
+ const lines=[["Ονοματεπώνυμο","Email","Αξίωμα","Έλεγχος επετηρίδας","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>{const v=view(r);return [r.name,r.email||"",v.title,v.check,r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]}));
+ const csv="﻿"+lines.map(c=>c.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="Kerkyra-2026-Diloseis.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+// ── PDF A4 (οριζόντιο): στήλες που χωρούν, σελιδοποίηση, υποσέλιδο, υπογραφή στο τέλος ──
+const libs={};
+function loadLib(src){return libs[src]||(libs[src]=new Promise((ok,bad)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>bad(Error("Δεν φορτώθηκε "+src));document.head.appendChild(s)}))}
+const PDF_CSS=`.pdfsheet{width:1123px;height:794px;padding:34px 42px 26px;background:#fff;color:#14243d;font:12px/1.4 Arial,Helvetica,sans-serif;display:flex;flex-direction:column;box-sizing:border-box}
+.pdfsheet .pc{flex:1;overflow:hidden}.pdfsheet .ph{border-bottom:3px solid #af893e;padding-bottom:9px;margin-bottom:12px}
+.pdfsheet .ph small{font-size:10px;letter-spacing:1.6px;color:#8a6a2c;font-weight:700}.pdfsheet .ph h1{font-size:20px;margin:4px 0 2px;color:#10223d}
+.pdfsheet .ph div{font-size:12px;color:#44546b}.pdfsheet .ph2{font-size:11px;color:#44546b;border-bottom:2px solid #af893e;padding-bottom:5px;margin-bottom:9px;display:flex;justify-content:space-between}
+.pdfsheet .sum{display:flex;gap:10px;margin:0 0 11px;flex-wrap:wrap}.pdfsheet .sum span{border:1px solid #dfe5ee;border-radius:6px;padding:5px 11px;background:#f5f7fb}.pdfsheet .sum b{color:#10223d;font-size:14px}
+.pdfsheet .sum .ok{background:#e6f6ec;border-color:#b5e2c5;color:#0d7a3e}.pdfsheet .sum .ok b{color:#0d7a3e}.pdfsheet .sum .bad{background:#fdecec;border-color:#f2b8b8;color:#c01d1d}.pdfsheet .sum .bad b{color:#c01d1d}
+.pdfsheet table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px}
+.pdfsheet th{background:#19385f;color:#fff;text-align:left;padding:6px 5px;font-size:9.5px;text-transform:uppercase;letter-spacing:.02em}
+.pdfsheet td{padding:5px;vertical-align:top;overflow-wrap:break-word}
+.pdfsheet tbody.r{border-bottom:1px solid #d3dbe6}.pdfsheet tbody.r.alt td{background:#f6f8fb}.pdfsheet td.n{font-weight:700;color:#10223d}
+.pdfsheet tr.c td{padding:0 5px 6px 30px;color:#3d4d63;font-size:10px}.pdfsheet tr.c b{color:#8a6a2c;font-size:9px;letter-spacing:.04em;margin-right:5px}
+.pdfsheet tbody.ok td{background:#e6f6ec;color:#0d7a3e}.pdfsheet tbody.ok td.n{color:#0d7a3e}.pdfsheet tbody.bad td{background:#fdecec;color:#c01d1d;font-weight:700}.pdfsheet tbody.ok,.pdfsheet tbody.bad{border-bottom:1px solid #fff}
+.pdfsheet .xl{margin-top:12px;font-size:11px;color:#3d4d63}.pdfsheet .xl b{color:#10223d}
+.pdfsheet .sig{margin-top:18px;padding:11px 14px;border-left:4px solid #af893e;background:#faf7f0;font-size:12.5px;line-height:1.5;width:360px}
+.pdfsheet .pf{border-top:1px solid #c9d3df;padding-top:6px;display:flex;justify-content:space-between;font-size:9.5px;color:#4b5b72;letter-spacing:.02em}`;
+const SIG=`<div class="sig">Με Αφοσίωση και Αδελφική Αγάπη,<br><b>Μέγας Γραμματέας</b><br>Πσεβ. Αδ. Δημήτριος Σκιαδόπουλος<br>6951097562</div>`;
+// opts: {btn, title, sum, cols:[[label,%]], items:[{cls, cells:[html], comment}], tail, filename}
+async function makePdf(opts){
+ const btn=opts.btn,label=btn.textContent;btn.disabled=true;btn.textContent="Δημιουργία PDF…";
+ const host=document.createElement("div");host.style.cssText="position:fixed;left:-20000px;top:0";
+ host.innerHTML="<style>"+PDF_CSS+"</style>";document.body.appendChild(host);
+ try{
+  await Promise.all([loadLib("../vendor/html2canvas.min.js"),loadLib("../vendor/jspdf.umd.min.js")]);
+  const today=new Intl.DateTimeFormat("el-GR",{dateStyle:"long",timeZone:"Europe/Athens"}).format(new Date());
+  const n=opts.cols.length;
+  const thead="<colgroup>"+opts.cols.map(c=>`<col style="width:${c[1]}%">`).join("")+"</colgroup><thead><tr>"+opts.cols.map(c=>"<th>"+c[0]+"</th>").join("")+"</tr></thead>";
+  const itemHtml=(it,i)=>`<tbody class="r ${it.cls||(i%2?"alt":"")}"><tr>${it.cells.map((c,k)=>`<td${k===1&&!it.noBoldName?' class="n"':""}>${c}</td>`).join("")}</tr>${it.comment?`<tr class="c"><td colspan="${n}"><b>ΣΧΟΛΙΑ</b>${esc(it.comment)}</td></tr>`:""}</tbody>`;
+  const head1=`<div class="ph"><small>ΕΘΝΙΚΗ ΜΕΓΑΛΗ ΣΤΟΑ ΤΗΣ ΕΛΛΑΔΟΣ · ΜΕΓΑΛΗ ΓΡΑΜΜΑΤΕΙΑ</small><h1>${opts.title}</h1><div>Τακτική Μεγάλη Συνέλευση · Κέρκυρα, Σάββατο 19 Δεκεμβρίου 2026 · Μετακίνηση 18–20/12/2026 · Έκδοση: ${esc(today)}</div></div>${opts.sum||""}`;
+  const head2=`<div class="ph2"><b>${opts.title} — Κέρκυρα 2026</b><span>(συνέχεια)</span></div>`;
+  const sheets=[];
+  const newSheet=first=>{const sh=document.createElement("div");sh.className="pdfsheet";sh.innerHTML=`<div class="pc">${first?head1:head2}<table>${thead}</table></div><div class="pf"><span>ΜΕΓΑΛΗ ΓΡΑΜΜΑΤΕΙΑ · ΟΡΓΑΝΩΣΗ ΜΕΤΑΚΙΝΗΣΗΣ · grand.secretary@nglgreece.gr</span><span class="pn"></span></div>`;host.appendChild(sh);sheets.push(sh);return sh};
+  const over=sh=>{const c=sh.querySelector(".pc");return c.scrollHeight>c.clientHeight+1};
+  let sh=newSheet(true);
+  opts.items.forEach((it,i)=>{const t=sh.querySelector("table");t.insertAdjacentHTML("beforeend",itemHtml(it,i));
+   if(over(sh)&&t.tBodies.length>1){t.lastElementChild.remove();sh=newSheet(false);sh.querySelector("table").insertAdjacentHTML("beforeend",itemHtml(it,i))}});
+  const tail=(opts.tail||"")+SIG;
+  sh.querySelector(".pc").insertAdjacentHTML("beforeend",`<div class="tail">${tail}</div>`);
+  if(over(sh)){sh.querySelector(".tail").remove();sh=newSheet(false);const c=sh.querySelector(".pc");c.querySelector("table").remove();c.insertAdjacentHTML("beforeend",tail)}
+  sheets.forEach((s,i)=>s.querySelector(".pn").textContent="Σελίδα "+(i+1)+" από "+sheets.length);
+  const pdf=new window.jspdf.jsPDF({unit:"mm",format:"a4",orientation:"landscape"});
+  pdf.setProperties({title:opts.title+" — Κέρκυρα 2026",author:"Μεγάλη Γραμματεία ΕΜΣτΕ"});
+  for(const [i,s] of sheets.entries()){
+   const c=await window.html2canvas(s,{scale:2,backgroundColor:"#ffffff",logging:false});
+   if(i)pdf.addPage("a4","landscape");
+   pdf.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,297,210);
+  }
+  pdf.save(opts.filename);
+ }catch(err){syncStatus("Δεν δημιουργήθηκε το PDF: "+(err&&err.message||err)+". Δοκιμάστε «Εκτύπωση» → Αποθήκευση ως PDF.")}
+ finally{host.remove();btn.disabled=false;btn.textContent=label}
+}
+function exportPDF(){
+ const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(x=>x.room==="Δίκλινο").length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
+ return makePdf({btn:el("pdfBtn"),title:"Κατάσταση Μετακίνησης &amp; Διαμονής Μεγάλων Αξιωματικών",sum:s,filename:"Kerkyra-2026-Metakinisi-Diamoni.pdf",
+  cols:[["Α/Α",4],["Ονοματεπώνυμο",16],["Email",18],["Αξίωμα (Επετηρίδα)",15],["Έλεγχος",13],["Μετακίνηση",14],["Δωμάτιο",9],["Διαμονή",11]],
+  items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,esc(r.name),esc(r.email||"—"),esc(v.title),esc(v.check),esc(r.travel||"18–20/12/2026"),esc(r.room||"Δεν δηλώθηκε"),esc(r.hotel_status||"Εκκρεμεί")],comment:r.comments||""}})});
+}
+function exportMaxPDF(){
+ const {rows,others}=pinakio(),ok=rows.filter(x=>x.attendee).length;
+ const s=`<div class="sum"><span>Εν ενεργεία: <b>${rows.length}</b></span><span class="ok">✔ Δήλωσαν μετακίνηση: <b>${ok}</b></span><span class="bad">✖ Δεν έχουν δηλώσει: <b>${rows.length-ok}</b></span><span>Πηγή: <b>${esc(officerSource)}</b></span></div>`;
+ const tail=others.length?`<div class="xl"><b>Δηλώσεις εκτός καταλόγου εν ενεργεία ΜΑΞ (${others.length}):</b> ${others.map(r=>esc(r.name)).join(" · ")}</div>`:"";
+ return makePdf({btn:el("maxPdfBtn"),title:"Πινάκιο ΜΑΞ — Δηλώσεις Μετακίνησης",sum:s,tail,filename:"Kerkyra-2026-Pinakio-MAX.pdf",
+  cols:[["Α/Α",5],["Ονοματεπώνυμο",30],["Αξίωμα",38],["Μετακίνηση",27]],
+  items:rows.map((x,i)=>({cls:x.attendee?"ok":"bad",cells:[i+1,esc(x.officer.name),esc(x.officer.title),x.attendee?"✔ Δήλωσε"+(x.attendee.declaration_date?" "+shortDate(x.attendee.declaration_date):""):"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ"]}))});
+}
+
+el("maxBtn").addEventListener("click",()=>toggleMax());el("maxCloseBtn").addEventListener("click",()=>toggleMax(false));
+document.querySelectorAll(".filters button").forEach(b=>b.addEventListener("click",()=>{maxFilter=b.dataset.f;document.querySelectorAll(".filters button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));renderMax()}));
+el("maxPdfBtn").addEventListener("click",exportMaxPDF);el("pdfBtn").addEventListener("click",exportPDF);
 el("searchBox").addEventListener("input",render);el("refreshBtn").addEventListener("click",load);el("syncBtn").addEventListener("click",requestGmailSync);el("csvBtn").addEventListener("click",exportCSV);el("printBtn").addEventListener("click",()=>window.print());
-load();loadSyncConfig();setInterval(load,5*60*1000);
+load();loadSyncConfig();loadOfficers();setInterval(load,5*60*1000);
+if(location.hash==="#max")toggleMax(true);
 </script></body></html>

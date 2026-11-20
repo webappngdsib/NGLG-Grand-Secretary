@@ -5246,3 +5246,31 @@ def test_grand_stewards_from_epeteirida_and_registry(app):
     assert 'Πρωηνίδης' not in t and 'Παλαιός' not in t and 'Δοκιμάκης' in t
     assert t.index('Πρώτιστος') < t.index('Γραμματικός') < t.index('Δοκιμάκης')
     assert not app.errors, app.errors
+
+
+def test_grand_steward_set_from_member_page(app):
+    app.connect_local()
+    mid = app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      return db.save('x', (tx) => { const m = tx.insert('member_registry', { surname: 'Καρτελάκης', first_name: 'Νικόλαος', active: 1 });
+        tx.insert('member_lodges', { member_id: m.id, seq: 1, lodge_name: 'ΘΕΜΙΣΤΟΚΛΗΣ', lodge_number: '96', member_status: 'ΕΝΕΡΓΟ' });
+        tx.insert('epeteirida', { aa: 1, member_id: m.id, full_name: 'Καρτελάκης Νικόλαος', title: 'Πρώην Μέγας Οργανιστής', active: 0 });
+        return m.id; }); }""")
+    app.go(f'/members/{mid}')
+    app.page.locator('.gs-set summary').click()
+    assert app.page.input_value('#gsYearM')
+    app.page.fill('#gsYearM', '2026–2027')
+    app.page.click('[data-act=gsSet]')
+    app.page.wait_for_selector('#gsMemberBtn')
+    assert 'Μέγας Επιμελητής 2026–2027' in app.text('.gs-member') and '96' in app.text('.gs-member')
+    rows = app.page.evaluate("async () => (await import('./core/store.js')).db.all('epeteirida')")
+    mine = [r for r in rows if r['member_id'] == mid]
+    assert len(mine) == 1 and mine[0]['title'] == 'Μέγας Επιμελητής' and mine[0]['rank'] == 'Πρώην Μέγας Οργανιστής' and mine[0]['active'] == 1
+    app.go('/members/stewards')
+    assert 'Καρτελάκης' in app.text('#gstab') and '2026–2027' in app.text('#gstab')
+    app.go(f'/members/{mid}')
+    app.page.click('[data-act=gsOff]')
+    app.page.wait_for_selector('.gs-set')
+    rows = app.page.evaluate("async () => (await import('./core/store.js')).db.all('epeteirida')")
+    mine = [r for r in rows if r['member_id'] == mid]
+    assert len(mine) == 1 and mine[0]['title'] == 'Πρώην Μέγας Επιμελητής' and mine[0]['active'] == 0
+    assert not app.errors, app.errors

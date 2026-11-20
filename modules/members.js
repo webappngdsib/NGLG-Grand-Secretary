@@ -21,7 +21,7 @@ import { diplomasPage } from './diplomas.js';
 import { memberCardPage } from './member-card.js';
 import { diplomaIssuePage } from './diploma.js';
 import { sgyRegistryPage } from './sgy.js';
-import { stewardsPage, officersPage, stewardOf, STEWARDS_HREF, OFFICERS_HREF } from './grand-stewards.js';
+import { stewardsPage, officersPage, stewardCard, setMemberSteward, retireMemberSteward, STEWARDS_HREF, OFFICERS_HREF } from './grand-stewards.js';
 
 // Αρ. Μητρώου: μοναδικός και μόνιμος αριθμός κάθε προσώπου που είναι ή υπήρξε μέλος της ΕΜΣτΕ (και διαγραμμένου).
 // Ξεκινά από το 1200, δίνεται αυτόματα στο νέο μέλος (επόμενος ελεύθερος) και δεν αλλάζει ποτέ· μόνο ο διαχειριστής
@@ -354,11 +354,6 @@ ${importBox()}`,
 // Πού εμφανίζεται το μέλος (οι λίστες δείχνουν σε αυτό — δεν κρατούν δικά τους αντίγραφα)
 // Εκπροσωπήσεις του Μεγάλου Διδασκάλου από το μέλος (από τις Επισκέψεις Στοών — ίδια δεδομένα, καμία χωριστή καταγραφή)
 // Αξιώματα και Επαρχία του μέλους: ποιος είναι ο ΕπΜΔ και ο ΕπΜΓρ. της Επαρχίας του (από τις Στοές του)
-// Εν ενεργεία Μέγας Επιμελητής: κουμπί προς τον κατάλογο ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ (ίδια εγγραφή της Επετηρίδας)
-function stewardBanner(m) {
-  const r = stewardOf(m.id); if (!r) return '';
-  return `<div class="card gs-member"><b>🎖 ${esc(r.current || r.title)}</b>${r.province ? ` · Στοά <b>${esc(r.province)}</b>` : ''} <a class="btn small primary" href="${STEWARDS_HREF}" id="gsMemberBtn">ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ →</a></div>`;
-}
 function officesCard(m) {
   const offs = officesOf(m.id), byM = lodgesByMember(), seen = new Set(), provs = [];
   for (const ml of (byM[m.id] || []).filter((x) => !lodgeDeregged(x))) { const p = provinceOfLodge(lodgeByNumber(ml.lodge_number)); if (p && !seen.has(p.id)) { seen.add(p.id); provs.push(p); } }
@@ -441,7 +436,7 @@ function formPage(m) {
   const offices = m ? sortBy(db.all('member_degrees_offices').filter((o) => o.member_id === m.id), (o) => -(o.decree_year || 0)) : [];
   return {
     title: m ? `Μέλος #${m.id}` : 'Νέο Μέλος',
-    html: `<p><a href="#/members">← Μητρώο Μελών</a></p><h1>${m ? `${esc(m.surname)} ${esc(m.first_name)} <small class="muted">#${m.id}</small>` : 'Νέο Μέλος'}</h1>${m ? `<div class="toolbar"><a class="btn primary" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a><a class="btn" href="#/members/diploma?id=${m.id}">🎓 Δίπλωμα Διδασκάλου</a></div>` : ''}${noContact(m) ? `<div class="card nocontact">${NO_CONTACT}</div>` : ''}${m ? stewardBanner(m) : ''}${m ? officesCard(m) + usesOf(m) + visitsCard(m) : ''}
+    html: `<p><a href="#/members">← Μητρώο Μελών</a></p><h1>${m ? `${esc(m.surname)} ${esc(m.first_name)} <small class="muted">#${m.id}</small>` : 'Νέο Μέλος'}</h1>${m ? `<div class="toolbar"><a class="btn primary" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a><a class="btn" href="#/members/diploma?id=${m.id}">🎓 Δίπλωμα Διδασκάλου</a></div>` : ''}${noContact(m) ? `<div class="card nocontact">${NO_CONTACT}</div>` : ''}${m ? stewardCard(m) : ''}${m ? officesCard(m) + usesOf(m) + visitsCard(m) : ''}
 <form id="mf"><div class="grid card"><div class="full regcode-row"><label>Αρ. Μητρώου</label><div class="regcode">${m ? regBadge(m) : '<span class="muted">αυτόματα (M + επόμενος ελεύθερος· MM + αριθμός Διπλώματος, αν υπάρχει)</span>'}</div></div>
 ${isAdmin() ? f('diploma_no', 'Δίπλωμα Διδασκάλου Τέκτονος <small class="muted">(Certificate Master Mason) — ο πραγματικός αριθμός μητρώου</small>', 'inputmode="numeric" placeholder="αριθμός διπλώματος"')
   : `<div><label>Δίπλωμα Διδασκάλου Τέκτονος</label><input value="${esc(x.diploma_no || '—')}" disabled></div>`}
@@ -460,7 +455,9 @@ ${f('mm_lodge_name', 'Στοά Εγέρσεως (όπου έγινε Διδάσ�
 <div class="toolbar"><button class="btn primary">💾 Αποθήκευση</button><a class="btn" href="#/members">Ακύρωση</a>${m ? `<a class="btn" href="#/members/card?ids=${m.id}">🪪 Κάρτα Μέλους</a>` : ''}${m && !noContact(m) ? `<a class="btn" href="#/letters/new?to_name=${encodeURIComponent(`${m.first_name} ${m.surname}`)}&to_email=${encodeURIComponent(m.email || '')}">✉ Επιστολή</a>` : ''}${m ? '<button type="button" class="btn danger" data-act="del">Διαγραφή</button>' : ''}</div></form>
 ${m ? epCard(m) : ''}${offices.length ? `<h2>Ιστορικό αξιωμάτων (Διατάγματα)</h2>${table(['Έτος', 'Αξίωμα / Τίτλος', 'Διάταγμα'], offices.map((o) => [esc(o.decree_year), esc(o.office), o.decree_id ? `<a href="#/decrees/${o.decree_id}">${esc(o.decree_no)}/${esc(o.decree_year)}</a>` : esc(o.decree_no ? `${o.decree_no}/${o.decree_year}` : '')]))}` : ''}`,
     mount(el) {
-      if (m) bind(el, { async epSave() { await saveEp(m, el); flash('✓ Επετηρίδα: η Προσφώνηση ενημερώθηκε σε όλες τις λίστες.'); go(`/members/${m.id}`); } });
+      if (m) bind(el, { async epSave() { await saveEp(m, el); flash('✓ Επετηρίδα: η Προσφώνηση ενημερώθηκε σε όλες τις λίστες.'); go(`/members/${m.id}`); },
+        async gsSet() { const y = el.querySelector('#gsYearM').value; await setMemberSteward(m.id, el.querySelector('#gsLodge').value, y); flash(`✓ Μέγας Επιμελητής ${y}: ενημερώθηκε η Επετηρίδα του μέλους.`); go(`/members/${m.id}`); },
+        async gsOff() { if (!confirmDo('Λήξη: ο Αδελφός γίνεται «Πρώην Μέγας Επιμελητής». Συνέχεια;')) return; await retireMemberSteward(m.id); flash('✓ Έγινε Πρώην Μέγας Επιμελητής.'); go(`/members/${m.id}`); } });
       onSubmit(el.querySelector('#mf'), async (d) => {
         const rn = isAdmin() ? String(d.registry_no || '').trim() : String(m ? m.registry_no ?? '' : '');
         if (m && isAdmin() && rn !== String(m.registry_no ?? '') && !confirmDo(`Αλλαγή του μόνιμου Αρ. Μητρώου από ${m.registry_no ?? '—'} σε ${rn || '—'};`)) return;

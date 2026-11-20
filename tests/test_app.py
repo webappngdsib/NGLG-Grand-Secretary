@@ -5256,7 +5256,7 @@ def test_grand_steward_set_from_member_page(app):
         tx.insert('epeteirida', { aa: 1, member_id: m.id, full_name: 'Καρτελάκης Νικόλαος', title: 'Πρώην Μέγας Οργανιστής', active: 0 });
         return m.id; }); }""")
     app.go(f'/members/{mid}')
-    app.page.locator('.gs-set summary').click()
+    assert app.page.locator('#gsLodge').is_visible()  # πάντα ανοιχτό, μπορντό
     assert app.page.input_value('#gsYearM')
     app.page.fill('#gsYearM', '2026–2027')
     app.page.click('[data-act=gsSet]')

@@ -2611,6 +2611,7 @@ def test_declarations_constitution_helper_and_decree_signature(app):
     assert fr.evaluate("() => document.getElementById('officer-select').value") == 'Σκιαδόπουλος Δημήτριος (Μέγας Γραμματεύς)'
     assert fr.evaluate("() => document.getElementById('officer-results').hidden && !document.getElementById('officer-picked').hidden")
     fr.evaluate("() => buildOfficerSelect('')")
+    assert fr.evaluate("() => VIEWS.programme") == 'Πρόγραμμα Επισκέψεων του Σεβασμιωτάτου Μεγάλου Διδασκάλου και των Εκπροσωπήσεών του'
     app.go('/declarations?view=form')  # παλιός σύνδεσμος → η μία σελίδα
     app.page.wait_for_selector('#declFrame')
     assert app.page.url.endswith('#/declarations')

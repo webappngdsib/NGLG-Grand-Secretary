@@ -1,4 +1,4 @@
 {
   "web_app_url": "https://script.google.com/a/macros/nglgreece.gr/s/AKfycbw5lUOpbI4PeNJ1IGAQFDbaXYrEJ5Y16rDgE6S--0n3NPhNKzs5Vi58JDxVt4qDNI0/exec",
-  "note": "Fill web_app_url with Apps Script Web app /exec URL after deploying as Me and access Only myself."
+  "note": "Google Workspace Apps Script deployment. Must be configured with Execute as Me and access Only myself; do not add secrets here."
 }

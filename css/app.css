@@ -464,6 +464,7 @@ input[type=file]{max-width:100%;min-width:0}
 .mc-cta-btn b{font-weight:900;letter-spacing:.06em;font-size:1.15em}
 .mc-cta-btn small{font-weight:400;color:#7a5a10;font-size:.8em}
 .mc-cta-btn:hover{background:#f6ebcf}
+.gs-member{background:#fff8e9;border-left:5px solid #b18a43;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 #mcMail{margin-top:18px}
 /* Πράσινο κουμπί «Πρωτ ΜΓραμμ Εξερχόμενα» */
 .btn.protogreen{background:#15803d;border-color:#15803d;color:#fff;font-weight:700}

@@ -5182,3 +5182,58 @@ def test_decree_dress_page_single_brother(app):
     assert m == [['grand', 'grand_secretary'], ['province', 'pgm'], ['past', 'past_grand_officer'], ['grand', 'grand_officer']], m
     # μενού και Πύλη: σύνδεσμος στον Οδηγό Ενδυμασίας (νέα καρτέλα)
     assert app.page.locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/"][target=_blank]').count() >= 1
+
+
+GS_TSV = 'Ανδρέας\tΔοκιμάκης\t30 Μέγας Επιμελητής\tΔοκιμή 12\nΒασίλειος\tΠαράδειγμος\t30 Μέγας Επιμελητής\tΤεστ 1882 97\nΓεώργιος\tΆγνωστάκης\t30 Μέγας Επιμελητής\tΔοκιμή 12 12\n'
+
+
+def test_grand_stewards_from_epeteirida_and_registry(app):
+    app.connect_local()
+    ids = app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      return db.save('x', (tx) => {
+        const a = tx.insert('member_registry', { surname: 'Δοκιμάκης', first_name: 'Ανδρέας', email: 'a@example.com', mobile: '6900000001', active: 1 });
+        const a2 = tx.insert('member_registry', { surname: 'Δοκιμάκης', first_name: 'Ανδρέας', email: 'other@example.com', active: 1 });
+        const b = tx.insert('member_registry', { surname: 'Παράδειγμος', first_name: 'Βασίλειος', active: 1 });
+        const old = tx.insert('member_registry', { surname: 'Παλαιός', first_name: 'Δημήτριος', active: 1 });
+        tx.insert('member_lodges', { member_id: a.id, seq: 1, lodge_name: 'ΔΟΚΙΜΗ', lodge_number: '12', member_status: 'ΕΝΕΡΓΟ' });
+        tx.insert('member_lodges', { member_id: a2.id, seq: 1, lodge_name: 'ΑΛΛΗ', lodge_number: '5', member_status: 'ΕΝΕΡΓΟ' });
+        tx.insert('member_lodges', { member_id: b.id, seq: 1, lodge_name: 'ΤΕΣΤ 1882', lodge_number: '97', member_status: 'ΕΝΕΡΓΟ' });
+        tx.insert('epeteirida', { aa: 1, member_id: b.id, full_name: 'Παράδειγμος Βασίλειος', title: 'Μέγας Επιμελητής', active: 0, province: '', current: '' });
+        tx.insert('epeteirida', { aa: 2, member_id: old.id, full_name: 'Παλαιός Δημήτριος', title: 'Μέγας Επιμελητής', active: 1, province: 'Χ 1', current: 'Μέγας Επιμελητής 2025–2026' });
+        return [a.id, b.id, old.id]; }); }""")
+    a, b, old = ids
+    app.go('/members')
+    app.page.click('#gsBtn')
+    app.page.wait_for_selector('#gsimp')
+    assert 'Παλαιός' in app.text('#gstab')
+    app.page.locator('#gsimp summary').click()
+    app.page.fill('#gsYear', '2026–2027')
+    app.page.fill('#gsPaste', GS_TSV)
+    app.page.click('[data-act=save]')
+    app.page.wait_for_selector('text=3 · 2 συνδέθηκαν με το Μητρώο')
+    t = app.text('#gstab')
+    assert 'Δοκιμάκης' in t and ' 12' in t and '1882 97' in t and '2026–2027' in t and 'a@example.com' in t
+    assert 'Παλαιός' not in t and 'χωρίς σύνδεση' in t  # ο Άγνωστάκης μένει με το όνομα
+    rows = app.page.evaluate("async () => (await import('./core/store.js')).db.all('epeteirida')")
+    ro = [r for r in rows if r['member_id'] == old][0]
+    assert ro['active'] == 0 and ro['title'] == 'Πρώην Μέγας Επιμελητής'
+    rb = [r for r in rows if r['member_id'] == b]
+    assert len(rb) == 1 and rb[0]['active'] == 1 and rb[0]['province'].endswith('1882 97') and rb[0]['current'] == 'Μέγας Επιμελητής 2026–2027'
+    # στο μέλος: κουμπί προς τον κατάλογο· ο συνώνυμος σε άλλη Στοά δεν επηρεάζεται
+    app.go(f'/members/{a}')
+    assert 'Μέγας Επιμελητής 2026–2027' in app.text('.gs-member')
+    app.page.click('#gsMemberBtn')
+    app.page.wait_for_selector('#gstab')
+    assert [r for r in rows if r['full_name'] == 'Δοκιμάκης Ανδρέας'][0]['member_id'] == a
+    # ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΑΞΙΩΜΑΤΙΚΟΙ: ίδια Επετηρίδα, κατά τάξη προβαδίσματος, χωρίς τους Πρώην
+    app.page.evaluate("async () => { const {db} = await import('./core/store.js'); return db.save('y', (tx) => {"
+      " tx.insert('epeteirida', { aa: 3, full_name: 'Γραμματικός Ευάγγελος', title: 'Μέγας Γραμματεύς', active: 1 });"
+      " tx.insert('epeteirida', { aa: 4, full_name: 'Πρώτιστος Ζήσης', title: 'Βοηθός Μέγας Διδάσκαλος', active: 0 });"
+      " tx.insert('epeteirida', { aa: 5, full_name: 'Πρωηνίδης Ηλίας', title: 'Πρώην Μέγας Ξιφοφόρος', active: 0 }); }); }")
+    app.go('/members')
+    app.page.click('#goBtn')
+    app.page.wait_for_selector('#gotab')
+    t = app.text('#gotab')
+    assert 'Πρωηνίδης' not in t and 'Παλαιός' not in t and 'Δοκιμάκης' in t
+    assert t.index('Πρώτιστος') < t.index('Γραμματικός') < t.index('Δοκιμάκης')
+    assert not app.errors, app.errors

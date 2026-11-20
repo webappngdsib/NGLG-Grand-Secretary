@@ -12,6 +12,7 @@ import { canonicalId, person } from '../core/people.js';
 import { matchMember, provinceOfLodge } from '../core/officers.js';
 import { reportPaper, printPaper } from '../core/paper.js';
 import { lodgeByNumber } from './lodges.js';
+import { attachPicker, memberItems } from '../core/pickers.js';
 import { masonicYear } from './visits.js';
 
 export const STEWARD_TITLE = 'Μέγας Επιμελητής';
@@ -87,32 +88,60 @@ export function memberInLodge(x, src = db) {
 // Ενημέρωση της Επετηρίδας (μέσα σε μία αποθήκευση tx): οι Μεγάλοι Επιμελητές του καταλόγου γίνονται εν ενεργεία, με Στοά και έτος,
 // στην ΙΔΙΑ εγγραφή του μέλους (χωρίς διπλή γραμμή): η γραμμή του ως Μέγας Επιμελητής, αλλιώς η κύρια γραμμή του (το παλιό «Πρώην …»
 // μένει στο «Ανώτατο αξίωμα»), αλλιώς νέα γραμμή. Όσοι ήταν εν ενεργεία Μεγάλοι Επιμελητές αλλά λείπουν γίνονται «Πρώην Μέγας Επιμελητής».
+// Μία εγγραφή: ο Αδελφός x (Όνομα, Επώνυμο, Στοά) — ή το μέλος mid, αν δίνεται — γίνεται εν ενεργεία Μέγας Επιμελητής στη ΔΙΚΗ ΤΟΥ γραμμή Επετηρίδας
+function upsertSteward(tx, x, year, mid, kept = new Set()) {
+  const m = mid ? tx.get('member_registry', mid) : null, full = m ? `${T(m.surname)} ${T(m.first_name)}` : `${x.surname} ${x.first}`;
+  const l = tx.find('lodges', (y) => String(y.number ?? '').replace(/^0+/, '') === String(x.lodge.number).replace(/^0+/, ''));
+  const lodge = l ? `${T(l.name)} ${T(l.number)}` : T(`${x.lodge.name} ${x.lodge.number}`);
+  const mine = (r) => !kept.has(r.id) && ((mid && r.member_id && canonicalId(r.member_id) === mid) || (!r.member_id && fold(r.full_name) === fold(full)));
+  const rows = tx.all('epeteirida').filter(mine);
+  const ex = rows.find((r) => /επιμελητησ/.test(fold(r.title))) || rows.find((r) => !T(r.title) || /^Πρώην /.test(T(r.title)));
+  const patch = { active: 1, title: STEWARD_TITLE, province: lodge, current: `${STEWARD_TITLE} ${year}`, ...(mid ? { member_id: mid, full_name: full } : {}) };
+  if (ex) {
+    const old = T(ex.title);
+    tx.update('epeteirida', ex.id, { ...patch, ...(old && !/επιμελητησ/.test(fold(old)) && !T(ex.rank) ? { rank: old } : {}) });
+    kept.add(ex.id); return { id: ex.id, lodge, added: false };
+  }
+  const aa = Math.max(0, ...tx.all('epeteirida').map((r) => Number(r.aa) || 0)) + 1;
+  const r = tx.insert('epeteirida', { aa, member_id: mid || null, full_name: full, honorific: '', rank: '', decree_no: '', decree_year: '', tmd: 0, tmd_decree: '', ...patch });
+  kept.add(r.id); return { id: r.id, lodge, added: true };
+}
 export function applyStewards(tx, items, year) {
   const res = { total: items.length, matched: 0, unmatched: [], added: 0, updated: 0, retired: 0 };
   const kept = new Set();
-  let aa = Math.max(0, ...tx.all('epeteirida').map((x) => Number(x.aa) || 0));
   for (const x of items) {
-    const full = `${x.surname} ${x.first}`, mid = memberInLodge(x, tx);
-    const l = tx.find('lodges', (y) => String(y.number ?? '').replace(/^0+/, '') === String(x.lodge.number).replace(/^0+/, ''));
-    const lodge = l ? `${T(l.name)} ${T(l.number)}` : `${x.lodge.name} ${x.lodge.number}`;
-    const m = mid ? tx.get('member_registry', mid) : null;
-    if (mid) res.matched++; else res.unmatched.push(`${full} (${lodge})`);
-    const mine = (r) => !kept.has(r.id) && ((mid && r.member_id && canonicalId(r.member_id) === mid) || (!r.member_id && fold(r.full_name) === fold(full)));
-    const rows = tx.all('epeteirida').filter(mine);
-    const ex = rows.find((r) => /επιμελητησ/.test(fold(r.title))) || rows.find((r) => !T(r.title) || /^Πρώην /.test(T(r.title)));
-    const patch = { active: 1, title: STEWARD_TITLE, province: lodge, current: `${STEWARD_TITLE} ${year}`, ...(mid ? { member_id: mid, full_name: m ? `${T(m.surname)} ${T(m.first_name)}` : full } : {}) };
-    if (ex) {
-      const old = T(ex.title);
-      tx.update('epeteirida', ex.id, { ...patch, ...(old && !isStewardTitle(old) && !/επιμελητησ/.test(fold(old)) && !T(ex.rank) ? { rank: old } : {}) });
-      kept.add(ex.id); res.updated++;
-    } else {
-      const r = tx.insert('epeteirida', { aa: ++aa, member_id: mid || null, full_name: full, honorific: '', rank: '', decree_no: '', decree_year: '', tmd: 0, tmd_decree: '', ...patch });
-      kept.add(r.id); res.added++;
-    }
+    const mid = memberInLodge(x, tx), u = upsertSteward(tx, x, year, mid, kept);
+    if (mid) res.matched++; else res.unmatched.push(`${x.surname} ${x.first} (${u.lodge})`);
+    if (u.added) res.added++; else res.updated++;
   }
   for (const r of tx.all('epeteirida')) if (isActiveSteward(r) && !kept.has(r.id)) { tx.update('epeteirida', r.id, { active: 0, title: 'Πρώην ' + STEWARD_TITLE }); res.retired++; }
   tx.setting('grand_stewards_report', JSON.stringify({ year, at: new Date().toISOString(), ...res }));
   return res;
+}
+// Από την καρτέλα του μέλους: ορισμός ως Μέγας Επιμελητής (Στοά, έτος) — χωρίς να αλλάζουν οι υπόλοιποι
+export async function setMemberSteward(memberId, lodgeNumber, year = masonicYear().label) {
+  const mid = canonicalId(memberId), m = db.get('member_registry', mid);
+  if (!m) throw new Error('Δεν βρέθηκε το μέλος.');
+  if (!String(lodgeNumber || '').trim()) throw new Error('Επιλέξτε τη Στοά του Μεγάλου Επιμελητή.');
+  await db.save(`Μέγας Επιμελητής ${year}: ${T(m.surname)} ${T(m.first_name)}`, (tx) => { upsertSteward(tx, { first: T(m.first_name), surname: T(m.surname), lodge: { name: '', number: String(lodgeNumber) } }, T(year) || masonicYear().label, mid); });
+}
+// Από την καρτέλα του μέλους: λήξη — «Πρώην Μέγας Επιμελητής», Ενεργός = ΟΧΙ (η εγγραφή μένει στο ιστορικό)
+export async function retireMemberSteward(memberId) {
+  const r = stewardOf(memberId); if (!r) return;
+  await db.save(`Πρώην Μέγας Επιμελητής: ${T(r.full_name)}`, (tx) => { tx.update('epeteirida', r.id, { active: 0, title: 'Πρώην ' + STEWARD_TITLE }); });
+}
+// Πλαίσιο στην καρτέλα του μέλους: εν ενεργεία → στοιχεία, κουμπί προς τον κατάλογο, λήξη· αλλιώς → ορισμός με Στοά και έτος
+export function stewardCard(m) {
+  const r = stewardOf(m.id), k = canonicalId(m.id);
+  if (r) return `<div class="card gs-member"><b>🎖 ${esc(r.current || r.title)}</b>${r.province ? ` · Στοά <b>${esc(r.province)}</b>` : ''}
+<a class="btn small primary" href="${STEWARDS_HREF}" id="gsMemberBtn">ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ →</a> <button type="button" class="btn small" data-act="gsOff">Λήξη (γίνεται Πρώην)</button></div>`;
+  const ls = db.all('member_lodges').filter((l) => canonicalId(l.member_id) === k && !/ΔΙΑΓΡΑΦ|ΜΕΤΕΣΘ/.test(foldName(l.member_status).toUpperCase()));
+  const opts = [...new Map(ls.map((l) => [String(l.lodge_number), l])).values()].map((l) => { const x = lodgeByNumber(l.lodge_number); return `<option value="${esc(l.lodge_number)}">${esc(x ? `${T(x.name)} ${T(x.number)}` : `${T(l.lodge_name)} ${T(l.lodge_number)}`)}</option>`; }).join('');
+  return `<details class="card gs-member gs-set"><summary><b>🎖 Μέγας Επιμελητής</b> <small class="muted">— ορισμός για το τεκτονικό έτος</small></summary>
+<div class="grid" style="margin-top:8px"><div><label for="gsLodge">Στοά</label><select id="gsLodge">${opts || '<option value="">— το μέλος δεν έχει ενεργή Στοά —</option>'}</select></div>
+<div><label for="gsYearM">Τεκτονικό έτος</label><input id="gsYearM" value="${esc(masonicYear().label)}"></div></div>
+<p class="muted">Γράφεται στην ίδια εγγραφή Επετηρίδας του μέλους (όχι νέα λίστα, όχι διπλή εγγραφή) και εμφανίζεται στους ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΥΣ ΕΠΙΜΕΛΗΤΕΣ και ΑΞΙΩΜΑΤΙΚΟΥΣ.</p>
+<button type="button" class="btn primary" data-act="gsSet">🎖 Ορισμός ως Μέγας Επιμελητής</button></details>`;
 }
 export async function saveStewards(text, year = masonicYear().label) {
   const { items, bad } = parseStewards(text);
@@ -145,7 +174,8 @@ export function stewardsPage({ query }) {
     html: `<div class="noprint"><p><a href="#/members">← Μητρώο Μελών</a></p><h1>🎖 ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ <small class="muted">${esc(shown)}</small></h1>${notice(query.msg)}
 <p class="muted">Ένας κατάλογος για όλη την εφαρμογή: η Επετηρίδα (τίτλος «Μέγας Επιμελητής», Ενεργός = ΝΑΙ), συνδεδεμένη με κάθε μέλος του Μητρώου. Email και κινητό από την καρτέλα του μέλους.</p>
 <div class="toolbar"><button type="button" class="btn primary" data-act="print">🖨 Εκτύπωση / PDF</button><button type="button" class="btn" data-act="xlsx">⬇ Excel</button><a class="btn" href="#/epeteirida/pinakas">📜 Επετηρίδα</a><span class="muted" style="align-self:center">${xs.length} Μεγάλοι Επιμελητές</span></div>
-${warn}<div class="card tablecard" id="gstab">${tbl(false)}</div>
+${warn}<div class="card"><label for="gsFind"><b>+ Προσθήκη Μεγάλου Επιμελητή</b> — αναζήτηση μέλους του Μητρώου· στην καρτέλα του: «🎖 Μέγας Επιμελητής» → Ορισμός</label><input id="gsFind" placeholder="Επώνυμο, όνομα ή Αρ. Μητρώου" autocomplete="off"></div>
+<div class="card tablecard" id="gstab">${tbl(false)}</div>
 <details class="card fold" id="gsimp"${xs.length ? '' : ' open'}><summary><b>Ενημέρωση καταλόγου (επικόλληση από Excel)</b></summary>
 <p class="muted">Στήλες: <b>Όνομα · Επώνυμο · Αξίωμα · Στοά Αριθμός</b> (π.χ. «30 Μέγας Επιμελητής» και «Ηλιοτρόπιον 8»). Κάθε όνομα συνδέεται με το μέλος του Μητρώου μέσα στη Στοά του
 και η εγγραφή του στην Επετηρίδα γίνεται «Μέγας Επιμελητής» εν ενεργεία, με Στοά και έτος. Όσοι ήταν εν ενεργεία Μεγάλοι Επιμελητές και δεν υπάρχουν στον νέο κατάλογο γίνονται «Πρώην Μέγας Επιμελητής».</p>
@@ -154,6 +184,7 @@ ${warn}<div class="card tablecard" id="gstab">${tbl(false)}</div>
 <div class="toolbar" style="margin-top:10px"><button type="button" class="btn primary" data-act="save">💾 Ενημέρωση Μητρώου και Επετηρίδας</button></div><div id="gsres"></div></details></div>
 <div class="print-area" id="gspa" hidden></div>`,
     mount(el) {
+      attachPicker(el.querySelector('#gsFind'), (q) => memberItems(q), (mm) => go(`/members/${mm.id}`));
       bind(el, {
         async save() {
           const text = el.querySelector('#gsPaste').value, year = T(el.querySelector('#gsYear').value) || y;

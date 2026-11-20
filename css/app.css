@@ -465,6 +465,8 @@ input[type=file]{max-width:100%;min-width:0}
 .mc-cta-btn small{font-weight:400;color:#7a5a10;font-size:.8em}
 .mc-cta-btn:hover{background:#f6ebcf}
 .gs-member{background:#fff8e9;border-left:5px solid #b18a43;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* Μέγας Επιμελητής στην καρτέλα του μέλους: μπορντό περίγραμμα και πεδία, να ξεχωρίζει */
+
 #mcMail{margin-top:18px}
 /* Πράσινο κουμπί «Πρωτ ΜΓραμμ Εξερχόμενα» */
 .btn.protogreen{background:#15803d;border-color:#15803d;color:#fff;font-weight:700}
@@ -787,3 +789,11 @@ dialog.lodgenos::backdrop { background: rgba(11, 31, 58, .45); }
 .fee-struck{position:relative;display:inline-block;padding:0 3px;font-weight:700}
 .fee-struck::after{content:'';position:absolute;left:-3px;right:-3px;top:50%;border-top:2px solid #d00;transform:rotate(-24deg);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .fee-md{color:#d00;margin-left:5px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* Μέγας Επιμελητής στην καρτέλα του μέλους: μπορντό περίγραμμα κάρτας, πεδίων και κουμπιού (υπερισχύει του θέματος) */
+.card.gs-member{border:2px solid #7b1e2b!important;border-left-width:6px!important;background:#fff8f8!important}
+.gs-set{display:block!important}
+.gs-set h3{margin:0 0 8px;color:#7b1e2b}
+.gs-set select,.gs-set input{border:2px solid #7b1e2b!important;border-radius:6px}
+.gs-set select:focus,.gs-set input:focus{outline:2px solid #7b1e2b!important;outline-offset:1px}
+.btn.gs-btn{background:#7b1e2b!important;border-color:#7b1e2b!important;color:#fff!important}
+.btn.gs-btn:hover{background:#5e1520!important}

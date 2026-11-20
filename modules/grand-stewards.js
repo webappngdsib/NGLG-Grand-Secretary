@@ -137,11 +137,11 @@ export function stewardCard(m) {
 <a class="btn small primary" href="${STEWARDS_HREF}" id="gsMemberBtn">ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΙ ΕΠΙΜΕΛΗΤΕΣ →</a> <button type="button" class="btn small" data-act="gsOff">Λήξη (γίνεται Πρώην)</button></div>`;
   const ls = db.all('member_lodges').filter((l) => canonicalId(l.member_id) === k && !/ΔΙΑΓΡΑΦ|ΜΕΤΕΣΘ/.test(foldName(l.member_status).toUpperCase()));
   const opts = [...new Map(ls.map((l) => [String(l.lodge_number), l])).values()].map((l) => { const x = lodgeByNumber(l.lodge_number); return `<option value="${esc(l.lodge_number)}">${esc(x ? `${T(x.name)} ${T(x.number)}` : `${T(l.lodge_name)} ${T(l.lodge_number)}`)}</option>`; }).join('');
-  return `<details class="card gs-member gs-set"><summary><b>🎖 Μέγας Επιμελητής</b> <small class="muted">— ορισμός για το τεκτονικό έτος</small></summary>
-<div class="grid" style="margin-top:8px"><div><label for="gsLodge">Στοά</label><select id="gsLodge">${opts || '<option value="">— το μέλος δεν έχει ενεργή Στοά —</option>'}</select></div>
+  return `<div class="card gs-member gs-set"><h3>🎖 Μέγας Επιμελητής <small class="muted">— ορισμός για το τεκτονικό έτος</small></h3>
+<div class="grid"><div><label for="gsLodge">Στοά</label><select id="gsLodge">${opts || '<option value="">— το μέλος δεν έχει ενεργή Στοά —</option>'}</select></div>
 <div><label for="gsYearM">Τεκτονικό έτος</label><input id="gsYearM" value="${esc(masonicYear().label)}"></div></div>
 <p class="muted">Γράφεται στην ίδια εγγραφή Επετηρίδας του μέλους (όχι νέα λίστα, όχι διπλή εγγραφή) και εμφανίζεται στους ΕΝ ΕΝΕΡΓΕΙΑ ΜΕΓΑΛΟΥΣ ΕΠΙΜΕΛΗΤΕΣ και ΑΞΙΩΜΑΤΙΚΟΥΣ.</p>
-<button type="button" class="btn primary" data-act="gsSet">🎖 Ορισμός ως Μέγας Επιμελητής</button></details>`;
+<button type="button" class="btn gs-btn" data-act="gsSet">🎖 Ορισμός ως Μέγας Επιμελητής</button></div>`;
 }
 export async function saveStewards(text, year = masonicYear().label) {
   const { items, bad } = parseStewards(text);

@@ -105,7 +105,7 @@ async function loadSyncConfig(){
   const resp=await fetch("./sync-config.json?fresh="+Date.now(),{cache:"no-store"});
   if(!resp.ok)throw Error("Configuration unavailable");
   const conf=await resp.json(),value=String(conf.web_app_url||"");
-  if(/^https:\/\/script[.]google[.]com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(value))syncWebAppUrl=value;
+  if(/^https:\/\/script[.]google[.]com\/(?:macros\/s|a\/macros\/[A-Za-z0-9.-]+\/s)\/[A-Za-z0-9_-]+\/exec$/.test(value))syncWebAppUrl=value;
  }catch(error){console.warn("Manual Gmail sync is not configured",error)}
 }
 function syncStatus(message){

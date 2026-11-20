@@ -5180,6 +5180,11 @@ def test_decree_dress_page_single_brother(app):
       return [x.dressRole(d(1, { action: 'appoint', decree_office: 'Μέγας Γραμματεύς' }, [{}])), x.dressRole(d(2, { action: 'appoint' }, [{ office: 'Επαρχιακός Μέγας Διδάσκαλος' }])),
         x.dressRole(d(3, { action: 'award', award_office: 'Μέγας Ξιφοφόρος' }, [{}])), x.dressRole(d(4, { action: 'appoint' }, [{ office: 'Μέγας Ευχέτης' }]))]; }""")
     assert m == [['grand', 'grand_secretary'], ['province', 'pgm'], ['past', 'past_grand_officer'], ['grand', 'grand_officer']], m
+    # αρχική: πλακίδιο 15 «👔 Ενδυμασία» με τον Οδηγό Ενδυμασίας
+    app.go('/')
+    tiles = app.page.locator('.dash > .dtile, .dash > details.dtile')
+    assert tiles.count() == 15 and '👔 Ενδυμασία' in tiles.nth(14).inner_text(), [tiles.nth(i).inner_text()[:20] for i in range(tiles.count())]
+    assert tiles.nth(14).locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/"]').count() >= 1
     # μενού και Πύλη: σύνδεσμος στον Οδηγό Ενδυμασίας (νέα καρτέλα)
     assert app.page.locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/"][target=_blank]').count() >= 1
 

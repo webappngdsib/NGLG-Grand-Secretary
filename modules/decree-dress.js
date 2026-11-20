@@ -70,4 +70,13 @@ function dressPage({ params }) {
   };
 }
 
-module({ id: 'decree-dress', routes: { '/decrees/:id/dress': dressPage } });
+// Πλακίδιο 15 της αρχικής (μετά την Πύλη): ο Οδηγός Ενδυμασίας και τα Διατάγματα με έναν Αδελφό (σελίδα «Ενδυμασία»)
+function dressTile() {
+  const ds = db.all('decree_documents').filter(hasDress).sort((a, b) => (Number(b.decree_year) || 0) - (Number(a.decree_year) || 0) || (Number(b.decree_no) || 0) - (Number(a.decree_no) || 0));
+  const last = ds[0];
+  return `<div class="dtile dress-tile"><h3><a href="${DRESS_CODE_URL}" target="_blank" rel="noopener">👔 Ενδυμασία</a></h3><div class="big">${ds.length} Διατάγματα</div>
+<div class="muted">Οδηγός Τεκτονικής Περιβολής ΕΜΣτΕ — ανά βαθμό και αξίωμα, με εκτύπωση / PDF${last ? ` · τελευταίο: <a href="#/decrees/${last.id}/dress">${esc(`${last.decree_no}/${last.decree_year}`)}</a>` : ''}</div>
+<div class="acts"><a class="btn primary" href="${DRESS_CODE_URL}" target="_blank" rel="noopener">Οδηγός Ενδυμασίας ↗</a><a class="btn" href="#/decrees">Διατάγματα</a></div></div>`;
+}
+
+module({ id: 'decree-dress', routes: { '/decrees/:id/dress': dressPage }, tile: { order: 95, render: dressTile } });

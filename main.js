@@ -7,6 +7,7 @@ import './modules/letters.js';
 import './modules/decrees.js';
 import './modules/decree-intent.js';
 import './modules/intent-portal.js';
+import './modules/decree-dress.js';
 import './modules/members.js';
 import './modules/epeteirida.js';
 import './modules/provinces.js';

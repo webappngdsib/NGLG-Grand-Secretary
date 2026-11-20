@@ -5153,3 +5153,32 @@ def test_intent_public_page(browser, base_url):
     assert saved[0]['session'] == 's' * 40 and saved[0]['decree_id'] == 7 and saved[0]['answer'] == 'yes' and saved[0]['paid'] == '150' and saved[0]['free'] is False
     assert '✓ 0€' in page.inner_text('tr[data-i="0"] .rem') and 'Κατατέθηκαν 150€' in page.inner_text('#stats')
     page.close()
+
+
+def test_decree_dress_page_single_brother(app):
+    # 👔 Ενδυμασία: σε Διάταγμα με ΕΝΑΝ Αδελφό, σελίδα με τον Οδηγό Ενδυμασίας ανοιχτό στο αξίωμα του Διατάγματος (PDF / Email / WhatsApp)
+    app.connect_local()
+    app.page.route('https://webappngdsib.github.io/NGLG-DRESS-CODE/**', lambda r: r.fulfill(body='<html><body>dress</body></html>', content_type='text/html'))
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      await db.save('x', (tx) => {
+        tx.insert('decree_documents', { decree_no: 980, decree_year: 2026, decree_date: '2026-11-01', matter: 'Απονομής', body: 'x', template_key: 'decree-provincial',
+          rules: JSON.stringify({ action: 'award', award_office: 'Σεβάσμιος Διδάσκαλος' }), appointments: JSON.stringify([{ first_name: 'Νίκος', last_name: 'Δοκιμος', honorific: 'Σεβ. Αδ.', email: 'n@example.com' }]) });
+        tx.insert('decree_documents', { decree_no: 981, decree_year: 2026, decree_date: '2026-11-02', matter: 'Διορισμού', body: 'y', template_key: 'decree-appoint',
+          rules: JSON.stringify({ action: 'appoint', decree_office: 'Μέγας Ξιφοφόρος' }), appointments: JSON.stringify([{ first_name: 'Α', last_name: 'Β', office: 'Μέγας Ξιφοφόρος' }, { first_name: 'Γ', last_name: 'Δ', office: 'Μέγας Ξιφοφόρος' }]) }); }); }""")
+    app.go('/decrees')
+    assert app.page.locator('tr', has_text='981/2026').locator('a:has-text("👔 Ενδυμασία")').count() == 0  # δύο Αδελφοί
+    app.page.locator('tr', has_text='980/2026').locator('a:has-text("👔 Ενδυμασία")').click()
+    app.page.wait_for_selector('iframe.dress-frame')
+    src = app.page.get_attribute('iframe.dress-frame', 'src')
+    assert src.startswith('https://webappngdsib.github.io/NGLG-DRESS-CODE/?') and 'category=craft' in src and 'role=past_wm' in src and 'embed=1' in src, src
+    t = app.text()
+    assert 'Σεβ. Αδ. Νίκος Δοκιμος · Πρώην Σεβάσμιος Διδάσκαλος' in t and 'PDF / Εκτύπωση' in t and 'WhatsApp μήνυμα' in t
+    href = app.page.locator('a:has-text("Αποστολή με Email")').first.get_attribute('href')
+    assert 'n%40example.com' in href and 'NGLG-DRESS-CODE' in href, href
+    m = app.page.evaluate("""async () => { const x = await import('./modules/decree-dress.js'), {db} = await import('./core/store.js');
+      const d = (no, rules, people) => ({ decree_no: no, decree_year: 2026, template_key: 'decree-appoint', rules: JSON.stringify(rules), appointments: JSON.stringify(people) });
+      return [x.dressRole(d(1, { action: 'appoint', decree_office: 'Μέγας Γραμματεύς' }, [{}])), x.dressRole(d(2, { action: 'appoint' }, [{ office: 'Επαρχιακός Μέγας Διδάσκαλος' }])),
+        x.dressRole(d(3, { action: 'award', award_office: 'Μέγας Ξιφοφόρος' }, [{}])), x.dressRole(d(4, { action: 'appoint' }, [{ office: 'Μέγας Ευχέτης' }]))]; }""")
+    assert m == [['grand', 'grand_secretary'], ['province', 'pgm'], ['past', 'past_grand_officer'], ['grand', 'grand_officer']], m
+    # μενού και Πύλη: σύνδεσμος στον Οδηγό Ενδυμασίας (νέα καρτέλα)
+    assert app.page.locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/"][target=_blank]').count() >= 1

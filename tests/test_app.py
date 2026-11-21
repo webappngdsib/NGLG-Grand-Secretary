@@ -5296,6 +5296,11 @@ def test_corfu_page_fits_comments_rows_and_pinakio(browser, base_url, width):
                cols: document.querySelectorAll('#mainTable thead th').length,
                comments: [...document.querySelectorAll('#mainTable tr.crow td')].every(td => td.colSpan === 8) } }""")
     assert box['scroll'] <= 1 and box['page'] <= 1 and box['cols'] == 8 and box['comments'], box
+    price = page.evaluate("""() => { records = [{ name: 'ΔΟΚΙΜΑΣΤΗΣ ΕΝΑ', room: 'Δίκλινο' }, { name: 'ΔΟΚΙΜΑΣΤΗΣ ΔΥΟ', room: 'Μονόκλινο' }]; render();
+      const p = [...document.querySelectorAll('#mainTable b.price')]; return { n: p.length, text: p[0] && p[0].textContent, weight: p[0] && getComputedStyle(p[0]).fontWeight } }""")
+    assert price['n'] == 1 and price['text'] == '45€' and int(price['weight']) >= 700, price
+    page.evaluate('load()')
+    page.wait_for_function("() => document.querySelectorAll('#mainTable td.name').length > 2")
     # Πινάκιο ΜΑΞ: συνθετικές δηλώσεις → ο πρώτος εν ενεργεία πράσινος (και με υποκοριστικό), οι υπόλοιποι κόκκινοι έντονοι
     page.click('#maxBtn')
     page.wait_for_selector('#maxTable tr.bad')

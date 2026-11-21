@@ -5,7 +5,8 @@
 // Επιλογή παραληπτών με κουτάκι ανά Μεγάλο Αξιωματικό· προσθήκη οποιουδήποτε μέλους από το Μητρώο· ένα email, όλοι σε Bcc,
 // με προεπισκόπηση και επιβεβαίωση πριν φύγει.
 import { module, bind, toast } from '../core/app.js';
-import { esc } from '../core/util.js';
+import { db } from '../core/store.js';
+import { esc, fmtDate } from '../core/util.js';
 import { identify, person } from '../core/people.js';
 import { senderFor } from '../core/mail.js';
 import { publicOfficers } from './visits.js';
@@ -165,8 +166,20 @@ async function glRefresh() {
     box.innerHTML = `<div class="big">${(a.attendees || []).length} δηλώσεις μετακίνησης</div><small class="muted">ΜΑΞ: <b style="color:#0d7a3e">${c('ok')} δήλωσαν</b> · <b style="color:#b45309">${c('exc')} απόντες</b> · <b style="color:#c01d1d">${c('pending')} δεν δήλωσαν</b> (από ${rows.length})</small>`;
   } catch { box.innerHTML = '<small class="muted">Δεν φορτώθηκαν τα στοιχεία.</small>'; }
 }
+// Σχετικές επιστολές της Μεγάλης Γραμματείας (αρ. πρωτοκόλλου) — βοηθητικά αρχεία του πλακιδίου, άνοιγμα με κλικ
+export const GL_LETTERS = ['20599', '20597'];
+const letterByNo = (no) => db.all('letters').find((l) => String(l.protocol_no || l.protocol_seq || '').trim() === no);
+function relatedLetters() {
+  const items = GL_LETTERS.map((no) => {
+    const l = letterByNo(no);
+    if (!l) return `<li><a href="#/letters?q=${no}">📄 Επιστολή ${no}</a> <small class="muted">— δεν βρέθηκε στο Αρχείο (αναζήτηση)</small></li>`;
+    const name = `Επιστολή ${no}${l.letter_date ? ' — ' + fmtDate(l.letter_date) : ''}${l.subject ? ' — ' + l.subject : ''}`;
+    return `<li><a href="#/letters/${l.id}" title="Άνοιγμα επιστολής (προβολή · PDF · εκτύπωση)">📄 ${esc(name)}</a></li>`;
+  });
+  return `<div class="gl-letters" style="margin:8px 0 4px"><b>📎 Σχετικές επιστολές</b><ul style="margin:4px 0 0;padding-left:18px">${items.join('')}</ul></div>`;
+}
 const glTile = () => { setTimeout(glRefresh, 0); return `<div class="dtile gold" data-tile="grand-lodge-2026"><h3><a href="corfu-2026/" target="_blank" rel="noopener">🏛 Μεγάλη Συνέλευση 19 Δεκεμβρίου 2026</a></h3>
-<div class="gl-live"><div class="big">…</div><small class="muted">Κέρκυρα · Μετακίνηση & Διαμονή ΜΑΞ</small></div>
+<div class="gl-live"><div class="big">…</div><small class="muted">Κέρκυρα · Μετακίνηση & Διαμονή ΜΑΞ</small></div>${relatedLetters()}
 <div class="acts"><a class="btn primary" href="corfu-2026/" target="_blank" rel="noopener">📋 Πινάκιο δηλωσάντων</a><a class="btn" href="corfu-2026/#max" target="_blank" rel="noopener">🏛 Πινάκιο ΜΑΞ</a><a class="btn" href="#/corfu">📧 Υπενθύμιση σε όσους δεν δήλωσαν</a></div></div>`; };
 
 module({ id: 'corfu-remind', routes: { '/corfu': page }, tile: { order: 96, render: glTile } });

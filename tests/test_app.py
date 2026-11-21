@@ -5393,3 +5393,22 @@ def test_corfu_reminder_page_lists_undeclared_officers(app):
     info = app.page.evaluate("""() => ({ n: document.querySelectorAll('#cfRows tr').length,
       nik: [...document.querySelectorAll('#cfRows tr')].filter(t => t.textContent.includes('Νικολαΐδης')).map(t => [t.textContent.includes('Δικαιολογημένη'), t.querySelector('input').checked]) })""")
     assert info['n'] == 31 and info['nik'] == [[True, False]], info
+
+
+def test_grand_lodge_tile_related_letters(app):
+    """Πλακίδιο «Μεγάλη Συνέλευση 19 Δεκεμβρίου 2026»: σχετικές επιστολές 20599 / 20597 με όνομα αρχείου και άνοιγμα με κλικ."""
+    app.connect_local()
+    app.page.evaluate("""async () => { const { db } = await import('./core/store.js');
+      await db.save('δοκιμή', (tx) => { tx.insert('letters', { subject: 'Μετακίνηση ΜΑΞ Κέρκυρα', protocol_no: '20599', protocol_seq: 20599, letter_date: '2026-11-17', status: 'ready' }); }); }""")
+    app.go('/')
+    tile = app.page.locator('[data-tile="grand-lodge-2026"]')
+    tile.locator('summary').click()
+    links = tile.locator('.gl-letters a')
+    assert links.count() == 2, tile.inner_text()
+    first = links.nth(0)
+    assert 'Επιστολή 20599' in first.inner_text() and 'Μετακίνηση ΜΑΞ Κέρκυρα' in first.inner_text() and first.get_attribute('href').startswith('#/letters/')
+    assert links.nth(1).get_attribute('href') == '#/letters?q=20597'  # δεν υπάρχει στο τοπικό Αρχείο → αναζήτηση
+    first.click()
+    app.page.wait_for_url(re.compile(r'.*#/letters/\d+$'))
+    app.page.wait_for_selector('main h1, .lbar, .print-area')
+    assert 'Η σελίδα δεν βρέθηκε' not in app.text()

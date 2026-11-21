@@ -29,6 +29,7 @@ import './modules/lodge-portal.js';
 import './modules/lodge-secretaries.js';
 import './modules/registry-audit.js';
 import './modules/treasury.js';
+import './modules/corfu-remind.js';
 
 await boot();
 start();

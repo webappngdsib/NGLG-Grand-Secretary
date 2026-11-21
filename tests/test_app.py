@@ -5343,3 +5343,41 @@ def test_corfu_sync_local_uses_code_gs_rules(tmp_path):
     out = _sp.run(['node', str(ROOT / 'corfu-2026' / 'tools' / 'sync-local.js'), str(f), '--dry-run'], capture_output=True, text=True, check=True)
     r = _json.loads(out.stdout)
     assert r['added'] == ['ΔΟΚΙΜΑΣΤΗΣ ΔΟΚΙΜΑΣΤΙΚΟΣ'] and r['written'] is False, r
+
+
+def test_corfu_reminder_subject_pattern_is_recognised(tmp_path):
+    """Το μοτίβο της υπενθύμισης «Διαμονή - Μετακίνηση Ονοματεπώνυμο» αναγνωρίζεται σωστά (όνομα, μέσο, δωμάτιο)."""
+    import json as _json, subprocess as _sp
+    msgs = [
+        {'subject': 'Διαμονή - Μετακίνηση Δοκιμαστής Πρώτος', 'from': 'a <a1@example.org>', 'cc': '', 'date': '2026-11-22T08:00:00Z',
+         'body': 'Επιθυμώ να έρθω με το λεωφορείο της ΕΜΣτΕ. Θα διαμείνω φιλοξενούμενος της ΕΜΣτΕ σε δίκλινο με άλλον αδελφό.'},
+        {'subject': 'ΔΙΑΜΟΝΗ-ΜΕΤΑΚΙΝΗΣΗ ΔΟΚΙΜΑΣΤΗΣ ΔΕΥΤΕΡΟΣ', 'from': 'b <b2@example.org>', 'cc': '', 'date': '2026-11-22T08:00:00Z',
+         'body': 'Θα έρθω με ιδιωτικό μέσο. Επιθυμώ να μείνω σε δίκλινο αποκλειστικά για εμένα, με κόστος 45€ ανά βραδιά.'},
+    ]
+    f = tmp_path / 'messages.json'
+    f.write_text(_json.dumps(msgs, ensure_ascii=False), encoding='utf-8')
+    script = ROOT / 'corfu-2026' / 'Code.gs'
+    js = """const fs=require('fs'),vm=require('vm');const M=JSON.parse(fs.readFileSync(process.argv[1],'utf8')).map(m=>({getSubject:()=>m.subject,getFrom:()=>m.from,getCc:()=>m.cc,getPlainBody:()=>m.body,getDate:()=>new Date(m.date)}));
+const sb={console,Map,Set,Date,JSON,String,Number,Array,Object,Error,RegExp,GmailApp:{search:(q,s)=>s?[]:[{getMessages:()=>M}]},Utilities:{formatDate:d=>d.toISOString().slice(0,10)}};
+vm.createContext(sb);vm.runInContext(fs.readFileSync(process.argv[2],'utf8')+';this.r=extractDeclarations_({});',sb);console.log(JSON.stringify(sb.r));"""
+    out = _sp.run(['node', '-e', js, str(f), str(script)], capture_output=True, text=True, check=True)
+    r = {x['name']: x for x in _json.loads(out.stdout)}
+    assert set(r) == {'ΔΟΚΙΜΑΣΤΗΣ ΠΡΩΤΟΣ', 'ΔΟΚΙΜΑΣΤΗΣ ΔΕΥΤΕΡΟΣ'}, r
+    one, two = r['ΔΟΚΙΜΑΣΤΗΣ ΠΡΩΤΟΣ'], r['ΔΟΚΙΜΑΣΤΗΣ ΔΕΥΤΕΡΟΣ']
+    assert one['room'] == 'Δίκλινο' and 'Ιδιωτικό' not in one['travel'] and 'Μόνος' not in one['comments'], one
+    assert two['room'] == 'Δίκλινο' and 'Ιδιωτικό' in two['travel'] and 'Μόνος σε δίκλινο' in two['comments'], two
+
+
+def test_corfu_reminder_page_lists_undeclared_officers(app):
+    """Εφαρμογή → #/corfu: εν ενεργεία ΜΑΞ χωρίς δήλωση, email από το Μητρώο, ένα email με όλους σε Bcc."""
+    app.connect_local().go('/corfu')
+    app.page.wait_for_selector('text=Υπενθύμιση σε όσους δεν δήλωσαν')
+    t = app.text()
+    assert 'Ευγενική Υπενθύμιση' in app.page.input_value('#cfSubj')
+    assert 'Διαμονή - Μετακίνηση' in app.page.input_value('#cfBody') and '45€' in app.page.input_value('#cfBody')
+    assert 'όλοι σε Bcc' in t and 'Εν ενεργεία Μεγάλοι Αξιωματικοί' in t
+    rows = app.page.evaluate("""async () => { const m = await import('./modules/corfu-remind.js');
+      const offs = [{ name: 'Δοκιμαστής Πρώτος', title: 'Μέγας Α', group: 'Μέγας Α' }, { name: 'Δοκιμαστής Δεύτερος', title: 'Μέγας Β', group: 'Μέγας Β' },
+                    { name: 'Παλαιός Τρίτος', title: 'Πρώην Μέγας Γ', group: 'Πρώην Μέγας Γ' }];
+      return m.remindRows([{ name: 'ΠΡΩΤΟΣ ΔΟΚΙΜΑΣΤΗΣ' }], offs).map(x => [x.name, x.declared]) }""")
+    assert rows == [['Δοκιμαστής Πρώτος', True], ['Δοκιμαστής Δεύτερος', False]], rows

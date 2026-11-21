@@ -23,6 +23,7 @@ h2{font-size:17px;margin:0 0 1px}.sub{font-size:12px;color:var(--muted);margin:0
 button{font:inherit;font-size:13.5px;padding:7px 11px;border-radius:7px;border:1px solid #aebed0;background:white;color:#1a3859;font-weight:650;cursor:pointer}button:hover{background:#eef4fb}button:disabled{opacity:.6;cursor:wait}
 button.primary{background:#19385f;color:white;border-color:#19385f}
 .pdfbtn{background:#a8322b;color:#fff;border-color:#a8322b}.pdfbtn:hover{background:#8c271f}
+.maxmail{display:inline-block;font-size:13.5px;padding:7px 11px;border-radius:7px;background:#0d7a3e;color:#fff;font-weight:650;text-decoration:none;border:1px solid #0d7a3e}.maxmail:hover{background:#0a6232}
 .maxbtn{background:var(--gold);color:#fff;border-color:var(--gold)}.maxbtn:hover{background:#94732f}.maxbtn[aria-expanded="true"]{background:#7d6026;border-color:#7d6026}
 .notice{margin-bottom:10px;padding:7px 12px;border-radius:9px;background:#fff9ed;border:1px solid #ead7ab;color:#73531d;font-size:13px}
 .notice.live{background:#edfaf5;border-color:#b9e9d9;color:#126149}
@@ -84,7 +85,7 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 <section class="panel" id="maxPanel" aria-labelledby="maxHeading" hidden>
 <div class="top">
 <div><h2 id="maxHeading">Πινάκιο ΜΑΞ · Μεγάλοι Αξιωματικοί εν ενεργεία</h2><p class="sub" id="maxSource">Φόρτωση καταλόγου Επετηρίδας…</p></div>
-<div class="tools"><button id="maxPdfBtn" type="button" class="pdfbtn">📄 PDF Πινακίου</button><button id="maxCloseBtn" type="button">✕ Κλείσιμο</button></div>
+<div class="tools"><a class="maxmail" href="../#/corfu" target="_blank" rel="noopener" title="Άνοιγμα στην εφαρμογή (απαιτεί σύνδεση): ένα email με Bcc σε όσους δεν δήλωσαν">📧 Υπενθύμιση σε όσους δεν δήλωσαν</a><button id="maxPdfBtn" type="button" class="pdfbtn">📄 PDF Πινακίου</button><button id="maxCloseBtn" type="button">✕ Κλείσιμο</button></div>
 </div>
 <div class="pdfready" role="status" hidden></div>
 <div class="chips" id="maxChips"></div>

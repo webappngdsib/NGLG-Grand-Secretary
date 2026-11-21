@@ -46,7 +46,9 @@ function syncCorfu2026(){
     const attendees=extracted.map(x=>{
       const prior=existing.get(key_(x.name));
       if (!prior) return x;
-      return {...x,email:x.email||prior.email||'',comments:mergeNotes_(prior.comments,x.comments),hotel_status:
+      // Πεδία «κλειδωμένα» από χειροκίνητη καταχώριση της Γραμματείας δεν αλλάζουν ποτέ αυτόματα.
+      const lock={}; (prior.locked||[]).forEach(f=>{lock[f]=prior[f];}); if(prior.locked) lock.locked=prior.locked;
+      return {...x,...lock,email:x.email||prior.email||'',comments:mergeNotes_(prior.comments,x.comments),hotel_status:
         prior.hotel_status==='Επιβεβαιωμένη κράτηση'?'Επιβεβαιωμένη κράτηση':x.hotel_status};
     }).sort((a,b)=>a.name.localeCompare(b.name,'el'));
     // Maintain entries previously manually verified if extraction does not find the source yet.

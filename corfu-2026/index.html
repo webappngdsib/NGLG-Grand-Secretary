@@ -35,7 +35,7 @@ td.aa{width:36px;color:#75859a}td.email{overflow-wrap:anywhere;hyphens:none;colo
 tr.crow td{padding:0 10px 10px 46px;color:#41546d;font-size:13px}tr.crow .clabel{font-weight:700;color:#8a6a2c;margin-right:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 .name{font-weight:700;color:#142c48}.pill{display:inline-block;padding:4px 9px;border-radius:30px;font-size:12px;font-weight:700;white-space:nowrap;background:#e8f7f3;color:#117460}
 .pill.wait{background:#fff3da;color:#8f5c04}.verified{color:var(--ok);font-weight:650}
-b.price{font-weight:800;font-size:1.18em;color:var(--navy);white-space:nowrap}
+span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}b.price{font-weight:800;font-size:1.18em;color:var(--navy);white-space:nowrap;flex:none}
 .footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:15px 20px;border-top:1px solid var(--line);color:#64748b;font-size:12px}
 .empty{padding:50px;text-align:center;color:#64748b}
 /* Πινάκιο ΜΑΞ */
@@ -124,7 +124,8 @@ const esc=v=>String(v==null?"":v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",
 const dateFmt=value=>{if(!value)return "—";const d=new Date(value);return isNaN(d.getTime())?"—":new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Athens"}).format(d)};
 // Δίκλινο: δίπλα το κόστος 45€ με έντονα και λίγο μεγαλύτερο μέγεθος
 const DOUBLE_PRICE="45€";
-const roomHtml=r=>{const t=r.room||"Δεν δηλώθηκε";return /^Δίκλινο/.test(t)?esc(t)+' <b class="price">'+DOUBLE_PRICE+'</b>':esc(t)};
+const isDouble=r=>/^Δίκλινο/.test(r.room||"");
+const nameHtml=r=>'<span class="nm"><span>'+esc(r.name)+'</span>'+(isDouble(r)?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
 const shortDate=v=>{const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"/"+m[2]:""};
 
 // ── Αντιστοίχιση δηλώσεων ↔ Επετηρίδα (εν ενεργεία Μεγάλοι Αξιωματικοί) ──
@@ -181,13 +182,13 @@ function render(){
  const q=plain(el("searchBox").value),list=records.filter(x=>plain(x.name).includes(q)),table=el("mainTable");
  table.querySelectorAll("tbody").forEach(t=>t.remove());
  el("nTotal").textContent=records.length;
- el("nDouble").textContent=records.filter(x=>x.room==="Δίκλινο").length;
+ el("nDouble").textContent=records.filter(isDouble).length;
  el("nPending").textContent=records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length;
  el("countShown").textContent="Εμφανίζονται "+list.length+" από "+records.length+" δηλώσεις";
  if(!list.length){table.insertAdjacentHTML("beforeend",`<tbody><tr><td colspan="8" class="empty">${records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη."}</td></tr></tbody>`);return}
  list.forEach((r,i)=>{
   const v=view(r),status=r.hotel_status||"Εκκρεμεί";
-  const cells=[[String(i+1),"aa"],[r.name,"name"],[r.email||"Δεν δηλώθηκε","email"],[v.title],[v.check,v.verified?"verified":""],[r.travel||"18–20/12/2026"],[roomHtml(r),"room",true],
+  const cells=[[String(i+1),"aa"],[nameHtml(r),"name",true],[r.email||"Δεν δηλώθηκε","email"],[v.title],[v.check,v.verified?"verified":""],[r.travel||"18–20/12/2026"],[r.room||"Δεν δηλώθηκε"],
    [`<span class="pill ${status==="Επιβεβαιωμένη κράτηση"?"":"wait"}">${esc(status)}</span>`,"status",true]];
   const main="<tr>"+cells.map(([t,c,html],k)=>`<td${c?` class="${c}"`:""} data-label="${LABELS[k]}">${html?t:esc(t)}</td>`).join("")+"</tr>";
   const com=r.comments?`<tr class="crow"><td colspan="8"><span class="clabel">Σχόλια</span>${esc(r.comments)}</td></tr>`:"";
@@ -283,7 +284,7 @@ const PDF_CSS=`.pdfsheet{width:1123px;height:794px;padding:34px 42px 26px;backgr
 .pdfsheet th{background:#19385f;color:#fff;text-align:left;padding:6px 5px;font-size:9.5px;text-transform:uppercase;letter-spacing:.02em}
 .pdfsheet td{padding:5px;vertical-align:top;overflow-wrap:break-word}
 .pdfsheet tbody.r{border-bottom:1px solid #d3dbe6}.pdfsheet tbody.r.alt td{background:#f6f8fb}.pdfsheet td.n{font-weight:700;color:#10223d}
-.pdfsheet b.price{font-weight:800;font-size:12.5px;color:#10223d;white-space:nowrap}.pdfsheet tr.c td{padding:0 5px 6px 30px;color:#3d4d63;font-size:10px}.pdfsheet tr.c b{color:#8a6a2c;font-size:9px;letter-spacing:.04em;margin-right:5px}
+.pdfsheet span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:6px}.pdfsheet b.price{font-weight:800;font-size:12.5px;color:#10223d;white-space:nowrap;flex:none}.pdfsheet tr.c td{padding:0 5px 6px 30px;color:#3d4d63;font-size:10px}.pdfsheet tr.c b{color:#8a6a2c;font-size:9px;letter-spacing:.04em;margin-right:5px}
 .pdfsheet tbody.ok td{background:#e6f6ec;color:#0d7a3e}.pdfsheet tbody.ok td.n{color:#0d7a3e}.pdfsheet tbody.bad td{background:#fdecec;color:#c01d1d;font-weight:700}.pdfsheet tbody.ok,.pdfsheet tbody.bad{border-bottom:1px solid #fff}
 .pdfsheet .xl{margin-top:12px;font-size:11px;color:#3d4d63}.pdfsheet .xl b{color:#10223d}
 .pdfsheet .sig{margin-top:18px;padding:11px 14px;border-left:4px solid #af893e;background:#faf7f0;font-size:12.5px;line-height:1.5;width:360px}
@@ -324,10 +325,10 @@ async function makePdf(opts){
  finally{host.remove();btn.disabled=false;btn.textContent=label}
 }
 function exportPDF(){
- const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(x=>x.room==="Δίκλινο").length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
+ const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(isDouble).length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
  return makePdf({btn:el("pdfBtn"),title:"Κατάσταση Μετακίνησης &amp; Διαμονής Μεγάλων Αξιωματικών",sum:s,filename:"Kerkyra-2026-Metakinisi-Diamoni.pdf",
-  cols:[["Α/Α",4],["Ονοματεπώνυμο",16],["Email",18],["Αξίωμα (Επετηρίδα)",15],["Έλεγχος",13],["Μετακίνηση",14],["Δωμάτιο",9],["Διαμονή",11]],
-  items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,esc(r.name),esc(r.email||"—"),esc(v.title),esc(v.check),esc(r.travel||"18–20/12/2026"),roomHtml(r),esc(r.hotel_status||"Εκκρεμεί")],comment:r.comments||""}})});
+  cols:[["Α/Α",4],["Ονοματεπώνυμο",20],["Email",16],["Αξίωμα (Επετηρίδα)",15],["Έλεγχος",13],["Μετακίνηση",13],["Δωμάτιο",10],["Διαμονή",8]],
+  items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,nameHtml(r),esc(r.email||"—"),esc(v.title),esc(v.check),esc(r.travel||"18–20/12/2026"),esc(r.room||"Δεν δηλώθηκε"),esc(r.hotel_status||"Εκκρεμεί")],comment:r.comments||""}})});
 }
 function exportMaxPDF(){
  const {rows,others}=pinakio(),ok=rows.filter(x=>x.attendee).length;

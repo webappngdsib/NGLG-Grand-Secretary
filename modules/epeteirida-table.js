@@ -285,4 +285,10 @@ ${FILTERS.map(([k, l]) => `<label>${esc(l)}<select data-s="${k}">${opts(k)}</sel
   };
 }
 
-module({ id: 'epeteirida-table', routes: { '/epeteirida/pinakas': tablePage } });
+// Πλακίδιο Αρχικής (16ο): Επετηρίδα Μεγάλων Αξιωματικών — πλήθος εν ενεργεία / συνόλου, πίνακας, ιστορικό, τεύχος
+function epeteiridaTile() {
+  const rows = epeteiridaAll(), active = rows.filter((r) => String(r.full_name || '').trim() && !/^Πρώην/.test(String(r.title || '').trim())).length;
+  return `<div class="dtile"><h3><a href="#/epeteirida/pinakas">📜 Επετηρίδα</a></h3><div class="big">${active} εν ενεργεία ΜΑΞ</div><small class="muted">${rows.length} εγγραφές Επετηρίδας</small>
+<div class="acts"><a class="btn primary" href="#/epeteirida/pinakas">📜 Πίνακας</a><a class="btn" href="#/epeteirida">Ιστορικό αξιωμάτων</a><a class="btn" href="#/epeteirida?cur=1&sort=prec">Εν ενεργεία (προβάδισμα)</a></div></div>`;
+}
+module({ id: 'epeteirida-table', routes: { '/epeteirida/pinakas': tablePage }, tile: { order: 61, render: epeteiridaTile } });

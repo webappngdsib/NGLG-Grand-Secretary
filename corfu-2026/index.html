@@ -136,9 +136,10 @@ const dateFmt=value=>{if(!value)return "—";const d=new Date(value);return isNa
 // Δίκλινο: δίπλα το κόστος 45€ με έντονα και λίγο μεγαλύτερο μέγεθος
 const DOUBLE_PRICE="45€";
 const isDouble=r=>/^Δίκλινο/.test(r.room||"");
+// no_charge: true (overrides.json) → χωρίς 45€, π.χ. δύο Μεγάλοι Αξιωματικοί που μοιράζονται το δίκλινο (μία κλίνη ο καθένας)
 // Δίπλα στο όνομα: «45€» για δίκλινο — ή η ένδειξη της Γραμματείας (overrides.json → price_label), π.χ. «Ιδιοκτήτης Ξενοδοχείου»
 const isResident=r=>/Κάτοικος/i.test(r.travel||"");
-const nameHtml=r=>'<span class="nm"><span>'+esc(r.display_name||r.name)+'</span>'+(r.price_label?'<b class="price lbl">'+esc(r.price_label)+'</b>':isDouble(r)?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
+const nameHtml=r=>'<span class="nm"><span>'+esc(r.display_name||r.name)+'</span>'+(r.price_label?'<b class="price lbl">'+esc(r.price_label)+'</b>':isDouble(r)&&!r.no_charge?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
 const shortDate=v=>{const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"/"+m[2]:""};
 
 // ── Αντιστοίχιση δηλώσεων ↔ Επετηρίδα (εν ενεργεία Μεγάλοι Αξιωματικοί) ──

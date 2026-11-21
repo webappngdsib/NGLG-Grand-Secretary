@@ -5449,3 +5449,26 @@ vm.createContext(sb);vm.runInContext(fs.readFileSync(process.argv[2],'utf8')+';t
     p = r['ΔΟΚΙΜΑΣΤΗΣ ΠΕΜΠΤΟΣ']
     assert p['email'] == 'pemptos@example.org' and 'Με συνοδό' in p['comments'] and 'Μόνος' not in p['comments'], p
     assert 'Με συνοδό' not in r['ΔΟΚΙΜΑΣΤΗΣ ΕΚΤΟΣ']['comments'], r['ΔΟΚΙΜΑΣΤΗΣ ΕΚΤΟΣ']
+
+
+def test_corfu_check_member_reports_epeteirida_registry_and_stewards(tmp_path):
+    """Κάθε νέος δηλών ελέγχεται σε Επετηρίδα, Γενικό Μητρώο και λίστα Επιμελητών (υποκοριστικά: Φώτης → Φώτιος)."""
+    import subprocess
+    d = tmp_path / 'data'
+    d.mkdir()
+    (d / 'epeteirida.json').write_text(json.dumps([
+        {'full_name': 'Δοκιμάκης Φώτιος', 'title': 'Μέγας Επιμελητής', 'active': 1, 'province': 'ΔΟΚΙΜΗ 1',
+         'current': 'Μέγας Επιμελητής 2026–2027', 'member_id': 7}], ensure_ascii=False), encoding='utf-8')
+    (d / 'member_registry.json').write_text(json.dumps([
+        {'id': 7, 'registry_no': 1, 'surname': 'Δοκιμάκης', 'first_name': 'Φώτιος', 'degree': 'ΔΙΔΑΣΚΑΛΟΣ', 'active': 1}],
+        ensure_ascii=False), encoding='utf-8')
+    (d / 'member_lodges.json').write_text(json.dumps([
+        {'member_id': 7, 'lodge_name': 'ΔΟΚΙΜΗ', 'lodge_number': '1', 'member_status': '1. ΤΑΚΤΙΚΟ'}], ensure_ascii=False), encoding='utf-8')
+    root = Path(__file__).resolve().parent.parent
+    out = subprocess.run(['python3', str(root / 'corfu-2026/tools/check-member.py'), '--data', str(d), 'ΔΟΚΙΜΑΚΗΣ ΦΩΤΗΣ', 'ΑΓΝΩΣΤΟΣ ΚΑΠΟΙΟΣ'],
+                         capture_output=True, text=True, check=True).stdout
+    first, second = out.split('━━ ΑΓΝΩΣΤΟΣ')
+    assert 'Λίστα Επιμελητών : Μέγας Επιμελητής — Στ. ΔΟΚΙΜΗ 1' in first
+    assert 'Γενικό Μητρώο    : #1 Δοκιμάκης Φώτιος' in first and 'ΔΟΚΙΜΗ 1 (1. ΤΑΚΤΙΚΟ)' in first
+    assert '⇒ Ιδιότητα       : Μέγας Επιμελητής — Στ. ΔΟΚΙΜΗ 1' in first
+    assert 'ΟΧΙ εν ενεργεία ΜΑΞ' in second and 'δεν βρέθηκε' in second

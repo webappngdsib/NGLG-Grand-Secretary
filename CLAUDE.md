@@ -8,3 +8,6 @@
 - Μετά από κάθε αλλαγή: τεστ (`python3 -m pytest tests/test_app.py -q`), ενημέρωση README (και `declarations/README.md` όπου αφορά),
   push στο `main`, και απάντηση στα ελληνικά με τα live links (https://webappngdsib.github.io/NGLG-Grand-Secretary/…).
 - Στο τέλος κάθε απάντησης δείχνετε **πάντα** και την αρχική live σελίδα της εφαρμογής: https://webappngdsib.github.io/NGLG-Grand-Secretary/
+- Κέρκυρα 2026: σε **κάθε νέο δηλούντα** (από email ή από εντολή στη συνομιλία) ελέγχεται η ιδιότητά του σε **Επετηρίδα, Γενικό Μητρώο
+  και λίστα Μεγάλων Επιμελητών** με `python3 corfu-2026/tools/check-member.py --data <nglg-grammateia-data>/data "ΟΝΟΜΑ"`.
+  Ο Μέγας Επιμελητής καταχωρίζεται με τη Στοά του. Τα αποτελέσματα μένουν στο τερματικό — όχι πλήρεις κατάλογοι στο δημόσιο αποθετήριο.

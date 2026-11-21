@@ -46,7 +46,8 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .filters{display:flex;gap:6px;padding:12px 20px 14px;flex-wrap:wrap}.filters button{padding:7px 12px;font-size:13px}.filters button[aria-pressed="true"]{background:#19385f;color:#fff;border-color:#19385f}
 #maxTable tr.ok td{background:var(--okbg);color:var(--ok)}#maxTable tr.ok td.who{font-weight:700}
 #maxTable tr.bad td{background:var(--badbg);color:var(--bad);font-weight:800}
-#maxTable td{border-bottom:1px solid #fff}#maxTable td.st{white-space:nowrap}
+#maxTable tr.exc td{background:#fff1e0;color:#b45309;font-weight:700}.chip.exc{background:#fff1e0;border-color:#f5c58f;color:#b45309}
+#maxTable td{border-bottom:1px solid #fff}#maxTable td.st{white-space:nowrap}#maxTable tr.exc td.st{white-space:normal}
 .extra{padding:14px 20px;border-top:1px solid var(--line);font-size:13px;color:#41546d}.extra h3{font-size:14px;margin:0 0 6px;color:var(--navy)}.extra ul{margin:0;padding-left:20px}
 .instructions{margin:0;padding:9px 13px;border:1px solid var(--line);border-radius:12px;color:#50637a;background:#fff;font-size:13px}
 .instructions p{margin:3px 0}.safeguard{margin-top:12px;color:#637083;font-size:12px}
@@ -93,6 +94,7 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 <button type="button" data-f="all" aria-pressed="true">Όλοι</button>
 <button type="button" data-f="bad" aria-pressed="false">Μόνο όσοι ΔΕΝ δήλωσαν</button>
 <button type="button" data-f="ok" aria-pressed="false">Μόνο όσοι δήλωσαν</button>
+<button type="button" data-f="exc" aria-pressed="false">Δικαιολογημένα απόντες</button>
 </div>
 <div class="tablebox"><table id="maxTable">
 <thead><tr><th>Α/Α</th><th>Αξίωμα</th><th>Ονοματεπώνυμο</th><th>Μετακίνηση</th></tr></thead>
@@ -126,7 +128,7 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 </main>
 <script>
 "use strict";
-let records=[],lastPayload=null,syncWebAppUrl="",officers=null,officerSource="",maxFilter="all";
+let records=[],lastPayload=null,syncWebAppUrl="",officers=null,officerSource="",maxFilter="all",excused=[];
 const el=id=>document.getElementById(id);
 const plain=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLocaleLowerCase("el-GR");
 const esc=v=>String(v==null?"":v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -154,21 +156,34 @@ function matchKind(att,off){
  if(rest.some(a=>first.some(f=>canon(a)===canon(f)||(a.length>3&&f.length>3&&a.slice(0,4)===f.slice(0,4)))))return "full";
  return "surname";
 }
-// → [{officer, attendee|null, kind}] σε τάξη προβαδίσματος + δηλώσεις που δεν αντιστοιχούν σε εν ενεργεία ΜΑΞ
+// Αντιστοίχιση με το όνομα του αξιωματικού ή με κάποιο από τα «aliases» του (π.χ. ορθογραφικές παραλλαγές)
+const offNames=o=>[o.name,...(o.aliases||[])];
+const matchOff=(att,o)=>{let best="";for(const n of offNames(o)){const k=matchKind(att,{name:n});if(k==="full")return k;if(k)best=k}return best};
+// → [{officer, attendee|null, kind, excused|null, status: ok|exc|bad}] σε τάξη προβαδίσματος + δηλώσεις εκτός καταλόγου
 function pinakio(){
  const act=(officers||[]).filter(isActive).sort((a,b)=>(a.rank||0)-(b.rank||0));
- const surCount={};act.forEach(o=>{const s=toks(o.name)[0];surCount[s]=(surCount[s]||0)+1});
+ const surCount={};act.forEach(o=>offNames(o).forEach(n=>{const s=toks(n)[0];surCount[s]=(surCount[s]||0)+1}));
  const used=new Set();
  const rows=act.map(o=>{
-  let hit=records.find(r=>!used.has(r)&&matchKind(r,o)==="full"),kind="full";
-  if(!hit&&surCount[toks(o.name)[0]]===1){hit=records.find(r=>!used.has(r)&&matchKind(r,o)==="surname");kind="surname"}
+  let hit=records.find(r=>!used.has(r)&&matchOff(r,o)==="full"),kind="full";
+  if(!hit&&offNames(o).some(n=>surCount[toks(n)[0]]===1)){hit=records.find(r=>!used.has(r)&&matchOff(r,o)==="surname");kind="surname"}
   if(hit)used.add(hit);
-  return {officer:o,attendee:hit||null,kind:hit?kind:""};
+  const exc=hit?null:excused.find(e=>matchOff(e,o)==="full")||null;
+  return {officer:o,attendee:hit||null,kind:hit?kind:"",excused:exc,status:hit?"ok":exc?"exc":"bad"};
  });
  return {rows,others:records.filter(r=>!used.has(r))};
 }
 function officerFor(r){if(!officers)return null;const p=pinakio();const x=p.rows.find(y=>y.attendee===r);return x?x.officer:null}
+async function loadExcused(){
+ try{const r=await fetch("./excused.json?fresh="+Date.now(),{cache:"no-store"});if(r.ok){const d=await r.json();excused=Array.isArray(d.excused)?d.excused:[]}}catch(e){excused=[]}
+}
 async function loadOfficers(){
+ await loadExcused();
+ // 1) επίσημος κατάλογος εν ενεργεία της Μεγάλης Γραμματείας (corfu-2026/active-officers.json), 2) Επετηρίδα εφαρμογής, 3) εφεδρικός
+ try{
+  const r=await fetch("./active-officers.json?fresh="+Date.now(),{cache:"no-store"});
+  if(r.ok){const d=await r.json();if(Array.isArray(d.officers)&&d.officers.length>=10){officers=d.officers;officerSource=d.source||"κατάλογος εν ενεργεία Μεγάλης Γραμματείας";render();renderMax();return}}
+ }catch(e){}
  try{
   const resp=await fetch("../declarations/officers.json?fresh="+Date.now(),{cache:"no-store"});
   if(!resp.ok)throw Error("HTTP "+resp.status);
@@ -213,14 +228,14 @@ function render(){
 function renderMax(){
  if(el("maxPanel").hidden)return;
  if(!officers){el("maxRows").innerHTML='<tr><td colspan="4" class="empty">Φόρτωση καταλόγου…</td></tr>';return}
- const {rows,others}=pinakio(),ok=rows.filter(x=>x.attendee).length,bad=rows.length-ok;
+ const {rows,others}=pinakio(),ok=rows.filter(x=>x.status==="ok").length,exc=rows.filter(x=>x.status==="exc").length,bad=rows.length-ok-exc;
  el("maxSource").textContent="Πηγή: "+officerSource+" · "+rows.length+" εν ενεργεία Μεγάλοι Αξιωματικοί";
- el("maxChips").innerHTML=`<span class="chip">Εν ενεργεία: <b>${rows.length}</b></span><span class="chip ok">✔ Δήλωσαν μετακίνηση: <b>${ok}</b></span><span class="chip bad">✖ Δεν έχουν δηλώσει: <b>${bad}</b></span>`;
- const shown=rows.filter(x=>maxFilter==="all"||(maxFilter==="ok")===!!x.attendee);
+ el("maxChips").innerHTML=`<span class="chip">Εν ενεργεία: <b>${rows.length}</b></span><span class="chip ok">✔ Δήλωσαν μετακίνηση: <b>${ok}</b></span><span class="chip exc">⚠ Δικαιολογημένα απόντες: <b>${exc}</b></span><span class="chip bad">✖ Δεν έχουν δηλώσει: <b>${bad}</b></span>`;
+ const shown=rows.filter(x=>maxFilter==="all"||x.status===maxFilter);
  el("maxRows").innerHTML=shown.length?shown.map((x,i)=>{
   const a=x.attendee;
-  const st=a?`✔ Δήλωσε${a.declaration_date?" "+shortDate(a.declaration_date):""}${x.kind==="surname"?" · (έλεγχος ονόματος: "+esc(a.name)+")":""}`:"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ";
-  return `<tr class="${a?"ok":"bad"}"><td class="aa">${i+1}</td><td>${esc(x.officer.title)}</td><td class="who">${esc(x.officer.name)}</td><td class="st">${st}</td></tr>`;
+  const st=a?`✔ Δήλωσε${a.declaration_date?" "+shortDate(a.declaration_date):""}${x.kind==="surname"?" · (έλεγχος ονόματος: "+esc(a.name)+")":""}`:x.excused?`⚠ Δεν θα έρθει — ${esc(x.excused.reason||"δικαιολογημένη απουσία")}`:"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ";
+  return `<tr class="${x.status}"><td class="aa">${i+1}</td><td>${esc(x.officer.title)}</td><td class="who">${esc(x.officer.name)}</td><td class="st">${st}</td></tr>`;
  }).join(""):'<tr><td colspan="4" class="empty">Καμία εγγραφή σε αυτό το φίλτρο.</td></tr>';
  const ex=el("maxExtra");ex.hidden=!others.length;
  ex.innerHTML=others.length?`<h3>Δηλώσεις εκτός καταλόγου εν ενεργεία ΜΑΞ (${others.length})</h3><ul>${others.map(r=>`<li>${esc(r.name)}${r.title&&r.title!=="Προς επαλήθευση"?" — "+esc(r.title):""}</li>`).join("")}</ul>`:"";
@@ -298,7 +313,7 @@ const PDF_CSS=`.pdfsheet{width:1123px;height:794px;padding:34px 42px 26px;backgr
 .pdfsheet td{padding:5px;vertical-align:top;overflow-wrap:break-word}
 .pdfsheet tbody.r{border-bottom:1px solid #d3dbe6}.pdfsheet tbody.r.alt td{background:#f6f8fb}.pdfsheet td.n{font-weight:700;color:#10223d}
 .pdfsheet span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:6px}.pdfsheet b.price{font-weight:800;font-size:12.5px;color:#10223d;white-space:nowrap;flex:none}.pdfsheet tr.c td{padding:0 5px 6px 30px;color:#3d4d63;font-size:10px}.pdfsheet tr.c b{color:#8a6a2c;font-size:9px;letter-spacing:.04em;margin-right:5px}
-.pdfsheet tbody.ok td{background:#e6f6ec;color:#0d7a3e}.pdfsheet tbody.ok td.n{color:#0d7a3e}.pdfsheet tbody.bad td{background:#fdecec;color:#c01d1d;font-weight:700}.pdfsheet tbody.ok,.pdfsheet tbody.bad{border-bottom:1px solid #fff}
+.pdfsheet tbody.ok td{background:#e6f6ec;color:#0d7a3e}.pdfsheet tbody.ok td.n{color:#0d7a3e}.pdfsheet tbody.bad td{background:#fdecec;color:#c01d1d;font-weight:700}.pdfsheet tbody.exc td{background:#fff1e0;color:#b45309;font-weight:700}.pdfsheet .sum .exc{background:#fff1e0;border-color:#f5c58f;color:#b45309}.pdfsheet tbody.ok,.pdfsheet tbody.bad,.pdfsheet tbody.exc{border-bottom:1px solid #fff}
 .pdfsheet .xl{margin-top:12px;font-size:11px;color:#3d4d63}.pdfsheet .xl b{color:#10223d}
 .pdfsheet .sig{margin-top:18px;padding:11px 14px;border-left:4px solid #af893e;background:#faf7f0;font-size:12.5px;line-height:1.5;width:360px}
 .pdfsheet .pf{border-top:1px solid #c9d3df;padding-top:6px;display:flex;justify-content:space-between;font-size:9.5px;color:#4b5b72;letter-spacing:.02em}`;
@@ -360,12 +375,12 @@ function exportPDF(){
   items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,nameHtml(r),(v.verified?"✓ ":"")+esc(v.title),esc(travelShort(r).replace(/^\S+\s/,"")),esc(r.room||"Δεν δηλώθηκε"),esc(r.hotel_status||"Εκκρεμεί"),esc(r.email||"—")],comment:r.comments||""}})});
 }
 function exportMaxPDF(){
- const {rows,others}=pinakio(),ok=rows.filter(x=>x.attendee).length;
- const s=`<div class="sum"><span>Εν ενεργεία: <b>${rows.length}</b></span><span class="ok">✔ Δήλωσαν μετακίνηση: <b>${ok}</b></span><span class="bad">✖ Δεν έχουν δηλώσει: <b>${rows.length-ok}</b></span><span>Πηγή: <b>${esc(officerSource)}</b></span></div>`;
+ const {rows,others}=pinakio(),ok=rows.filter(x=>x.status==="ok").length,exc=rows.filter(x=>x.status==="exc").length;
+ const s=`<div class="sum"><span>Εν ενεργεία: <b>${rows.length}</b></span><span class="ok">✔ Δήλωσαν μετακίνηση: <b>${ok}</b></span><span class="exc">⚠ Δικαιολογημένα απόντες: <b>${exc}</b></span><span class="bad">✖ Δεν έχουν δηλώσει: <b>${rows.length-ok-exc}</b></span></div>`;
  const tail=others.length?`<div class="xl"><b>Δηλώσεις εκτός καταλόγου εν ενεργεία ΜΑΞ (${others.length}):</b> ${others.map(r=>esc(r.name)).join(" · ")}</div>`:"";
  return makePdf({btn:el("maxPdfBtn"),title:"Πινάκιο ΜΑΞ — Δηλώσεις Μετακίνησης",sum:s,tail,filename:"Kerkyra-2026-Pinakio-MAX.pdf",
   cols:[["Α/Α",5],["Ονοματεπώνυμο",30],["Αξίωμα",38],["Μετακίνηση",27]],
-  items:rows.map((x,i)=>({cls:x.attendee?"ok":"bad",cells:[i+1,esc(x.officer.name),esc(x.officer.title),x.attendee?"✔ Δήλωσε"+(x.attendee.declaration_date?" "+shortDate(x.attendee.declaration_date):""):"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ"]}))});
+  items:rows.map((x,i)=>({cls:x.status,cells:[i+1,esc(x.officer.name),esc(x.officer.title),x.attendee?"✔ Δήλωσε"+(x.attendee.declaration_date?" "+shortDate(x.attendee.declaration_date):""):x.excused?"⚠ Δεν θα έρθει — "+esc(x.excused.reason||""):"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ"]}))});
 }
 
 el("maxBtn").addEventListener("click",()=>toggleMax());el("maxCloseBtn").addEventListener("click",()=>toggleMax(false));

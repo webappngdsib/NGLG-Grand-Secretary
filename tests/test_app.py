@@ -5311,8 +5311,11 @@ def test_corfu_page_fits_comments_rows_and_pinakio(browser, base_url, width):
       return { active: act.length, ok: ok.length, okName: ok[0] && ok[0].cells[2].textContent, want: act[1].name,
                bad: document.querySelectorAll('#maxTable tr.bad').length, weight: getComputedStyle(bad).fontWeight,
                red: getComputedStyle(bad).color, extra: document.querySelector('#maxExtra').textContent,
+               exc: document.querySelectorAll('#maxTable tr.exc').length,
+               excColor: document.querySelector('#maxTable tr.exc td') && getComputedStyle(document.querySelector('#maxTable tr.exc td')).color,
                nick: matchKind({ name: 'ΤΑΣΟΣ ΑΛΜΠΑΝΗΣ' }, { name: 'Αλμπάνης Αναστάσιος' }) } }""")
-    assert res['active'] >= 20 and res['ok'] == 1 and res['okName'] == res['want'] and res['bad'] == res['active'] - 1, res
+    assert res['active'] >= 20 and res['ok'] == 1 and res['okName'] == res['want'] and res['bad'] == res['active'] - 1 - res['exc'], res
+    assert res['exc'] >= 1 and res['excColor'] == 'rgb(180, 83, 9)', res
     assert int(res['weight']) >= 700 and res['red'] == 'rgb(192, 29, 29)' and 'ΑΓΝΩΣΤΟΣ ΔΟΚΙΜΑΣΤΙΚΟΣ' in res['extra'], res
     assert res['nick'] == 'full', res
     if width == 1280:
@@ -5375,9 +5378,15 @@ def test_corfu_reminder_page_lists_undeclared_officers(app):
     t = app.text()
     assert 'Ευγενική Υπενθύμιση' in app.page.input_value('#cfSubj')
     assert 'Διαμονή - Μετακίνηση' in app.page.input_value('#cfBody') and '45€' in app.page.input_value('#cfBody')
-    assert 'όλοι σε Bcc' in t and 'Εν ενεργεία Μεγάλοι Αξιωματικοί' in t
+    assert 'όλοι σε Bcc' in t and 'εν ενεργεία' in t and 'Προσθήκη παραλήπτη από το Μητρώο' in t
     rows = app.page.evaluate("""async () => { const m = await import('./modules/corfu-remind.js');
       const offs = [{ name: 'Δοκιμαστής Πρώτος', title: 'Μέγας Α', group: 'Μέγας Α' }, { name: 'Δοκιμαστής Δεύτερος', title: 'Μέγας Β', group: 'Μέγας Β' },
                     { name: 'Παλαιός Τρίτος', title: 'Πρώην Μέγας Γ', group: 'Πρώην Μέγας Γ' }];
-      return m.remindRows([{ name: 'ΠΡΩΤΟΣ ΔΟΚΙΜΑΣΤΗΣ' }], offs).map(x => [x.name, x.declared]) }""")
-    assert rows == [['Δοκιμαστής Πρώτος', True], ['Δοκιμαστής Δεύτερος', False]], rows
+      offs.push({ name: 'Απών Τέταρτος', title: 'Μέγας Δ', group: 'Μέγας Δ' });
+      return m.remindRows([{ name: 'ΠΡΩΤΟΣ ΔΟΚΙΜΑΣΤΗΣ' }], offs, [{ name: 'Απών Τέταρτος', reason: 'Εξωτερικό' }]).map(x => [x.name, x.status]) }""")
+    assert rows == [['Δοκιμαστής Πρώτος', 'ok'], ['Δοκιμαστής Δεύτερος', 'pending'], ['Απών Τέταρτος', 'exc']], rows
+    # ο επίσημος κατάλογος (31 εν ενεργεία) φορτώνεται· ο Νικολαΐδης (δικαιολογημένα απών) δεν είναι προεπιλεγμένος παραλήπτης
+    app.page.wait_for_selector('#cfRows tr')
+    info = app.page.evaluate("""() => ({ n: document.querySelectorAll('#cfRows tr').length,
+      nik: [...document.querySelectorAll('#cfRows tr')].filter(t => t.textContent.includes('Νικολαΐδης')).map(t => [t.textContent.includes('Δικαιολογημένη'), t.querySelector('input').checked]) })""")
+    assert info['n'] == 31 and info['nik'] == [[True, False]], info

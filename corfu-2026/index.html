@@ -37,7 +37,7 @@ td.aa{width:30px;color:#75859a}td.email{white-space:nowrap;color:#41546d;font-si
 tr.crow td{padding:0 8px 6px 38px;color:#41546d;font-size:12px;line-height:1.3}tr.crow .clabel{font-weight:700;color:#8a6a2c;margin-right:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 .name{font-weight:700;color:#142c48}.pill{display:inline-block;padding:2px 8px;border-radius:30px;font-size:12px;font-weight:700;white-space:nowrap;background:#e8f7f3;color:#117460}
 .pill.wait{background:#fff3da;color:#8f5c04}.verified{color:var(--ok);font-weight:650}.unver{color:#7a8aa0}
-span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}b.price{font-weight:800;font-size:1.18em;color:var(--navy);white-space:nowrap;flex:none}
+span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}b.price.lbl{font-size:.82em;color:#8a6a2c}b.price{font-weight:800;font-size:1.18em;color:var(--navy);white-space:nowrap;flex:none}
 .footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--line);color:#64748b;font-size:12px}
 .empty{padding:50px;text-align:center;color:#64748b}
 /* Πινάκιο ΜΑΞ */
@@ -136,7 +136,8 @@ const dateFmt=value=>{if(!value)return "—";const d=new Date(value);return isNa
 // Δίκλινο: δίπλα το κόστος 45€ με έντονα και λίγο μεγαλύτερο μέγεθος
 const DOUBLE_PRICE="45€";
 const isDouble=r=>/^Δίκλινο/.test(r.room||"");
-const nameHtml=r=>'<span class="nm"><span>'+esc(r.name)+'</span>'+(isDouble(r)?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
+// Δίπλα στο όνομα: «45€» για δίκλινο — ή η ένδειξη της Γραμματείας (overrides.json → price_label), π.χ. «Ιδιοκτήτης Ξενοδοχείου»
+const nameHtml=r=>'<span class="nm"><span>'+esc(r.name)+'</span>'+(r.price_label?'<b class="price lbl">'+esc(r.price_label)+'</b>':isDouble(r)?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
 const shortDate=v=>{const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"/"+m[2]:""};
 
 // ── Αντιστοίχιση δηλώσεων ↔ Επετηρίδα (εν ενεργεία Μεγάλοι Αξιωματικοί) ──
@@ -253,7 +254,9 @@ async function load(){
  try{
   const resp=await fetch("./attendees.json?fresh="+Date.now(),{cache:"no-store"});if(!resp.ok)throw Error("HTTP "+resp.status);
   const data=await resp.json();if(!Array.isArray(data.attendees))throw Error("Μη έγκυρο αρχείο");
-  lastPayload=data;records=data.attendees.filter(x=>x&&typeof x.name==="string").sort((a,b)=>a.name.localeCompare(b.name,"el"));
+  let ov=[];try{const o=await fetch("./overrides.json?fresh="+Date.now(),{cache:"no-store"});if(o.ok)ov=(await o.json()).overrides||[]}catch(e){}
+  const okey=n=>plain(n).replace(/\s+/g," ").trim();
+  lastPayload=data;records=data.attendees.filter(x=>x&&typeof x.name==="string").map(x=>{const o=ov.find(v=>okey(v.name)===okey(x.name));return o?{...x,...o,name:x.name}:x}).sort((a,b)=>a.name.localeCompare(b.name,"el"));
   el("lastUpdate").textContent="Τελευταίος συγχρονισμός: "+dateFmt(data.last_sync)+" · Πηγή: "+(data.mode==="automatic"?"Gmail (αυτόματα)":"ελεγμένες καταχωρίσεις");
   const banner=el("syncBanner");const active=data.mode==="automatic";
   banner.className="notice"+(active?" live":"");
@@ -312,7 +315,7 @@ const PDF_CSS=`.pdfsheet{width:1123px;height:794px;padding:34px 42px 26px;backgr
 .pdfsheet th{background:#19385f;color:#fff;text-align:left;padding:6px 5px;font-size:9.5px;text-transform:uppercase;letter-spacing:.02em}
 .pdfsheet td{padding:5px;vertical-align:top;overflow-wrap:break-word}
 .pdfsheet tbody.r{border-bottom:1px solid #d3dbe6}.pdfsheet tbody.r.alt td{background:#f6f8fb}.pdfsheet td.n{font-weight:700;color:#10223d}
-.pdfsheet span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:6px}.pdfsheet b.price{font-weight:800;font-size:12.5px;color:#10223d;white-space:nowrap;flex:none}.pdfsheet tr.c td{padding:0 5px 6px 30px;color:#3d4d63;font-size:10px}.pdfsheet tr.c b{color:#8a6a2c;font-size:9px;letter-spacing:.04em;margin-right:5px}
+.pdfsheet span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:6px}.pdfsheet b.price{font-weight:800;font-size:12.5px;color:#10223d;white-space:nowrap;flex:none}.pdfsheet b.price.lbl{font-size:9.5px;color:#8a6a2c}.pdfsheet tr.c td{padding:0 5px 6px 30px;color:#3d4d63;font-size:10px}.pdfsheet tr.c b{color:#8a6a2c;font-size:9px;letter-spacing:.04em;margin-right:5px}
 .pdfsheet tbody.ok td{background:#e6f6ec;color:#0d7a3e}.pdfsheet tbody.ok td.n{color:#0d7a3e}.pdfsheet tbody.bad td{background:#fdecec;color:#c01d1d;font-weight:700}.pdfsheet tbody.exc td{background:#fff1e0;color:#b45309;font-weight:700}.pdfsheet .sum .exc{background:#fff1e0;border-color:#f5c58f;color:#b45309}.pdfsheet tbody.ok,.pdfsheet tbody.bad,.pdfsheet tbody.exc{border-bottom:1px solid #fff}
 .pdfsheet .xl{margin-top:12px;font-size:11px;color:#3d4d63}.pdfsheet .xl b{color:#10223d}
 .pdfsheet .sig{margin-top:18px;padding:11px 14px;border-left:4px solid #af893e;background:#faf7f0;font-size:12.5px;line-height:1.5;width:360px}

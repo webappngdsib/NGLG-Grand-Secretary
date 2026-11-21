@@ -78,6 +78,24 @@ function namedayIndex() {
   for (const it of sortBy(db.all('namedays'), 'name_key')) if (!idx[it.name_key] || (!hasDay(idx[it.name_key]) && hasDay(it))) idx[it.name_key] = it;
   return idx;
 }
+// Όλες οι ημερομηνίες εορτής ενός ονόματος (π.χ. Μάριος: 13/3 και 21/11) — μία φορά η καθεμία. Η κύρια εγγραφή όπως πριν,
+// και επιπλέον μόνο εγγραφές του ΑΠΛΟΥ ονόματος (όχι σύνθετων, π.χ. «Μάριος-Θρασύβουλος», που δεν δίνουν εορτή σε όλους τους Μάριους)
+function namedaysByKey() {
+  const main = namedayIndex(), by = {};
+  const sig = (x) => `${x.md || ''}|${x.easter ?? ''}|${x.rule || ''}`;
+  for (const [k, it] of Object.entries(main)) if (hasDay(it)) by[k] = [it];
+  for (const it of sortBy(db.all('namedays'), 'id')) {
+    if (!hasDay(it) || foldName(it.name) !== it.name_key) continue;
+    const list = (by[it.name_key] ||= []);
+    if (!list.some((x) => sig(x) === sig(it))) list.push(it);
+  }
+  return by;
+}
+// Δεύτερη ημερομηνία εορτής για τον Μάριο: 21 Νοεμβρίου (Εισόδια της Θεοτόκου), πέρα από τις 13 Μαρτίου
+db.migrate('nameday-marios-21-11-2026-11', (tx) => {
+  if (!tx.all('namedays').some((n) => n.name_key === ndKey('Μάριος') && n.md === '11-21'))
+    tx.insert('namedays', { name: 'Μάριος', name_key: ndKey('Μάριος'), official: 'Μάριος', md: '11-21', easter: null, rule: '', note: 'Δεύτερη εορτή: Εισόδια της Θεοτόκου (21 Νοεμβρίου)' });
+});
 // Κάλυψη: πόσα ενεργά μέλη του Μητρώου έχουν γνωστή ονομαστική εορτή, και ποια ονόματα λείπουν
 export function coverage() {
   const idx = namedayIndex(), ms = db.all('member_registry').filter((x) => x.active !== 0 && !noContact(x)), miss = {};
@@ -97,12 +115,10 @@ ${next.length ? `<p>Επόμενοι εορτάζοντες: ${next.map((g) => `
 }
 
 export function celebrants(frm, to) {
-  const idx = namedayIndex();
+  const idx = namedaysByKey();
   const d0 = parseIso(frm), d1 = parseIso(to), groups = {}, byM = lodgesByMember();
   for (const m of db.all('member_registry').filter((x) => x.active !== 0 && !noContact(x))) {
-    const it = idx[ndKey(m.first_name)];
-    if (!it) continue;
-    for (let y = d0.getFullYear(); y <= d1.getFullYear(); y++) {
+    for (const it of idx[ndKey(m.first_name)] || []) for (let y = d0.getFullYear(); y <= d1.getFullYear(); y++) {
       const d = namedayIn(it, y);
       if (!d || d < d0 || d > d1) continue;
       const k = isoDate(d) + '|' + label(it);

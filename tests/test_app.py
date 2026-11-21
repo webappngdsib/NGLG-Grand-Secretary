@@ -5412,3 +5412,15 @@ def test_grand_lodge_tile_related_letters(app):
     app.page.wait_for_url(re.compile(r'.*#/letters/\d+$'))
     app.page.wait_for_selector('main h1, .lbar, .print-area')
     assert 'Η σελίδα δεν βρέθηκε' not in app.text()
+
+
+def test_nameday_second_date_marios(app):
+    app.connect_local()
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      return db.save('x', (tx) => { tx.insert('member_registry', { surname: 'Εορτάκης', first_name: 'Μάριος', email: 'm@example.com', active: 1 });
+        tx.insert('namedays', { name: 'Μάριος-θρασυβουλος', name_key: 'μαριοσ', official: 'Μάριος', md: '01-19', easter: null, rule: '' }); }); }""")
+    r = app.page.evaluate("""async () => { const n = await import('./modules/namedays.js'); const y = new Date().getFullYear();
+      const f = (md) => n.celebrants(`${y}-${md}`, `${y}-${md}`).flatMap((g) => g.members.map((m) => m.surname));
+      return [f('11-21'), f('03-13'), f('01-19')]; }""")
+    assert 'Εορτάκης' in r[0] and 'Εορτάκης' in r[1] and 'Εορτάκης' not in r[2], r
+    assert not app.errors, app.errors

@@ -105,7 +105,7 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 
 <section class="panel" aria-labelledby="listHeading">
 <div class="top">
-<div><h2 id="listHeading">Λίστα δηλωσάντων</h2><p class="sub" id="lastUpdate">Αναμένεται ενημέρωση</p></div>
+<div><h2 id="listHeading">Πινάκιο δηλωσάντων</h2><p class="sub" id="lastUpdate">Αναμένεται ενημέρωση</p></div>
 <div class="tools">
 <input type="search" id="searchBox" placeholder="Αναζήτηση ονοματεπώνυμου…" aria-label="Αναζήτηση ονοματεπώνυμου">
 <button id="maxBtn" type="button" class="maxbtn" aria-expanded="false" aria-controls="maxPanel" title="Όλοι οι Μεγάλοι Αξιωματικοί εν ενεργεία: πράσινοι όσοι δήλωσαν, κόκκινοι όσοι όχι">🏛 Πινάκιο ΜΑΞ</button>
@@ -197,7 +197,7 @@ async function loadOfficers(){
  render();renderMax();
 }
 
-// ── Λίστα δηλωσάντων ──
+// ── Πινάκιο δηλωσάντων ──
 const LABELS=["Α/Α","Ονοματεπώνυμο","Αξίωμα","Μετακίνηση","Δωμάτιο","Ξενοδοχείο","Email"];
 // Σύντομη μετακίνηση (οι ημερομηνίες 18–20/12 είναι κοινές και φαίνονται στην επικεφαλίδα)
 const travelShort=r=>/Ιδιωτικ/i.test(r.travel||"")?"🚗 Ιδιωτικό":"🚌 Λεωφορείο";

@@ -5472,3 +5472,12 @@ def test_corfu_check_member_reports_epeteirida_registry_and_stewards(tmp_path):
     assert 'Γενικό Μητρώο    : #1 Δοκιμάκης Φώτιος' in first and 'ΔΟΚΙΜΗ 1 (1. ΤΑΚΤΙΚΟ)' in first
     assert '⇒ Ιδιότητα       : Μέγας Επιμελητής — Στ. ΔΟΚΙΜΗ 1' in first
     assert 'ΟΧΙ εν ενεργεία ΜΑΞ' in second and 'δεν βρέθηκε' in second
+
+
+def test_corfu_shared_double_without_charge_hides_45():
+    """Δίκλινο που μοιράζονται δύο Μεγάλοι Αξιωματικοί (no_charge) — χωρίς «45€» δίπλα στο όνομα."""
+    html = (Path(__file__).resolve().parent.parent / 'corfu-2026/index.html').read_text(encoding='utf-8')
+    assert "isDouble(r)&&!r.no_charge" in html
+    ov = json.loads((Path(__file__).resolve().parent.parent / 'corfu-2026/overrides.json').read_text(encoding='utf-8'))
+    shared = {x['name'] for x in ov['overrides'] if x.get('no_charge')}
+    assert {'ΛΑΓΙΟΣ ΦΩΤΗΣ', 'ΚΩΝΣΤΑΝΤΙΝΟΣ ΑΔΑΜΑΚΟΣ'} <= shared

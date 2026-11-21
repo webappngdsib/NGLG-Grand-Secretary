@@ -5424,3 +5424,28 @@ def test_nameday_second_date_marios(app):
       return [f('11-21'), f('03-13'), f('01-19')]; }""")
     assert 'Εορτάκης' in r[0] and 'Εορτάκης' in r[1] and 'Εορτάκης' not in r[2], r
     assert not app.errors, app.errors
+
+
+def test_corfu_correction_email_replaces_declaration(tmp_path):
+    """«… - διόρθωση» από υπηρεσιακή διεύθυνση: ίδιο πρόσωπο (όχι νέο όνομα), email από το cc, σημειώσεις της διόρθωσης."""
+    import json as _json, subprocess as _sp
+    base = 'Σας ενημερώνω ότι θα μετακινηθώ με ιδιωτικό όχημα και δεν θα κάνω χρήση του λεωφορείου.\nΕπιθυμώ να διαμείνω '
+    msgs = [
+        {'subject': 'ΔΙΑΜΟΝΗ – ΜΕΤΑΚΙΝΗΣΗ ΔΟΚΙΜΑΣΤΗΣ ΠΕΜΠΤΟΣ', 'from': 'GS <grand.secretary@nglgreece.gr>', 'cc': 'grand.chancellor@nglgreece.gr',
+         'body': base + 'μόνος σε δίκλινο δωμάτιο.', 'date': '2026-11-21T07:00:00Z'},
+        {'subject': 'ΔΙΑΜΟΝΗ – ΜΕΤΑΚΙΝΗΣΗ ΔΟΚΙΜΑΣΤΗΣ ΠΕΜΠΤΟΣ -διόρθωση', 'from': 'GC <grand.chancellor@nglgreece.gr>', 'cc': 'pemptos@example.org, grand.chancellor@nglgreece.gr',
+         'body': base + 'σε δίκλινο δωμάτιο μαζί με την σύντροφό μου.', 'date': '2026-11-21T11:00:00Z'},
+        {'subject': 'ΜΕΤΑΚΙΝΗΣΗ ΚΕΡΚΥΡΑ ΔΟΚΙΜΑΣΤΗΣ ΕΚΤΟΣ', 'from': 'x <x@example.org>', 'cc': '',
+         'body': 'Δηλώνω συμμετοχή. Θα είμαι μόνος (χωρίς συνοδό), σε δίκλινο.', 'date': '2026-11-21T08:00:00Z'},
+    ]
+    f = tmp_path / 'messages.json'
+    f.write_text(_json.dumps(msgs, ensure_ascii=False), encoding='utf-8')
+    js = """const fs=require('fs'),vm=require('vm');const M=JSON.parse(fs.readFileSync(process.argv[1],'utf8')).map(m=>({getSubject:()=>m.subject,getFrom:()=>m.from,getCc:()=>m.cc,getPlainBody:()=>m.body,getDate:()=>new Date(m.date)}));
+const sb={console,Map,Set,Date,JSON,String,Number,Array,Object,Error,RegExp,GmailApp:{search:(q,s)=>s?[]:[{getMessages:()=>M}]},Utilities:{formatDate:d=>d.toISOString().slice(0,10)}};
+vm.createContext(sb);vm.runInContext(fs.readFileSync(process.argv[2],'utf8')+';this.r=extractDeclarations_({});',sb);console.log(JSON.stringify(sb.r));"""
+    out = _sp.run(['node', '-e', js, str(f), str(ROOT / 'corfu-2026' / 'Code.gs')], capture_output=True, text=True, check=True)
+    r = {x['name']: x for x in _json.loads(out.stdout)}
+    assert set(r) == {'ΔΟΚΙΜΑΣΤΗΣ ΠΕΜΠΤΟΣ', 'ΔΟΚΙΜΑΣΤΗΣ ΕΚΤΟΣ'}, list(r)
+    p = r['ΔΟΚΙΜΑΣΤΗΣ ΠΕΜΠΤΟΣ']
+    assert p['email'] == 'pemptos@example.org' and 'Με συνοδό' in p['comments'] and 'Μόνος' not in p['comments'], p
+    assert 'Με συνοδό' not in r['ΔΟΚΙΜΑΣΤΗΣ ΕΚΤΟΣ']['comments'], r['ΔΟΚΙΜΑΣΤΗΣ ΕΚΤΟΣ']

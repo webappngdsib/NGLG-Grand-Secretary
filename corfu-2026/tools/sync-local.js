@@ -45,9 +45,10 @@ const attendees = extracted.map((x) => {
   const prior = existing.get(key(x.name));
   if (!prior) return x;
   const lock = Object.fromEntries((prior.locked || []).map((f) => [f, prior[f]]));
-  return { ...x, email: x.email || prior.email || '', comments: mergeNotes(prior.comments, x.comments),
+  return { ...x, email: x.email || prior.email || '', comments: x.correction ? x.comments : mergeNotes(prior.comments, x.comments),
     hotel_status: prior.hotel_status === 'Επιβεβαιωμένη κράτηση' ? 'Επιβεβαιωμένη κράτηση' : x.hotel_status , ...lock, ...(prior.locked ? { locked: prior.locked } : {}) };
 });
+for (const a of attendees) delete a.correction;
 for (const prev of old.attendees || []) if (!attendees.some((x) => key(x.name) === key(prev.name))) attendees.push(prev);
 attendees.sort((a, b) => a.name.localeCompare(b.name, 'el'));
 

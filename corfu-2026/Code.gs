@@ -32,7 +32,7 @@ function setupCorfuSync(){
 function testCorfuSync(){ const prev=JSON.parse(githubFile_().content||'{"attendees":[]}'); const rows = extractDeclarations_(knownByEmail_(prev.attendees)); console.log(JSON.stringify(rows,null,2)); }
 // email → ονοματεπώνυμο από όσους έχουν ήδη δηλώσει (για συμπληρωματικά email χωρίς όνομα, π.χ. «ΔΙΑΜΟΝΗ ΚΕΡΚΥΡΑ»)
 // Χειροκίνητο σχόλιο + νέες αυτόματες σημειώσεις (κάθε πρόταση μία φορά)
-function mergeNotes_(manual,auto){ const m=String(manual||'').trim(); const add=String(auto||'').split(/(?<=\.)\s+/).map(x=>x.trim()).filter(x=>x&&!m.includes(x)); return [m,...add].filter(Boolean).join(' '); }
+function mergeNotes_(manual,auto){ const m=String(manual||'').trim(); const add=String(auto||'').split(/(?<=\.)\s+/).map(x=>x.trim()).filter(x=>x&&!m.includes(x)&&!m.includes(x.slice(0,9))); return [m,...add].filter(Boolean).join(' '); }
 function knownByEmail_(list){ const m={}; (list||[]).forEach(a=>{ const e=String(a.email||'').toLowerCase(); if(e && e!==CFG.mailbox.toLowerCase()) m[e]=a.name; }); return m; }
 function syncCorfu2026(){
   const lock=LockService.getScriptLock();
@@ -48,7 +48,7 @@ function syncCorfu2026(){
       if (!prior) return x;
       // Πεδία «κλειδωμένα» από χειροκίνητη καταχώριση της Γραμματείας δεν αλλάζουν ποτέ αυτόματα.
       const lock={}; (prior.locked||[]).forEach(f=>{lock[f]=prior[f];}); if(prior.locked) lock.locked=prior.locked;
-      return {...x,...lock,email:x.email||prior.email||'',comments:mergeNotes_(prior.comments,x.comments),hotel_status:
+      return {...x,...lock,email:x.email||prior.email||'',comments:x.correction?x.comments:mergeNotes_(prior.comments,x.comments),hotel_status:
         prior.hotel_status==='Επιβεβαιωμένη κράτηση'?'Επιβεβαιωμένη κράτηση':x.hotel_status};
     }).sort((a,b)=>a.name.localeCompare(b.name,'el'));
     // Maintain entries previously manually verified if extraction does not find the source yet.
@@ -160,14 +160,19 @@ function extractDeclarations_(known){
         const ccs=String(msg.getCc()||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,}/gi)||[];
         // Από τη Γραμματεία: μόνο προσωπικό email σε cc (όχι διευθύνσεις υπηρεσιών @nglgreece.gr, π.χ. grand.chancellor@)· αλλιώς κενό.
         const personalCc=ccs.filter(e=>!/@nglgreece\.gr$/i.test(e));
-        const sourceEmail = own ? (personalCc.length===1 ? personalCc[0] : '') : fromEmail;
+        // Από άλλη υπηρεσιακή διεύθυνση (@nglgreece.gr, π.χ. grand.chancellor@) με τον αδελφό σε cc → το email του αδελφού.
+        const service=/@nglgreece\.gr$/i.test(fromEmail);
+        const sourceEmail = own ? (personalCc.length===1 ? personalCc[0] : '') : (service && personalCc.length===1 ? personalCc[0] : fromEmail);
+        // «… - διόρθωση» / «ορθή επανάληψη»: αντικαθιστά την προηγούμενη δήλωση (όχι μέρος του ονόματος)
+        const correction=/(ΔΙΟΡΘΩΣ|ΟΡΘΗ ΕΠΑΝΑΛΗΨΗ|ΤΡΟΠΟΠΟΙΗΣ|ΑΛΛΑΓΗ)/.test(subjKey);
+        const subjName=String(match[1]||'').replace(/[\s\-–—:(]*(ΔΙΟΡΘΩΣΗ|ΔΙΟΡΘΩΣΙΣ|ΟΡΘΗ ΕΠΑΝΑΛΗΨΗ|ΤΡΟΠΟΠΟΙΗΣΗ|ΑΛΛΑΓΗ)[)\s]*$/,'');
         const first=String(msg.getPlainBody()||'').split(/\n\s*(?:On .+wrote:|Στις .+έγραψε:|From:|Από:|[-]{3,}\s*Forwarded)/i)[0].slice(0,2500);
         // Το όνομα: (1) από το θέμα, (2) από ρητή υπογραφή με τίτλο («Σεβ. Αδ. …»),
         // (3) από γραμμή με ΚΕΦΑΛΑΙΑ στην αρχή του σώματος.
         const signature=first.match(/(?:^|\n)\s*(?:(?:Πσεβ\.|Λ\.Σεβ\.|Σεβ\.|Αδ\.)\s*){1,4}([\p{L}΄'’-]+\s+[\p{L}΄'’-]+)\s*(?=\r?\n|$)/iu);
         // (4) από το όνομα κάτω από την αποφώνηση («Με αδελφικούς χαιρετισμούς,» → «Γεώργιος Γκρίλλας»).
         const closing=first.match(/(?:χαιρετισμούς|χαιρετισμοί|αγάπη|εκτίμηση|αφοσίωση|ΜτΤΑΑ)[^\n]*\n(?:\s*\r?\n)*\s*([\p{L}΄'’-]+\s+[\p{L}΄'’-]+(?:\s+[\p{L}΄'’-]+)?)\s*(?:\r?\n|$)/iu);
-        const candidates=[cleanName_(match[1]), cleanName_(signature&&signature[1]), bodyHeaderName_(first), cleanName_(closing&&closing[1])];
+        const candidates=[cleanName_(subjName), cleanName_(signature&&signature[1]), bodyHeaderName_(first), cleanName_(closing&&closing[1])];
         // (5) αλλιώς: ο αποστολέας έχει ήδη δηλώσει → συμπληρωματικό email (διαμονή κ.λπ.) για τον ίδιο
         const rawName=candidates.find(isName_)||(!own && known[fromEmail.toLowerCase()])||'';
         if(!rawName)continue;
@@ -188,6 +193,7 @@ function extractDeclarations_(known){
         // Αυτόματη σημείωση (μένει μόνο αν δεν υπάρχει ήδη χειροκίνητο σχόλιο).
         const autoNote=[ownTransport?'Δεν θα χρησιμοποιήσει το λεωφορείο (ίδιο μέσο).':'',
           singleInDouble?'Μόνος σε δίκλινο, με το ήμισυ του κόστους δίκλινου.':'',
+          /(ΣΥΝΤΡΟΦ|ΣΥΖΥΓ|ΣΥΝΟΔΟ)/.test(body.replace(/(ΧΩΡΙΣ|ΔΕΝ ΘΑ ΕΧΩ|ΔΕΝ ΘΑ ΣΥΝΟΔΕΥ\S*|ΜΟΝΟΣ \(?ΧΩΡΙΣ) \S*\s*(ΣΥΝΤΡΟΦ|ΣΥΖΥΓ|ΣΥΝΟΔ)\S*/g,''))?'Με συνοδό (πρόσθετη επιβάρυνση για τον συνοδό).':'',
           own?'Καταχωρίστηκε από τη Μεγάλη Γραμματεία.':''].filter(String).join(' ');
         const officer = YEARBOOK_2026.find(o => [o.name,...o.aliases].some(a=>key_(a)===key_(name)));
         const item={name,email:sourceEmail,title:officer?officer.title:'Προς επαλήθευση',
@@ -195,7 +201,7 @@ function extractDeclarations_(known){
           travel:ownTransport?'Ιδιωτικό όχημα (όχι πούλμαν) — 18–20/12/2026':'18–20/12/2026',room,
           hotel_status:'Εκκρεμεί',
           declaration_date:Utilities.formatDate(msg.getDate(),'Europe/Athens','yyyy-MM-dd'),
-          comments:autoNote,_time:msg.getDate().getTime()};
+          comments:autoNote,correction,_time:msg.getDate().getTime()};
         const k=key_(name);
         // Πολλά email του ίδιου: συνδυάζονται (το νεότερο υπερισχύει, αλλά δεν χάνονται δωμάτιο/μετακίνηση/σημειώσεις)
         const prev=found.get(k);
@@ -207,7 +213,7 @@ function extractDeclarations_(known){
             name:older.name, email:older.email||newer.email,
             room:newer.room!=='Δεν δηλώθηκε'?newer.room:older.room,
             travel:/Ιδιωτικό/.test(newer.travel+older.travel)?'Ιδιωτικό όχημα (όχι πούλμαν) — 18–20/12/2026':newer.travel,
-            declaration_date:older.declaration_date, comments:notes});
+            declaration_date:older.declaration_date, comments:newer.correction?newer.comments:notes});
         }
       }
     }

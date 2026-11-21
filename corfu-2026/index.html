@@ -36,7 +36,7 @@ tbody.rec{border-bottom:1px solid #e3e8ef}tbody.rec:nth-of-type(even){background
 td.aa{width:30px;color:#75859a}td.email{white-space:nowrap;color:#41546d;font-size:12.5px}
 tr.crow td{padding:0 8px 6px 38px;color:#41546d;font-size:12px;line-height:1.3}tr.crow .clabel{font-weight:700;color:#8a6a2c;margin-right:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 .name{font-weight:700;color:#142c48}.pill{display:inline-block;padding:2px 8px;border-radius:30px;font-size:12px;font-weight:700;white-space:nowrap;background:#e8f7f3;color:#117460}
-.pill.wait{background:#fff3da;color:#8f5c04}.verified{color:var(--ok);font-weight:650}.unver{color:#7a8aa0}
+.pill.wait{background:#fff3da;color:#8f5c04}.verified{color:var(--ok);font-weight:650}.unver{color:#7a8aa0}.lodge{color:#5b6b80;font-size:.92em;white-space:nowrap}
 span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}b.price.lbl{font-size:.82em;color:#8a6a2c}b.price{font-weight:800;font-size:1.18em;color:var(--navy);white-space:nowrap;flex:none}
 .footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--line);color:#64748b;font-size:12px}
 .empty{padding:50px;text-align:center;color:#64748b}
@@ -203,10 +203,12 @@ const LABELS=["Α/Α","Ονοματεπώνυμο","Αξίωμα","Μετακί�
 // Σύντομη μετακίνηση (οι ημερομηνίες 18–20/12 είναι κοινές και φαίνονται στην επικεφαλίδα)
 const travelShort=r=>isResident(r)?"🏠 Κάτοικος Κέρκυρας":/Ιδιωτικ/i.test(r.travel||"")?"🚗 Ιδιωτικό":"🚌 Λεωφορείο";
 // Αξίωμα + έλεγχος σε μία στήλη: ✓ πράσινο όταν επαληθεύεται από την Επετηρίδα
-const titleHtml=v=>v.verified?'<span class="verified" title="'+esc(v.check)+'">✓ '+esc(v.title)+'</span>':'<span class="unver" title="'+esc(v.check)+'">'+esc(v.title)+'</span>';
+// Μέγας Επιμελητής: δίπλα στο αξίωμα και η Στοά του (πεδίο lodge, από το Μητρώο/Επετηρίδα μέσω overrides.json)
+const lodgeHtml=v=>v.lodge?' <span class="lodge">· Στ. '+esc(v.lodge)+'</span>':'';
+const titleHtml=v=>(v.verified?'<span class="verified" title="'+esc(v.check)+'">✓ '+esc(v.title)+'</span>':'<span class="unver" title="'+esc(v.check)+'">'+esc(v.title)+'</span>')+lodgeHtml(v);
 function view(r){
  const o=(r.title&&r.title!=="Προς επαλήθευση")?null:officerFor(r);
- return {title:o?o.title:(r.title||"Προς επαλήθευση"),check:o?"Εν ενεργεία — Επετηρίδα":(r.officer_status||"Δεν έχει επαληθευθεί"),verified:!!o||/Εν ενεργεία/.test(r.officer_status||"")};
+ return {lodge:r.lodge||"",title:o?o.title:(r.title||"Προς επαλήθευση"),check:o?"Εν ενεργεία — Επετηρίδα":(r.officer_status||"Δεν έχει επαληθευθεί"),verified:!!o||/Εν ενεργεία/.test(r.officer_status||"")};
 }
 function render(){
  const q=plain(el("searchBox").value),list=records.filter(x=>plain(x.name).includes(q)),table=el("mainTable");
@@ -240,7 +242,7 @@ function renderMax(){
   return `<tr class="${x.status}"><td class="aa">${i+1}</td><td>${esc(x.officer.title)}</td><td class="who">${esc(x.officer.name)}</td><td class="st">${st}</td></tr>`;
  }).join(""):'<tr><td colspan="4" class="empty">Καμία εγγραφή σε αυτό το φίλτρο.</td></tr>';
  const ex=el("maxExtra");ex.hidden=!others.length;
- ex.innerHTML=others.length?`<h3>Δηλώσεις εκτός καταλόγου εν ενεργεία ΜΑΞ (${others.length})</h3><ul>${others.map(r=>`<li>${esc(r.name)}${r.title&&r.title!=="Προς επαλήθευση"?" — "+esc(r.title):""}</li>`).join("")}</ul>`:"";
+ ex.innerHTML=others.length?`<h3>Δηλώσεις εκτός καταλόγου εν ενεργεία ΜΑΞ (${others.length})</h3><ul>${others.map(r=>`<li>${esc(r.name)}${r.title&&r.title!=="Προς επαλήθευση"?" — "+esc(r.title):""}${r.lodge?" (Στ. "+esc(r.lodge)+")":""}</li>`).join("")}</ul>`:"";
 }
 function toggleMax(force){
  const p=el("maxPanel"),open=force!=null?force:p.hidden;
@@ -298,7 +300,7 @@ function requestGmailSync(){
  },10000);
 }
 function exportCSV(){
- const lines=[["Ονοματεπώνυμο","Email","Αξίωμα","Έλεγχος επετηρίδας","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>{const v=view(r);return [r.name,r.email||"",v.title,v.check,r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]}));
+ const lines=[["Ονοματεπώνυμο","Email","Αξίωμα","Έλεγχος επετηρίδας","Μετακίνηση","Δωμάτιο","Κατάσταση ξενοδοχείου","Σχόλια"]].concat(records.map(r=>{const v=view(r);return [r.name,r.email||"",v.title+(v.lodge?" — Στ. "+v.lodge:""),v.check,r.travel||"",r.room||"",r.hotel_status||"",r.comments||""]}));
  const csv="﻿"+lines.map(c=>c.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="Kerkyra-2026-Diloseis.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
@@ -376,7 +378,7 @@ function exportPDF(){
  const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(isDouble).length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>!isResident(x)&&x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
  return makePdf({btn:el("pdfBtn"),title:"Κατάσταση Μετακίνησης &amp; Διαμονής Μεγάλων Αξιωματικών",sum:s,filename:"Kerkyra-2026-Metakinisi-Diamoni.pdf",
   cols:[["Α/Α",4],["Ονοματεπώνυμο",23],["Αξίωμα (Επετηρίδα)",22],["Μετακίνηση",11],["Δωμάτιο",13],["Ξενοδοχείο",9],["Email",18]],
-  items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,nameHtml(r),(v.verified?"✓ ":"")+esc(v.title),esc(travelShort(r).replace(/^\S+\s/,"")),esc(r.room||"Δεν δηλώθηκε"),esc(r.hotel_status||"Εκκρεμεί"),esc(r.email||"—")],comment:r.comments||""}})});
+  items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,nameHtml(r),(v.verified?"✓ ":"")+esc(v.title)+(v.lodge?" · Στ. "+esc(v.lodge):""),esc(travelShort(r).replace(/^\S+\s/,"")),esc(r.room||"Δεν δηλώθηκε"),esc(r.hotel_status||"Εκκρεμεί"),esc(r.email||"—")],comment:r.comments||""}})});
 }
 function exportMaxPDF(){
  const {rows,others}=pinakio(),ok=rows.filter(x=>x.status==="ok").length,exc=rows.filter(x=>x.status==="exc").length;

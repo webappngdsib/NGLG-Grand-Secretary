@@ -5294,8 +5294,8 @@ def test_corfu_page_fits_comments_rows_and_pinakio(browser, base_url, width):
     box = page.evaluate("""() => { const tb = document.querySelector('#mainTable').closest('.tablebox');
       return { scroll: tb.scrollWidth - tb.clientWidth, page: document.documentElement.scrollWidth - innerWidth,
                cols: document.querySelectorAll('#mainTable thead th').length,
-               comments: [...document.querySelectorAll('#mainTable tr.crow td')].every(td => td.colSpan === 8) } }""")
-    assert box['scroll'] <= 1 and box['page'] <= 1 and box['cols'] == 8 and box['comments'], box
+               comments: [...document.querySelectorAll('#mainTable tr.crow td')].every(td => td.colSpan === 7) } }""")
+    assert box['scroll'] <= 1 and box['page'] <= 1 and box['cols'] == 7 and box['comments'], box
     price = page.evaluate("""() => { records = [{ name: 'ΔΟΚΙΜΑΣΤΗΣ ΕΝΑ', room: 'Δίκλινο' }, { name: 'ΔΟΚΙΜΑΣΤΗΣ ΔΥΟ', room: 'Μονόκλινο' }]; render();
       const p = [...document.querySelectorAll('#mainTable b.price')]; return { n: p.length, text: p[0] && p[0].textContent, weight: p[0] && getComputedStyle(p[0]).fontWeight } }""")
     assert price['n'] == 1 and price['text'] == '45€' and int(price['weight']) >= 700, price

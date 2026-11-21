@@ -5321,6 +5321,8 @@ def test_corfu_page_fits_comments_rows_and_pinakio(browser, base_url, width):
                 page.click(btn)
             d = dl.value
             assert name in d.suggested_filename and open(d.path(), 'rb').read(5) == b'%PDF-'
+            box = page.locator(btn).locator('xpath=ancestor::section[1]').locator('.pdfready')
+            assert box.is_visible() and box.locator('a[download]').count() == 1 and 'έτοιμο' in box.inner_text()
     assert not errors, errors
     ctx.close()
 

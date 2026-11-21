@@ -48,6 +48,10 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .extra{padding:14px 20px;border-top:1px solid var(--line);font-size:13px;color:#41546d}.extra h3{font-size:14px;margin:0 0 6px;color:var(--navy)}.extra ul{margin:0;padding-left:20px}
 .instructions{margin:0;padding:16px 19px;border:1px solid var(--line);border-radius:12px;color:#50637a;background:#fff;font-size:13px}
 .instructions p{margin:3px 0}.safeguard{margin-top:12px;color:#637083;font-size:12px}
+.pdfready{margin:12px 20px 0;padding:12px 14px;border-radius:10px;background:#edfaf5;border:1px solid #b9e9d9;color:#126149;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:14px}
+.pdfready.err{background:#fdecec;border-color:#f2b8b8;color:#c01d1d}.pdfready b{margin-right:4px}
+.pdfready a,.pdfready button{display:inline-block;padding:9px 13px;border-radius:8px;border:1px solid #19385f;background:#19385f;color:#fff;font-weight:650;text-decoration:none;font-size:14px}
+.pdfready a.alt,.pdfready button.alt{background:#fff;color:#19385f}
 .signature{margin:20px 0 0;padding:18px 20px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;font-size:14px;line-height:1.55}.signature b{color:var(--navy)}
 /* Κινητό/tablet: κάθε δήλωση γίνεται κάρτα — καμία στήλη δεν κόβεται */
 @media(max-width:1000px){#mainTable,#mainTable thead,#mainTable tbody,#mainTable tr,#mainTable td{display:block;width:100%}#mainTable thead{display:none}
@@ -80,6 +84,7 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 <div><h2 id="maxHeading">Πινάκιο ΜΑΞ · Μεγάλοι Αξιωματικοί εν ενεργεία</h2><p class="sub" id="maxSource">Φόρτωση καταλόγου Επετηρίδας…</p></div>
 <div class="tools"><button id="maxPdfBtn" type="button" class="pdfbtn">📄 PDF Πινακίου</button><button id="maxCloseBtn" type="button">✕ Κλείσιμο</button></div>
 </div>
+<div class="pdfready" role="status" hidden></div>
 <div class="chips" id="maxChips"></div>
 <div class="filters" role="group" aria-label="Φίλτρο Πινακίου">
 <button type="button" data-f="all" aria-pressed="true">Όλοι</button>
@@ -105,6 +110,7 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 <button id="pdfBtn" type="button" class="pdfbtn" title="Λήψη PDF A4 με όλες τις στήλες">📄 PDF A4</button>
 <button id="printBtn" type="button">Εκτύπωση</button>
 </div></div>
+<div class="pdfready" role="status" hidden></div>
 <div class="tablebox"><table id="mainTable">
 <thead><tr><th>Α/Α</th><th>Ονοματεπώνυμο</th><th>Email</th><th>Αξίωμα (Επετηρίδα)</th><th>Έλεγχος</th><th>Μετακίνηση</th><th>Τύπος δωματίου</th><th>Διαμονή στο ξενοδοχείο</th></tr></thead>
 <tbody id="rowsEmpty"><tr><td colspan="8" class="empty">Ανάκτηση δηλώσεων…</td></tr></tbody>
@@ -320,9 +326,25 @@ async function makePdf(opts){
    if(i)pdf.addPage("a4","landscape");
    pdf.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,297,210);
   }
-  pdf.save(opts.filename);
- }catch(err){syncStatus("Δεν δημιουργήθηκε το PDF: "+(err&&err.message||err)+". Δοκιμάστε «Εκτύπωση» → Αποθήκευση ως PDF.")}
+  pdfReady(btn,pdf.output("blob"),opts.filename);
+ }catch(err){pdfReady(btn,null,opts.filename,"Δεν δημιουργήθηκε το PDF: "+(err&&err.message||err)+". Δοκιμάστε «Εκτύπωση» → Αποθήκευση ως PDF.")}
  finally{host.remove();btn.disabled=false;btn.textContent=label}
+}
+// Μετά τη δημιουργία: πλαίσιο με Άνοιγμα / Λήψη / Κοινοποίηση (νέο πάτημα → δουλεύει και σε iPhone/Safari και browsers εφαρμογών).
+// Σε υπολογιστή (ποντίκι) γίνεται και αυτόματη λήψη.
+let pdfUrl="";
+function pdfReady(btn,blob,filename,error){
+ const box=btn.closest(".panel").querySelector(".pdfready");box.hidden=false;box.className="pdfready"+(error?" err":"");
+ if(error){box.textContent=error;return}
+ if(pdfUrl)URL.revokeObjectURL(pdfUrl);pdfUrl=URL.createObjectURL(blob);
+ box.innerHTML='<b>✅ Το PDF είναι έτοιμο</b><a href="'+pdfUrl+'" target="_blank" rel="noopener">📄 Άνοιγμα PDF</a><a class="alt" href="'+pdfUrl+'" download="'+esc(filename)+'">⬇ Λήψη</a>';
+ let file=null;try{file=new File([blob],filename,{type:"application/pdf"})}catch(e){}
+ if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+  const sh=document.createElement("button");sh.type="button";sh.className="alt";sh.textContent="↗ Κοινοποίηση / Αποθήκευση";
+  sh.addEventListener("click",()=>navigator.share({files:[file],title:filename}).catch(()=>{}));box.appendChild(sh);
+ }
+ box.scrollIntoView({behavior:"smooth",block:"nearest"});
+ if(window.matchMedia&&matchMedia("(pointer:fine)").matches){const a=document.createElement("a");a.href=pdfUrl;a.download=filename;document.body.appendChild(a);a.click();a.remove()}
 }
 function exportPDF(){
  const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(isDouble).length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;

@@ -158,7 +158,9 @@ function extractDeclarations_(known){
         if(!match)continue;
         // Email δηλούντος: ο αποστολέας· αν την καταχώρισε η Γραμματεία, ο μοναδικός παραλήπτης σε κοινοποίηση (cc).
         const ccs=String(msg.getCc()||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,}/gi)||[];
-        const sourceEmail = own && ccs.length===1 ? ccs[0] : fromEmail;
+        // Από τη Γραμματεία: μόνο προσωπικό email σε cc (όχι διευθύνσεις υπηρεσιών @nglgreece.gr, π.χ. grand.chancellor@)· αλλιώς κενό.
+        const personalCc=ccs.filter(e=>!/@nglgreece\.gr$/i.test(e));
+        const sourceEmail = own ? (personalCc.length===1 ? personalCc[0] : '') : fromEmail;
         const first=String(msg.getPlainBody()||'').split(/\n\s*(?:On .+wrote:|Στις .+έγραψε:|From:|Από:|[-]{3,}\s*Forwarded)/i)[0].slice(0,2500);
         // Το όνομα: (1) από το θέμα, (2) από ρητή υπογραφή με τίτλο («Σεβ. Αδ. …»),
         // (3) από γραμμή με ΚΕΦΑΛΑΙΑ στην αρχή του σώματος.

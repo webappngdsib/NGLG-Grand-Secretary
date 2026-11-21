@@ -137,7 +137,8 @@ const dateFmt=value=>{if(!value)return "—";const d=new Date(value);return isNa
 const DOUBLE_PRICE="45€";
 const isDouble=r=>/^Δίκλινο/.test(r.room||"");
 // Δίπλα στο όνομα: «45€» για δίκλινο — ή η ένδειξη της Γραμματείας (overrides.json → price_label), π.χ. «Ιδιοκτήτης Ξενοδοχείου»
-const nameHtml=r=>'<span class="nm"><span>'+esc(r.name)+'</span>'+(r.price_label?'<b class="price lbl">'+esc(r.price_label)+'</b>':isDouble(r)?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
+const isResident=r=>/Κάτοικος/i.test(r.travel||"");
+const nameHtml=r=>'<span class="nm"><span>'+esc(r.display_name||r.name)+'</span>'+(r.price_label?'<b class="price lbl">'+esc(r.price_label)+'</b>':isDouble(r)?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
 const shortDate=v=>{const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"/"+m[2]:""};
 
 // ── Αντιστοίχιση δηλώσεων ↔ Επετηρίδα (εν ενεργεία Μεγάλοι Αξιωματικοί) ──
@@ -200,7 +201,7 @@ async function loadOfficers(){
 // ── Πινάκιο δηλωσάντων ──
 const LABELS=["Α/Α","Ονοματεπώνυμο","Αξίωμα","Μετακίνηση","Δωμάτιο","Ξενοδοχείο","Email"];
 // Σύντομη μετακίνηση (οι ημερομηνίες 18–20/12 είναι κοινές και φαίνονται στην επικεφαλίδα)
-const travelShort=r=>/Ιδιωτικ/i.test(r.travel||"")?"🚗 Ιδιωτικό":"🚌 Λεωφορείο";
+const travelShort=r=>isResident(r)?"🏠 Κάτοικος Κέρκυρας":/Ιδιωτικ/i.test(r.travel||"")?"🚗 Ιδιωτικό":"🚌 Λεωφορείο";
 // Αξίωμα + έλεγχος σε μία στήλη: ✓ πράσινο όταν επαληθεύεται από την Επετηρίδα
 const titleHtml=v=>v.verified?'<span class="verified" title="'+esc(v.check)+'">✓ '+esc(v.title)+'</span>':'<span class="unver" title="'+esc(v.check)+'">'+esc(v.title)+'</span>';
 function view(r){
@@ -212,13 +213,13 @@ function render(){
  table.querySelectorAll("tbody").forEach(t=>t.remove());
  el("nTotal").textContent=records.length;
  el("nDouble").textContent=records.filter(isDouble).length;
- el("nPending").textContent=records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length;
+ el("nPending").textContent=records.filter(x=>!isResident(x)&&x.hotel_status!=="Επιβεβαιωμένη κράτηση").length;
  el("countShown").textContent="Εμφανίζονται "+list.length+" από "+records.length+" δηλώσεις";
  if(!list.length){table.insertAdjacentHTML("beforeend",`<tbody><tr><td colspan="7" class="empty">${records.length?"Δεν βρέθηκε το όνομα.":"Δεν υπάρχουν επιβεβαιωμένες δηλώσεις ακόμη."}</td></tr></tbody>`);return}
  list.forEach((r,i)=>{
   const v=view(r),status=r.hotel_status||"Εκκρεμεί";
   const cells=[[String(i+1),"aa"],[nameHtml(r),"name",true],[titleHtml(v),"ti",true],[travelShort(r),"tr nw"],[r.room||"Δεν δηλώθηκε","ro"],
-   [`<span class="pill ${status==="Επιβεβαιωμένη κράτηση"?"":"wait"}">${esc(status)}</span>`,"st nw",true],[r.email||"—","email"]];
+   [`<span class="pill ${status==="Εκκρεμεί"?"wait":""}">${esc(status)}</span>`,"st nw",true],[r.email||"—","email"]];
   const main="<tr>"+cells.map(([t,c,html],k)=>`<td${c?` class="${c}"`:""} data-label="${LABELS[k]}">${html?t:esc(t)}</td>`).join("")+"</tr>";
   const com=r.comments?`<tr class="crow"><td colspan="7"><span class="clabel">Σχόλια</span>${esc(r.comments)}</td></tr>`:"";
   table.insertAdjacentHTML("beforeend",`<tbody class="rec">${main}${com}</tbody>`);
@@ -235,7 +236,7 @@ function renderMax(){
  const shown=rows.filter(x=>maxFilter==="all"||x.status===maxFilter);
  el("maxRows").innerHTML=shown.length?shown.map((x,i)=>{
   const a=x.attendee;
-  const st=a?`✔ Δήλωσε${a.declaration_date?" "+shortDate(a.declaration_date):""}${x.kind==="surname"?" · (έλεγχος ονόματος: "+esc(a.name)+")":""}`:x.excused?`⚠ Δεν θα έρθει — ${esc(x.excused.reason||"δικαιολογημένη απουσία")}`:"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ";
+  const st=a?`✔ ${isResident(a)?"Κάτοικος Κέρκυρας":"Δήλωσε"}${a.declaration_date?" "+shortDate(a.declaration_date):""}${x.kind==="surname"?" · (έλεγχος ονόματος: "+esc(a.name)+")":""}`:x.excused?`⚠ Δεν θα έρθει — ${esc(x.excused.reason||"δικαιολογημένη απουσία")}`:"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ";
   return `<tr class="${x.status}"><td class="aa">${i+1}</td><td>${esc(x.officer.title)}</td><td class="who">${esc(x.officer.name)}</td><td class="st">${st}</td></tr>`;
  }).join(""):'<tr><td colspan="4" class="empty">Καμία εγγραφή σε αυτό το φίλτρο.</td></tr>';
  const ex=el("maxExtra");ex.hidden=!others.length;
@@ -372,7 +373,7 @@ function pdfReady(btn,blob,filename,error){
  if(window.matchMedia&&matchMedia("(pointer:fine)").matches){const a=document.createElement("a");a.href=pdfUrl;a.download=filename;document.body.appendChild(a);a.click();a.remove()}
 }
 function exportPDF(){
- const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(isDouble).length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
+ const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(isDouble).length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>!isResident(x)&&x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
  return makePdf({btn:el("pdfBtn"),title:"Κατάσταση Μετακίνησης &amp; Διαμονής Μεγάλων Αξιωματικών",sum:s,filename:"Kerkyra-2026-Metakinisi-Diamoni.pdf",
   cols:[["Α/Α",4],["Ονοματεπώνυμο",23],["Αξίωμα (Επετηρίδα)",22],["Μετακίνηση",11],["Δωμάτιο",13],["Ξενοδοχείο",9],["Email",18]],
   items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,nameHtml(r),(v.verified?"✓ ":"")+esc(v.title),esc(travelShort(r).replace(/^\S+\s/,"")),esc(r.room||"Δεν δηλώθηκε"),esc(r.hotel_status||"Εκκρεμεί"),esc(r.email||"—")],comment:r.comments||""}})});
@@ -383,7 +384,7 @@ function exportMaxPDF(){
  const tail=others.length?`<div class="xl"><b>Δηλώσεις εκτός καταλόγου εν ενεργεία ΜΑΞ (${others.length}):</b> ${others.map(r=>esc(r.name)).join(" · ")}</div>`:"";
  return makePdf({btn:el("maxPdfBtn"),title:"Πινάκιο ΜΑΞ — Δηλώσεις Μετακίνησης",sum:s,tail,filename:"Kerkyra-2026-Pinakio-MAX.pdf",
   cols:[["Α/Α",5],["Ονοματεπώνυμο",30],["Αξίωμα",38],["Μετακίνηση",27]],
-  items:rows.map((x,i)=>({cls:x.status,cells:[i+1,esc(x.officer.name),esc(x.officer.title),x.attendee?"✔ Δήλωσε"+(x.attendee.declaration_date?" "+shortDate(x.attendee.declaration_date):""):x.excused?"⚠ Δεν θα έρθει — "+esc(x.excused.reason||""):"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ"]}))});
+  items:rows.map((x,i)=>({cls:x.status,cells:[i+1,esc(x.officer.name),esc(x.officer.title),x.attendee?"✔ "+(isResident(x.attendee)?"Κάτοικος Κέρκυρας":"Δήλωσε")+(x.attendee.declaration_date?" "+shortDate(x.attendee.declaration_date):""):x.excused?"⚠ Δεν θα έρθει — "+esc(x.excused.reason||""):"✖ ΔΕΝ ΕΧΕΙ ΔΗΛΩΣΕΙ"]}))});
 }
 
 el("maxBtn").addEventListener("click",()=>toggleMax());el("maxCloseBtn").addEventListener("click",()=>toggleMax(false));

@@ -153,4 +153,20 @@ ${err ? `<p class="warn">${esc(err)}</p>` : ''}
   };
 }
 
-module({ id: 'corfu-remind', routes: { '/corfu': page } });
+// Πλακίδιο Αρχικής (17ο): Μεγάλη Συνέλευση 19 Δεκεμβρίου 2026 — δηλώσεις, Πινάκια, υπενθύμιση (οι αριθμοί φορτώνονται ζωντανά)
+async function glRefresh() {
+  const box = document.querySelector('[data-tile="grand-lodge-2026"] .gl-live');
+  if (!box) return;
+  try {
+    const [a, o, x] = await Promise.all(['corfu-2026/attendees.json', 'corfu-2026/active-officers.json', 'corfu-2026/excused.json'].map((u) => getJson(u).catch(() => ({}))));
+    const rows = remindRows(a.attendees || [], o.officers || [], x.excused || []), c = (s) => rows.filter((r) => r.status === s).length;
+    const sum = document.querySelector('[data-tile="grand-lodge-2026"] > summary');
+    if (sum) { let b = sum.querySelector('.dnum'); if (!b) { b = document.createElement('span'); b.className = 'dnum'; sum.querySelector('.caret').before(b); } b.textContent = String((a.attendees || []).length); b.title = `${(a.attendees || []).length} δηλώσεις μετακίνησης · ${c('pending')} ΜΑΞ δεν δήλωσαν`; }
+    box.innerHTML = `<div class="big">${(a.attendees || []).length} δηλώσεις μετακίνησης</div><small class="muted">ΜΑΞ: <b style="color:#0d7a3e">${c('ok')} δήλωσαν</b> · <b style="color:#b45309">${c('exc')} απόντες</b> · <b style="color:#c01d1d">${c('pending')} δεν δήλωσαν</b> (από ${rows.length})</small>`;
+  } catch { box.innerHTML = '<small class="muted">Δεν φορτώθηκαν τα στοιχεία.</small>'; }
+}
+const glTile = () => { setTimeout(glRefresh, 0); return `<div class="dtile gold" data-tile="grand-lodge-2026"><h3><a href="corfu-2026/" target="_blank" rel="noopener">🏛 Μεγάλη Συνέλευση 19 Δεκεμβρίου 2026</a></h3>
+<div class="gl-live"><div class="big">…</div><small class="muted">Κέρκυρα · Μετακίνηση & Διαμονή ΜΑΞ</small></div>
+<div class="acts"><a class="btn primary" href="corfu-2026/" target="_blank" rel="noopener">📋 Πινάκιο δηλωσάντων</a><a class="btn" href="corfu-2026/#max" target="_blank" rel="noopener">🏛 Πινάκιο ΜΑΞ</a><a class="btn" href="#/corfu">📧 Υπενθύμιση σε όσους δεν δήλωσαν</a></div></div>`; };
+
+module({ id: 'corfu-remind', routes: { '/corfu': page }, tile: { order: 96, render: glTile } });

@@ -5180,7 +5180,7 @@ def test_decree_dress_page_single_brother(app):
       return [x.dressRole(d(1, { action: 'appoint', decree_office: 'Μέγας Γραμματεύς' }, [{}])), x.dressRole(d(2, { action: 'appoint' }, [{ office: 'Επαρχιακός Μέγας Διδάσκαλος' }])),
         x.dressRole(d(3, { action: 'award', award_office: 'Μέγας Ξιφοφόρος' }, [{}])), x.dressRole(d(4, { action: 'appoint' }, [{ office: 'Μέγας Ευχέτης' }])),
         x.dressRole(d(5, { action: 'appoint' }, [{ office: 'Μέγας Επιμελητής του Έτους' }])), x.dressRole(d(6, { action: 'appoint' }, [{ office: 'Μέγας Επιμελητής του Έτους', honorific: 'Σεβ. Αδ.' }]))]; }""")
-    assert m == [['grand', 'grand_secretary'], ['province', 'pgm'], ['past', 'past_grand_officer'], ['grand', 'grand_officer'], ['stewards', 'steward_bro'], ['stewards', 'steward_wm']], m
+    assert m == [['grand', 'grand_secretary'], ['province', 'pgm'], ['past', 'past_grand_officer'], ['grand', 'grand_chaplain'], ['stewards', 'steward_bro'], ['stewards', 'steward_wm']], m
     # αρχική: πλακίδιο 15 «👔 Ενδυμασία» με τον Οδηγό Ενδυμασίας
     app.go('/')
     tiles = app.page.locator('.dash > .dtile, .dash > details.dtile')

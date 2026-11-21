@@ -8,7 +8,13 @@ import { mailButtons, senderBanner } from '../core/mail.js';
 import { decreeKey } from './decree-templates.js';
 import { decreeMeta, decreePeople } from './decree-sync.js';
 import { officeOf } from './decree-intent.js';
+import { DEC_MAP } from './decree-catalog.js';
 
+// Μεγάλη Στοά στον Οδηγό Ενδυμασίας: όλα τα αξιώματα του Κανόνα 5 (θέση προβαδίσματος → id του Οδηγού)
+const GRAND_BY_RANK = { 1: 'gm', 2: 'pro_gm', 5: 'deputy_gm', 7: 'assistant_gm', 13: 'sgw', 15: 'jgw', 17: 'grand_chaplain', 19: 'president_bgp', 21: 'grand_registrar', 23: 'grand_secretary',
+  25: 'grand_chancellor', 27: 'grand_sec_instruction', 29: 'grand_treasurer', 31: 'president_charity', 33: 'grand_doc', 35: 'grand_sword_bearer', 37: 'grand_works', 39: 'grand_inspector',
+  41: 'deputy_grand_secretary', 43: 'deputy_grand_chancellor', 45: 'deputy_grand_doc', 47: 'grand_librarian', 49: 'sgd', 51: 'jgd', 53: 'assistant_grand_chancellor', 55: 'assistant_grand_secretary',
+  57: 'grand_regalia', 59: 'grand_organist', 61: 'grand_standard_bearer', 63: 'grand_pursuivant', 65: 'grand_steward_year', 66: 'grand_tyler' };
 export const DRESS_CODE_URL = 'https://webappngdsib.github.io/NGLG-DRESS-CODE/';
 const PROVINCIAL = /^(Επαρχιακός|Περιφερειακός) Μέγας Διδάσκαλος$/;
 // Αξίωμα του Διατάγματος → [κατηγορία, βαθμός] του Οδηγού Ενδυμασίας (assets/catalog.js)
@@ -30,7 +36,8 @@ export function dressRole(d, a = decreePeople(d)[0] || {}) {
   if (/^Μέγας Επιμελητής/.test(o)) return ['stewards', /Σεβ/.test(a.honorific || '') ? 'steward_wm' : 'steward_bro'];
   if (PROVINCIAL.test(o)) return ['province', 'pgm'];
   if (/^Αντικαταστάτης (Επαρχιακός|Περιφερειακός)/.test(o)) return ['province', 'prov_officer'];
-  return ['grand', 'grand_officer'];
+  const id = GRAND_BY_RANK[(DEC_MAP[o] || {}).precedence];
+  return ['grand', id || 'grand_officer'];
 }
 // Μόνο Διατάγματα με έναν Αδελφό (όχι Γενικά)
 export const hasDress = (d) => !!d && decreeKey(d) !== 'decree-general' && decreePeople(d).length === 1;

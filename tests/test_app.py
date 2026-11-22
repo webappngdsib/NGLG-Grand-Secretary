@@ -5191,6 +5191,7 @@ def test_decree_dress_page_single_brother(app):
     tiles = app.page.locator('.dash > .dtile, .dash > details.dtile')
     assert tiles.count() == 17 and '👔 Ενδυμασία' in tiles.nth(15).inner_text() and 'Μεγάλη Συνέλευση 19 Δεκεμβρίου 2026' in tiles.nth(16).inner_text() and any('📜 Επετηρίδα' in tiles.nth(i).inner_text() for i in range(17)), [tiles.nth(i).inner_text()[:20] for i in range(tiles.count())]
     assert tiles.nth(15).locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/"]').count() >= 1
+    assert tiles.nth(15).locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/builder.html"]').count() == 1 and 'Builder' in tiles.nth(15).text_content()
     # μενού και Πύλη: σύνδεσμος στον Οδηγό Ενδυμασίας (νέα καρτέλα)
     assert app.page.locator('a[href="https://webappngdsib.github.io/NGLG-DRESS-CODE/"][target=_blank]').count() >= 1
 

@@ -16,6 +16,7 @@ const GRAND_BY_RANK = { 1: 'gm', 2: 'pro_gm', 5: 'deputy_gm', 7: 'assistant_gm',
   41: 'deputy_grand_secretary', 43: 'deputy_grand_chancellor', 45: 'deputy_grand_doc', 47: 'grand_librarian', 49: 'sgd', 51: 'jgd', 53: 'assistant_grand_chancellor', 55: 'assistant_grand_secretary',
   57: 'grand_regalia', 59: 'grand_organist', 61: 'grand_standard_bearer', 63: 'grand_pursuivant', 65: 'grand_steward_year', 66: 'grand_tyler' };
 export const DRESS_CODE_URL = 'https://webappngdsib.github.io/NGLG-DRESS-CODE/';
+export const DRESS_BUILDER_URL = DRESS_CODE_URL + 'builder.html'; // δόμηση ενδυμασίας ανά βαθμό
 const PROVINCIAL = /^(Επαρχιακός|Περιφερειακός) Μέγας Διδάσκαλος$/;
 // Αξίωμα του Διατάγματος → [κατηγορία, βαθμός] του Οδηγού Ενδυμασίας (assets/catalog.js)
 export function dressRole(d, a = decreePeople(d)[0] || {}) {
@@ -84,7 +85,8 @@ function dressTile() {
   const last = ds[0];
   return `<div class="dtile dress-tile"><h3><a href="${DRESS_CODE_URL}" target="_blank" rel="noopener">👔 Ενδυμασία</a></h3><div class="big">${ds.length} Διατάγματα</div>
 <div class="muted">Οδηγός Τεκτονικής Περιβολής ΕΜΣτΕ — ανά βαθμό και αξίωμα, με εκτύπωση / PDF${last ? ` · τελευταίο: <a href="#/decrees/${last.id}/dress">${esc(`${last.decree_no}/${last.decree_year}`)}</a>` : ''}</div>
-<div class="acts"><a class="btn primary" href="${DRESS_CODE_URL}" target="_blank" rel="noopener">Οδηγός Ενδυμασίας ↗</a><a class="btn" href="#/decrees">Διατάγματα</a></div></div>`;
+<div class="muted">🛠 <b>Builder</b> — δόμηση της ενδυμασίας ανά βαθμό (εικόνες, θέσεις, αποθήκευση, εξαγωγή για δημοσίευση)</div>
+<div class="acts"><a class="btn primary" href="${DRESS_CODE_URL}" target="_blank" rel="noopener">Οδηγός Ενδυμασίας ↗</a><a class="btn" href="${DRESS_BUILDER_URL}" target="_blank" rel="noopener">🛠 Builder ↗</a><a class="btn" href="#/decrees">Διατάγματα</a></div></div>`;
 }
 
 module({ id: 'decree-dress', routes: { '/decrees/:id/dress': dressPage }, tile: { order: 95, render: dressTile } });

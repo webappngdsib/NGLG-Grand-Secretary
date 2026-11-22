@@ -5444,6 +5444,20 @@ def test_nameday_second_date_iakovos(app):
     assert {'Ιακωβάκης', 'Greenakis'} <= set(r[0]) and {'Ιακωβάκης', 'Greenakis'} <= set(r[1]), r
     assert not app.errors, app.errors
 
+
+def test_greeting_feast_reference(app):
+    """Ευχές: αναφορά στην εορτή της ημέρας — «Σήμερα, 22 Νοεμβρίου, είναι η μνήμη του Οσίου Ιακώβου του εν Ευβοία.»"""
+    app.connect_local()
+    r = app.page.evaluate("""async () => { const n = await import('./modules/namedays.js'); const { db } = await import('./core/store.js');
+      const { today } = await import('./core/util.js'); const y = today().slice(0, 4);
+      await db.save('x', (tx) => { tx.insert('namedays', { name: 'Δοκιμάσιος', name_key: 'δοκιμασιοσ', official: 'Δοκιμάσιος', md: '05-05', feast: 'η μνήμη του Αγίου Δοκιμασίου' }); });
+      return [n.feastSentence('Ιάκωβος', `${y}-11-22`), n.feastSentence('Δοκιμάσιος', `${y}-05-05`), n.feastSentence('Άγνωστος', `${y}-05-05`),
+              n.feastSentence('Ιάκωβος', today().slice(5) === '11-22' ? today() : 'x'), db.setting('greet_body')]; }""")
+    assert r[0].endswith('22 Νοεμβρίου είναι η μνήμη του Οσίου Ιακώβου του εν Ευβοία.') or r[0].endswith('22 Νοεμβρίου ήταν η μνήμη του Οσίου Ιακώβου του εν Ευβοία.') or r[0].startswith('Σήμερα, 22 Νοεμβρίου, είναι'), r
+    assert 'η μνήμη του Αγίου Δοκιμασίου.' in r[1] and r[2] == '', r
+    assert '{Αναφορά Εορτής}' in r[4], r[4]
+    assert not app.errors, app.errors
+
 def test_corfu_correction_email_replaces_declaration(tmp_path):
     """«… - διόρθωση» από υπηρεσιακή διεύθυνση: ίδιο πρόσωπο (όχι νέο όνομα), email από το cc, σημειώσεις της διόρθωσης."""
     import json as _json, subprocess as _sp

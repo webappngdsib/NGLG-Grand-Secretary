@@ -4,7 +4,7 @@ import { officesOf } from '../core/officers.js';
 import { db } from '../core/store.js';
 import { module, onSubmit, go, bind, notice, toast, table } from '../core/app.js';
 import { crud } from '../core/crud.js';
-import { esc, foldName, today, addDays, parseIso, isoDate, dayStr, fmtDate, longDate, sortBy, EMAIL_RE, splitEmails, exportXlsx, DAYS } from '../core/util.js';
+import { esc, foldName, today, addDays, parseIso, isoDate, dayStr, fmtDate, longDate, sortBy, EMAIL_RE, splitEmails, exportXlsx, DAYS, MONTHS_GEN } from '../core/util.js';
 import { richPlain } from '../core/rich.js';
 import { senderBanner, gmailUrl, copyHtml, mailButtons, senderFor, parseCcRules } from '../core/mail.js';
 import { reportPaper, printPaper, gsSignatureText } from '../core/paper.js';
@@ -22,7 +22,7 @@ const VOC = ['Αδελφέ', 'Σεβάσμιε Αδελφέ', 'Λίαν Σεβά
 const SUBJECT_OLD = 'Χρόνια πολλά για την ονομαστική σας εορτή';
 const SUBJECT_DEFAULT = '{Τίτλος} {Όνομα} {Επώνυμο} - Ευχές για την ονομαστική σας εορτή από τον Μέγα Διδάσκαλο';
 const BODY_OLD = 'Προς: {Τίτλος} {Όνομα} {Επώνυμο}\n\nΑγαπητέ {Προσφώνηση},\n\nΣας μεταφέρω, με ιδιαίτερη χαρά, τις θερμότερες ευχές του Σεβτ. Αδ. Ιωάννη Μπενετάτου, Μεγάλου Διδασκάλου της Εθνικής Μεγάλης Στοάς της Ελλάδος, για την ονομαστική σας εορτή.\n\nΕύχεται από καρδιάς υγεία, χαρά, οικογενειακή ευτυχία και κάθε καλό στη ζωή και στο έργο σας.\n\nΟ Μέγας Γραμματεύς\nΠσεβ. Αδ. Δημήτριος Σκιαδόπουλος';
-const BODY_DEFAULT = 'Προς: {Τίτλος} {Όνομα} {Επώνυμο}\n\nΑθήνα, {Σήμερα}\n\nΑγαπητέ {Προσφώνηση},\n\nΣας μεταφέρω, με ιδιαίτερη χαρά, τις θερμότερες ευχές του [b]Σεβτ. Αδ. Ιωάννη Μπενετάτου[/b], Μεγάλου Διδασκάλου της Εθνικής Μεγάλης Στοάς της Ελλάδος, για την ονομαστική σας εορτή της {Ημερομηνία Εορτής}.\n\nΕύχεται από καρδιάς υγεία, χαρά, οικογενειακή ευτυχία και κάθε καλό στη ζωή και στο έργο σας.\n\nΜε αφοσίωση και εκτίμηση,\n\nΠσεβ. Αδ. Δημήτριος Σκιαδόπουλος\nΜέγας Γραμματεύς';
+const BODY_DEFAULT = 'Προς: {Τίτλος} {Όνομα} {Επώνυμο}\n\nΑθήνα, {Σήμερα}\n\nΑγαπητέ {Προσφώνηση},\n\n{Αναφορά Εορτής}\n\nΣας μεταφέρω, με ιδιαίτερη χαρά, τις θερμότερες ευχές του [b]Σεβτ. Αδ. Ιωάννη Μπενετάτου[/b], Μεγάλου Διδασκάλου της Εθνικής Μεγάλης Στοάς της Ελλάδος, για την ονομαστική σας εορτή της {Ημερομηνία Εορτής}.\n\nΕύχεται από καρδιάς υγεία, χαρά, οικογενειακή ευτυχία και κάθε καλό στη ζωή και στο έργο σας.\n\nΜε αφοσίωση και εκτίμηση,\n\nΠσεβ. Αδ. Δημήτριος Σκιαδόπουλος\nΜέγας Γραμματεύς';
 db.defaultSettings({ greet_subject: SUBJECT_DEFAULT, greet_body: BODY_DEFAULT, greet_bcc_self: '', greet_cc_rules: '' });
 // Κανόνες κοινοποίησης ευχών (Ρυθμίσεις): «αν το email περιέχει Χ => Υ» → κρυφή κοινοποίηση (Bcc) στο Υ·
 // με «cc:» μπροστά (π.χ. «Χ => cc: Υ») → ορατή κοινοποίηση (Κοιν.). → [ifs, add, kind]
@@ -31,6 +31,11 @@ export const ccRules = (v = db.setting('greet_cc_rules')) => parseCcRules(v);
 db.migrate('greet-signature-unified-2026-10', (tx) => { // ενιαία αποφώνηση/υπογραφή και στις ευχές
   const v = String(tx.setting('greet_body') || ''); const n = v.replace(/\n*Ο Μέγας Γραμματεύς\s*\n\s*Πσεβ\. Αδ\. Δημήτριος Σκιαδόπουλος\s*$/, '\n\nΜε αφοσίωση και εκτίμηση,\n\nΠσεβ. Αδ. Δημήτριος Σκιαδόπουλος\nΜέγας Γραμματεύς');
   if (n !== v) tx.setting('greet_body', n);
+});
+// Αναφορά στην εορτή της ημέρας («Σήμερα, 22 Νοεμβρίου, είναι η μνήμη του Οσίου Ιακώβου του εν Ευβοία.») μετά την προσφώνηση
+db.migrate('greet-feast-reference-2026-11', (tx) => {
+  const v = String(tx.setting('greet_body') || '');
+  if (v && !v.includes('{Αναφορά Εορτής}') && v.includes('Αγαπητέ {Προσφώνηση},\n\n')) tx.setting('greet_body', v.replace('Αγαπητέ {Προσφώνηση},\n\n', 'Αγαπητέ {Προσφώνηση},\n\n{Αναφορά Εορτής}\n\n'));
 });
 db.migrate('greet-subject-title-2026-10', (tx) => { const v = tx.setting('greet_subject'); if (!v || v === SUBJECT_OLD) tx.setting('greet_subject', SUBJECT_DEFAULT); });
 db.migrate('greet-body-date-2026-10', (tx) => { const v = tx.setting('greet_body'); if (!v || v === BODY_OLD || !/\{Σήμερα\}/.test(v)) tx.setting('greet_body', BODY_DEFAULT); });
@@ -68,6 +73,41 @@ export function namedayIn(it, y) {
   return d;
 }
 const label = (it) => it.official || it.name || '';
+// Η εορτή/μνήμη της ημέρας, για την αναφορά στις ευχές («Σήμερα, 22 Νοεμβρίου, είναι η μνήμη του Οσίου Ιακώβου του εν Ευβοία.»).
+// Πρώτα το πεδίο «Εορτή / μνήμη» της γραμμής του Εορτολογίου (διορθώνεται από τον χρήστη), αλλιώς οι γνωστές σταθερές εορτές παρακάτω.
+export const FEASTS = {
+  'Ιάκωβος|11-22': 'η μνήμη του Οσίου Ιακώβου του εν Ευβοία', 'Ιάκωβος|10-23': 'η μνήμη του Αγίου Αποστόλου Ιακώβου του Αδελφοθέου',
+  'Μάριος|11-21': 'η εορτή των Εισοδίων της Θεοτόκου', 'Γεώργιος|04-23': 'η μνήμη του Αγίου Μεγαλομάρτυρος Γεωργίου του Τροπαιοφόρου',
+  'Δημήτριος|10-26': 'η μνήμη του Αγίου Μεγαλομάρτυρος Δημητρίου του Μυροβλήτου', 'Νικόλαος|12-06': 'η μνήμη του Αγίου Νικολάου, Αρχιεπισκόπου Μύρων της Λυκίας',
+  'Ιωάννης|01-07': 'η Σύναξη του Τιμίου Προδρόμου και Βαπτιστού Ιωάννου', 'Κωνσταντίνος|05-21': 'η μνήμη των Αγίων Ισαποστόλων Κωνσταντίνου και Ελένης',
+  'Παναγιώτης|08-15': 'η εορτή της Κοιμήσεως της Θεοτόκου', 'Βασίλειος|01-01': 'η μνήμη του Αγίου Βασιλείου του Μεγάλου',
+  'Αθανάσιος|01-18': 'η μνήμη των Αγίων Αθανασίου και Κυρίλλου, Αρχιεπισκόπων Αλεξανδρείας', 'Αντώνιος|01-17': 'η μνήμη του Οσίου Αντωνίου του Μεγάλου',
+  'Χαράλαμπος|02-10': 'η μνήμη του Αγίου Ιερομάρτυρος Χαραλάμπους', 'Ευάγγελος|03-25': 'η εορτή του Ευαγγελισμού της Θεοτόκου',
+  'Χρήστος|12-25': 'η εορτή της Γεννήσεως του Χριστού', 'Σπυρίδων|12-12': 'η μνήμη του Αγίου Σπυρίδωνος του Θαυματουργού',
+  'Στυλιανός|11-26': 'η μνήμη του Οσίου Στυλιανού του Παφλαγόνος', 'Ανδρέας|11-30': 'η μνήμη του Αγίου Αποστόλου Ανδρέου του Πρωτοκλήτου',
+  'Μιχαήλ|11-08': 'η Σύναξη των Αρχαγγέλων Μιχαήλ και Γαβριήλ', 'Γαβριήλ|11-08': 'η Σύναξη των Αρχαγγέλων Μιχαήλ και Γαβριήλ',
+  'Πέτρος|06-29': 'η μνήμη των Αγίων Αποστόλων Πέτρου και Παύλου', 'Παύλος|06-29': 'η μνήμη των Αγίων Αποστόλων Πέτρου και Παύλου',
+  'Ηλίας|07-20': 'η μνήμη του Προφήτου Ηλιού του Θεσβίτου', 'Παντελεήμων|07-27': 'η μνήμη του Αγίου Μεγαλομάρτυρος Παντελεήμονος του Ιαματικού',
+  'Σταύρος|09-14': 'η εορτή της Υψώσεως του Τιμίου Σταυρού', 'Φώτιος|02-06': 'η μνήμη του Αγίου Φωτίου του Μεγάλου, Πατριάρχου Κωνσταντινουπόλεως',
+  'Γρηγόριος|01-25': 'η μνήμη του Αγίου Γρηγορίου του Θεολόγου', 'Λουκάς|10-18': 'η μνήμη του Αποστόλου και Ευαγγελιστού Λουκά',
+  'Ματθαίος|11-16': 'η μνήμη του Αποστόλου και Ευαγγελιστού Ματθαίου', 'Φίλιππος|11-14': 'η μνήμη του Αγίου Αποστόλου Φιλίππου',
+  'Ελευθέριος|12-15': 'η μνήμη του Αγίου Ιερομάρτυρος Ελευθερίου', 'Στέφανος|12-27': 'η μνήμη του Αγίου Πρωτομάρτυρος και Αρχιδιακόνου Στεφάνου',
+  'Νεκτάριος|11-09': 'η μνήμη του Αγίου Νεκταρίου, Επισκόπου Πενταπόλεως', 'Μηνάς|11-11': 'η μνήμη του Αγίου Μεγαλομάρτυρος Μηνά',
+  'Σάββας|12-05': 'η μνήμη του Οσίου Σάββα του Ηγιασμένου', 'Χριστόφορος|05-09': 'η μνήμη του Αγίου Μάρτυρος Χριστοφόρου',
+  'Ευστράτιος|12-13': 'η μνήμη των Αγίων Πέντε Μαρτύρων Ευστρατίου, Αυξεντίου, Ευγενίου, Μαρδαρίου και Ορέστου',
+};
+export function feastOf(lbl, date) {
+  const md = String(date || '').slice(5), y = Number(String(date || '').slice(0, 4));
+  const row = db.all('namedays').find((it) => it.feast && label(it) === lbl && (() => { const d = namedayIn(it, y); return d && isoDate(d) === date; })());
+  return (row && row.feast) || FEASTS[`${lbl}|${md}`] || '';
+}
+// «Σήμερα, 22 Νοεμβρίου, είναι η μνήμη …» (ή «Στις 22 Νοεμβρίου είναι/ήταν …» αν οι ευχές στέλνονται άλλη μέρα)
+export function feastSentence(lbl, date) {
+  const f = feastOf(lbl, date), d = parseIso(date);
+  if (!f || !d) return '';
+  const dm = `${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`, t = today();
+  return date === t ? `Σήμερα, ${dm}, είναι ${f}.` : `Στις ${dm} ${date < t ? 'ήταν' : 'είναι'} ${f}.`;
+}
 export const greetEmail = (m) => noContact(m) ? '' : [m.email || '', ...splitEmails(m.other_emails)].map((e) => e.trim()).find((e) => EMAIL_RE.test(e)) || '';
 const sentMap = () => Object.fromEntries(db.all('greetings_log').filter((g) => g.member_id).map((g) => [`${g.member_id}|${g.feast_date}`, g.sent_on]));
 
@@ -238,7 +278,7 @@ export function epName(m) {
   return { first: fi >= 0 ? accentName(rest[fi]) : out.first, last: accentName(ws[li]) };
 }
 const fill = (t, m, rk, lbl, d) => { const n = epName(m); return t.replaceAll('{Προσφώνηση}', VOC[rk + 1]).replaceAll('{Τίτλος}', TITLE[rk + 1]).replaceAll('{Όνομα}', n.first).replaceAll('{Επώνυμο}', n.last)
-  .replaceAll('{Εορτή}', lbl || '').replaceAll('{Ημερομηνία Εορτής}', longDate(d)).replaceAll('{Ημερομηνία}', dayStr(d)).replaceAll('{Σήμερα}', longDate(today())); };
+  .replaceAll('{Αναφορά Εορτής}', feastSentence(lbl, d)).replaceAll('{Εορτή}', lbl || '').replaceAll('{Ημερομηνία Εορτής}', longDate(d)).replaceAll('{Ημερομηνία}', dayStr(d)).replaceAll('{Σήμερα}', longDate(today())).replace(/\n{3,}/g, '\n\n'); };
 const PLAQUE = '<table width="100%" cellpadding="0" cellspacing="0" style="border:6px ridge #c9a54e;border-collapse:separate;margin:0 0 26px"><tr><td bgcolor="#14234a" align="center" style="background-color:#14234a;padding:6px">'
   + '<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#14234a" style="border:1px solid #c9a54e;border-collapse:separate;background-color:#14234a"><tr><td align="center" bgcolor="#14234a" style="padding:12px 10px 12px;text-align:center;background-color:#14234a">'
   + '<div style="color:#c9a54e;font-size:12px;letter-spacing:8px">✦ ✦ ✦</div><div style="font-family:Georgia,\'Times New Roman\',serif;font-size:27px;font-weight:bold;letter-spacing:5px;line-height:1.3;color:#f0d78c;margin-top:4px">ΕΘΝΙΚΗ ΜΕΓΑΛΗ ΣΤΟΑ</div>'
@@ -322,7 +362,7 @@ function greetPage() {
     title: 'Ευχές',
     html: `<p><a href="#/namedays">← Εορτολόγιο</a></p><h1>Ευχές ονομαστικής εορτής</h1>${senderBanner('general')}
 <div class="card"><p class="muted" style="margin-top:0">Για κάθε εορτάζοντα: <b>1.</b> πατήστε «Αντιγραφή & Gmail» — αντιγράφεται το μορφοποιημένο μήνυμα (με την πλακέτα) και ανοίγει το Gmail με παραλήπτη, κρυφή κοινοποίηση και θέμα· στο Gmail πατήστε <b>Επικόλληση</b> (Ctrl+V) στο κείμενο και «Αποστολή». <b>2.</b> Πατήστε «Στάλθηκε» για το ιστορικό.
-Τα {Τίτλος}, {Προσφώνηση}, {Όνομα}, {Επώνυμο} (από την Επετηρίδα, όπου υπάρχει), {Εορτή}, {Ημερομηνία Εορτής}, {Σήμερα} συμπληρώνονται αυτόματα.</p>
+Τα {Τίτλος}, {Προσφώνηση}, {Όνομα}, {Επώνυμο} (από την Επετηρίδα, όπου υπάρχει), {Εορτή}, {Ημερομηνία Εορτής}, {Σήμερα} και {Αναφορά Εορτής} (π.χ. «Σήμερα, 22 Νοεμβρίου, είναι η μνήμη του Οσίου Ιακώβου του εν Ευβοία.» — από το πεδίο «Εορτή / μνήμη» του Εορτολογίου) συμπληρώνονται αυτόματα.</p>
 <label>Θέμα</label><input id="gSubj" value="${esc(db.setting('greet_subject'))}"><label style="margin-top:10px">Κείμενο</label><textarea id="gBody" data-rich style="min-height:240px">${esc(db.setting('greet_body'))}</textarea>
 <div style="margin:8px 0;display:flex;flex-wrap:wrap;gap:6px 18px"><label class="chk"><input type="checkbox" id="gGm"${gmCc.length ? ' checked' : ' disabled'}> Κοινοποίηση (Κοιν.) στον Μέγα Διδάσκαλο: ${esc(gmCc.join(', ') || '— (Ρυθμίσεις → «Email Μεγάλου Διδασκάλου»)')}</label>
 <label class="chk"><input type="checkbox" id="gProv" checked> Κρυφή κοινοποίηση στη Γραμματεία και στον ΕπΜΔ της Επαρχίας</label>
@@ -470,9 +510,9 @@ module({
       intro: () => '<p class="muted">Η αντιστοίχιση γίνεται με το <b>πρώτο όνομα</b> του μέλους (χωρίς τόνους). Οι κινητές εορτές ορίζονται ως ημέρες από το Πάσχα (π.χ. «0» = Πάσχα).</p>',
       fields: [{ k: 'name', label: 'Όνομα (όπως γράφεται στο Μητρώο)', required: true }, { k: 'official', label: 'Επίσημη ονομασία εορτής', placeholder: 'π.χ. Γεώργιος' },
         { k: 'md', label: 'Σταθερή ημερομηνία (ΜΜ-ΗΗ)', placeholder: 'π.χ. 04-23' }, { k: 'easter', label: 'Ή κινητή: ημέρες από το Πάσχα', placeholder: 'π.χ. 0 ή 50' },
-        { k: 'rule', label: 'Κανόνας', type: 'select', options: Object.entries(RULES) }, { k: 'note', label: 'Σημείωση', full: true }],
-      sort: (xs) => sortBy(xs, 'name_key'), search: ['name', 'official', 'note'],
-      columns: [{ label: 'Όνομα', v: (x) => `<b>${esc(x.name)}</b>` }, { label: 'Εορτή', v: (x) => esc(x.official) },
+        { k: 'rule', label: 'Κανόνας', type: 'select', options: Object.entries(RULES) }, { k: 'feast', label: 'Εορτή / μνήμη (για την αναφορά στις ευχές)', placeholder: 'π.χ. η μνήμη του Οσίου Ιακώβου του εν Ευβοία', full: true }, { k: 'note', label: 'Σημείωση', full: true }],
+      sort: (xs) => sortBy(xs, 'name_key'), search: ['name', 'official', 'note', 'feast'],
+      columns: [{ label: 'Όνομα', v: (x) => `<b>${esc(x.name)}</b>` }, { label: 'Εορτή', v: (x) => esc(x.official) + (x.feast || FEASTS[`${label(x)}|${x.md}`] ? `<br><small class="muted">${esc(x.feast || FEASTS[`${label(x)}|${x.md}`])}</small>` : '') },
         { label: 'Φέτος', v: (x) => { const d = namedayIn(x, y()); return d ? esc(dayStr(isoDate(d))) : '<span class="muted">χωρίς εορτή</span>'; } },
         { label: 'Κανόνας', v: (x) => (x.easter != null && x.easter !== '' ? `Πάσχα ${Number(x.easter) >= 0 ? '+' : ''}${x.easter}` : esc(x.md)) + (x.rule ? ' · ' + esc(RULES[x.rule]) : '') }],
       validate(d) {

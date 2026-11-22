@@ -52,3 +52,18 @@ export function contactItems(q) {
   for (const m of searchMembers(q, 8)) out.push({ label: memberName(m), sub: ['Μέλος', m.email].filter(Boolean).join(' · '), value: { name: titledName(m), email: m.email || '', member_id: m.id } });
   return out.slice(0, 20);
 }
+
+// Ομάδες παραληπτών για άμεση ενημέρωση (π.χ. «officers»: εν ενεργεία Μεγάλοι Αξιωματικοί, «stewards»: Μεγάλοι Επιμελητές).
+// Ορίζονται από τα modules που τις γνωρίζουν (grand-stewards.js)· fn() → { label, people: [{ name, email }] }
+// email: ΜΟΝΟ το κύριο email του Μητρώου (όχι τα «Άλλα email»)· χωρίς διαγραμμένους.
+const groups = {};
+export const setRecipientGroup = (key, label, fn) => { groups[key] = { label, fn }; };
+export const recipientGroups = () => Object.entries(groups).map(([key, g]) => ({ key, label: g.label }));
+export function recipientGroup(key) {
+  const g = groups[key];
+  if (!g) return { label: '', people: [], emails: [], missing: [] };
+  const people = g.fn() || [], emails = [...new Map(people.filter((p) => p.email).map((p) => [p.email.toLowerCase(), p.email])).values()];
+  return { label: g.label, people, emails, missing: people.filter((p) => !p.email).map((p) => p.name) };
+}
+// Κύριο email μέλους (πεδίο «Email»), αν έχει πολλά χωρισμένα με κόμμα κρατά το πρώτο
+export const primaryEmailOf = (m) => (m ? String(m.email || '').split(/[;,\s]+/).find((e) => e.includes('@')) || '' : '');

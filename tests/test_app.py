@@ -47,6 +47,11 @@ def rcpt_main(app):
     return ', '.join(e for e in app.page.input_value('[name=recipient_email]').split(', ') if e and e not in DEF_TO)
 
 
+
+def preview_text(app):
+    """Κείμενο της προεπισκόπησης αποστολής μαζί με τις τιμές των επεξεργάσιμων πεδίων (Προς/Κοιν./Bcc/Θέμα/Κείμενο)."""
+    return app.page.inner_text('.send-preview') + ' ' + ' '.join(app.page.eval_on_selector_all('.send-preview .ms-input', 'xs => xs.map(x => x.value)'))
+
 def test_every_page_opens(app):
     app.connect_local().go('/system')
     app.page.wait_for_selector('text=Έλεγχος σελίδων')
@@ -355,7 +360,7 @@ def test_namedays_greetings(app):
     app.page.evaluate("async () => { const {db} = await import('./core/store.js'); await db.save('x', (tx) => tx.setting('google_client_id', 'test.apps.googleusercontent.com')); }")
     app.page.click('[data-act=send]')
     app.page.wait_for_selector('.send-preview')  # προεπισκόπηση πριν την αποστολή
-    assert 'info@nglgreece.gr' in app.page.inner_text('.send-preview') and 'nik@example.com' in app.page.inner_text('.send-preview')
+    assert 'info@nglgreece.gr' in preview_text(app) and 'nik@example.com' in preview_text(app)
     app.page.click('.send-preview [data-yes]')
     app.page.wait_for_selector('text=Στάλθηκε και καταχωρίστηκε', timeout=30000)
     raw = sent[0]['raw']
@@ -1522,7 +1527,7 @@ def test_letter_sender_choice_and_preview_before_send(app):
     assert 'grand.secretary@' in app.page.inner_text('[data-ms=send]')
     app.page.click('[data-ms=send]')
     app.page.wait_for_selector('.send-preview')
-    pv = app.page.inner_text('.send-preview')
+    pv = preview_text(app)
     assert 'grand.secretary@nglgreece.gr' in pv and 'lodge@example.com' in pv and 'Έγκριση Κανονισμού' in pv and '.pdf' in pv
     body = app.page.frame_locator('.send-preview-body').locator('body').inner_text()
     assert 'Εγκρίνεται ο Κανονισμός.' in body and 'Με αφοσίωση και εκτίμηση' in body, body  # με τον χαιρετισμό και την υπογραφή
@@ -1534,7 +1539,7 @@ def test_letter_sender_choice_and_preview_before_send(app):
     app.pick('.ms-pick[data-pick=bcc]', 'Ρόκας')
     assert app.page.input_value('.ms-input[data-f=bcc]') == 'administration@nglgreece.gr, spiros@rokashotels.gr'  # + σταθερό Bcc κάθε επιστολής
     app.page.click('[data-ms=send]')
-    assert 'manual@example.com' in app.page.inner_text('.send-preview') and 'spiros@rokashotels.gr' in app.page.inner_text('.send-preview')
+    assert 'manual@example.com' in preview_text(app) and 'spiros@rokashotels.gr' in preview_text(app)
     app.page.click('.send-preview [data-yes]')
     app.page.wait_for_selector('.ms-ok', timeout=30000)
     mime = base64.urlsafe_b64decode(sent[0]['raw'] + '=' * (-len(sent[0]['raw']) % 4)).decode()
@@ -2999,7 +3004,7 @@ def test_member_card_in_registry(app):
     assert 'ΚΑΡΤΑ ΜΕΛΟΥΣ' in app.text('.paper.member-card')
     # email από info@ με θέμα «Κάρτα Μέλους για …» και την κάρτα σε PDF
     app.page.wait_for_selector('.mailsheet .ms-head')
-    ms = app.text('.mailsheet')
+    ms = app.text('.mailsheet') + ' ' + app.page.input_value('.mailsheet .ms-input[data-f="subject"]')  # το θέμα είναι πλέον επεξεργάσιμο πεδίο
     assert 'Κάρτα Μέλους για ' in ms and 'Παπαδόπουλος' in ms and 'info@nglgreece.gr' in ms and '.pdf' in ms, ms
     assert app.page.locator('#mainnav a[href="#/members/card"]').count() == 1
     app.go('/members/card')
@@ -5493,3 +5498,31 @@ def test_corfu_reminder_uses_only_primary_registry_email(app):
       const m = await import('./modules/corfu-remind.js');
       return m.remindRows([], [{ name: 'Δοκιμάκος Ευάγγελος', title: 'Μέγας Δοκιμαστής' }], []).map(x => x.emails) }""")
     assert rows == [['kyrio@example.com']], rows
+
+
+def test_officers_notify_groups_and_editable_send_preview(app):
+    """📣 Ενημέρωση Μεγάλων Αξιωματικών: ομάδες από Επετηρίδα + κύριο email Μητρώου· η προεπισκόπηση διορθώνει διευθύνσεις/θέμα/κείμενο."""
+    app.connect_local().go('/notify-officers')
+    app.page.wait_for_selector('#onSubj')
+    app.page.evaluate("""async () => { const { db } = await import('./core/store.js');
+      await db.save('x', (tx) => {
+        const a = tx.insert('member_registry', { surname: 'Θησαυράκης', first_name: 'Παύλος', email: 'kyrio@example.com', other_emails: 'allo@example.com', active: 1 }).id;
+        const b = tx.insert('member_registry', { surname: 'Επιμελάκης', first_name: 'Στέφανος', email: 'epim@example.com', active: 1 }).id;
+        tx.insert('epeteirida', { aa: 1, active: 1, title: 'Μέγας Θησαυροφύλαξ', full_name: 'Θησαυράκης Παύλος', member_id: a });
+        tx.insert('epeteirida', { aa: 2, active: 1, title: 'Μέγας Επιμελητής', full_name: 'Επιμελάκης Στέφανος', province: 'ΔΟΚΙΜΗ 1', member_id: b }); }); }""")
+    g = app.page.evaluate("""async () => { const p = await import('./core/pickers.js');
+      return [p.recipientGroup('officers').emails, p.recipientGroup('stewards').emails] }""")
+    assert g == [['kyrio@example.com'], ['epim@example.com']], g
+    # επεξεργάσιμη προεπισκόπηση: + ομάδα Επιμελητών, νέο θέμα, νέο κείμενο → το μήνυμα που επιστρέφει έχει τις διορθώσεις
+    app.page.evaluate("""async () => { const g = await import('./core/gmail.js');
+      window.__res = g.confirmSend({ from: 'info@example.com', msg: { to: '', cc: '', bcc: 'kyrio@example.com', subject: 'Αρχικό', body: 'Κείμενο' }, editable: true }); }""")
+    app.page.wait_for_selector('.send-edit [data-group="stewards"]')
+    app.page.click('.send-edit [data-group="stewards"]')
+    app.page.fill('.send-edit .ms-input[data-f="subject"]', 'Νέο θέμα')
+    app.page.fill('.send-edit .ms-body', 'Νέο κείμενο')
+    app.page.fill('.send-edit .ms-input[data-f="cc"]', 'xeirografo@example.com')
+    app.page.click('.send-edit [data-yes]')
+    r = app.page.evaluate('() => window.__res')
+    assert r['subject'] == 'Νέο θέμα' and r['body'] == 'Νέο κείμενο' and r['cc'] == 'xeirografo@example.com', r
+    assert 'epim@example.com' in r['bcc'] and 'kyrio@example.com' in r['bcc'] and r['to'] == 'info@example.com', r
+    assert not app.errors, app.errors

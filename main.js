@@ -30,6 +30,7 @@ import './modules/lodge-secretaries.js';
 import './modules/registry-audit.js';
 import './modules/treasury.js';
 import './modules/corfu-remind.js';
+import './modules/officers-notify.js';
 
 await boot();
 start();

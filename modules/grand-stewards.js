@@ -12,7 +12,7 @@ import { canonicalId, person } from '../core/people.js';
 import { matchMember, provinceOfLodge } from '../core/officers.js';
 import { reportPaper, printPaper } from '../core/paper.js';
 import { lodgeByNumber } from './lodges.js';
-import { attachPicker, memberItems } from '../core/pickers.js';
+import { attachPicker, memberItems, setRecipientGroup, addContactSource, primaryEmailOf, noContact } from '../core/pickers.js';
 import { masonicYear } from './visits.js';
 
 export const STEWARD_TITLE = 'Μέγας Επιμελητής';
@@ -37,6 +37,15 @@ export const isActiveOfficer = (r) => !!T(r.title) && !/Μετέστη/i.test(r.
   && !(isStewardTitle(r.title) && Number(r.active) !== 1);
 export const activeOfficers = () => sortBy(db.all('epeteirida').filter(isActiveOfficer).map(view), 'prec', (x) => Number(x.r.aa) || 0, 'surname');
 export const OFFICERS_HREF = '#/members/officers';
+// Ομάδες παραληπτών «📣 Ενημέρωση Μεγάλων Αξιωματικών»: κύριο email του Μητρώου, χωρίς διαγραμμένους
+const recipient = (x) => { const p = x.member_id ? person(x.member_id) : null, blocked = p && noContact(p.member);
+  return blocked ? null : { name: [x.title, x.name].filter(Boolean).join(' · '), email: p ? primaryEmailOf(p.member) || p.email || '' : '' }; };
+export const officerRecipients = () => activeOfficers().filter((x) => !isActiveSteward(x.r)).map(recipient).filter(Boolean);
+export const stewardRecipients = () => activeStewards().map(recipient).filter(Boolean);
+setRecipientGroup('officers', '🏛 Εν ενεργεία Μεγάλοι Αξιωματικοί', officerRecipients);
+setRecipientGroup('stewards', '🎖 Εν ενεργεία Μεγάλοι Επιμελητές', stewardRecipients);
+addContactSource(() => [['🏛 Όλοι οι εν ενεργεία Μεγάλοι Αξιωματικοί (ΜΑΞ)', officerRecipients()], ['🎖 Όλοι οι εν ενεργεία Μεγάλοι Επιμελητές', stewardRecipients()]]
+  .map(([name, xs]) => ({ name, email: xs.map((x) => x.email).filter(Boolean).join(', '), sub: `Ομάδα · ${xs.filter((x) => x.email).length} email` })).filter((c) => c.email));
 // Η γραμμή «Μέγας Επιμελητής» (εν ενεργεία) ενός μέλους, αν υπάρχει
 export function stewardOf(memberId) {
   if (!memberId) return null;

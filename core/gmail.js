@@ -87,21 +87,58 @@ export const gmailAppUrl = (kind, messageId) => (isIOS() ? 'googlegmail:///'
     : draftWebUrl(kind, messageId));
 
 // Προεπισκόπηση πριν από κάθε άμεση αποστολή: Από / Προς / Κοιν. / Bcc / Θέμα / το κείμενο όπως θα φτάσει / συνημμένα → επιβεβαίωση
-// → Promise<boolean> (true μόνο με «Επιβεβαίωση αποστολής»)
-export function confirmSend({ from, msg, attachments = [], note = '' }) {
+// editable: true → Προς / Κοιν. / Bcc / Θέμα / Κείμενο διορθώνονται εδώ, πριν φύγει: διευθύνσεις χειρόγραφα ή με αναζήτηση ονόματος
+// (Μητρώο, Στοές, Επαρχίες, Επαφές, ομάδες) και με ένα κλικ «+ Μεγάλοι Αξιωματικοί / Επιμελητές».
+// → Promise<false | msg> (το μήνυμα —με τις διορθώσεις— μόνο με «Επιβεβαίωση αποστολής»)
+export function confirmSend({ from, msg, attachments = [], note = '', editable = false }) {
   return new Promise((done) => {
-    const html = (msg.htmlBody || mailHtml(msg.body)).replace(`cid:${LOGO_CID}`, new URL('../img/header_emblem.png', import.meta.url).href);
-    const ov = Object.assign(document.createElement('div'), { className: 'gprev send-preview' });
-    ov.innerHTML = `<div class="gprev-box" role="dialog" aria-label="Προεπισκόπηση πριν την αποστολή"><div class="gprev-bar"><b>👁 Προεπισκόπηση πριν την αποστολή</b><button type="button" class="btn small" data-no>✕</button></div>
-<div class="ms-row"><span>Από</span><div><b>${esc(from)}</b></div></div><div class="ms-row"><span>Προς</span><div>${chips(msg.to)}</div></div>
-<div class="ms-row"><span>Κοιν.</span><div>${chips(msg.cc)}</div></div><div class="ms-row"><span>Bcc</span><div>${chips(msg.bcc)}</div></div>
-<div class="ms-row"><span>Θέμα</span><div><b>${esc(msg.subject || '')}</b></div></div>
+    const m = { ...msg };
+    const htmlOf = () => (m.htmlBody || mailHtml(m.body)).replace(`cid:${LOGO_CID}`, new URL('../img/header_emblem.png', import.meta.url).href);
+    const ov = Object.assign(document.createElement('div'), { className: 'gprev send-preview' + (editable ? ' send-edit' : '') });
+    const addr = (f, label) => (editable
+      ? `<div class="ms-row"><span>${label}</span><div><textarea class="ms-input" data-f="${f}" rows="1" placeholder="email, χωρισμένα με κόμμα" autocomplete="off">${esc(list(m[f]).join(', '))}</textarea>
+<input class="ms-pick" data-pick="${f}" placeholder="🔎 + όνομα μέλους, Στοά, Επαρχία, επαφή ή ομάδα → βρίσκει το email από το Μητρώο…" autocomplete="off">
+${f === 'bcc' ? '<div class="ms-groups"></div>' : ''}<small class="muted ms-count" data-c="${f}"></small></div></div>`
+      : `<div class="ms-row"><span>${label}</span><div>${chips(m[f])}</div></div>`);
+    ov.innerHTML = `<div class="gprev-box" role="dialog" aria-label="Προεπισκόπηση πριν την αποστολή"><div class="gprev-bar"><b>👁 Προεπισκόπηση πριν την αποστολή${editable ? ' — όλα διορθώνονται' : ''}</b><button type="button" class="btn small" data-no>✕</button></div>
+<div class="ms-row"><span>Από</span><div><b>${esc(from)}</b></div></div>${addr('to', 'Προς')}${addr('cc', 'Κοιν.')}${addr('bcc', 'Bcc')}
+<div class="ms-row"><span>Θέμα</span><div>${editable ? `<input class="ms-input" data-f="subject" value="${esc(m.subject || '')}">` : `<b>${esc(m.subject || '')}</b>`}</div></div>
 <div class="ms-row"><span>📎</span><div>${attachments.length ? attachments.map((a) => `<span class="mchip att">${esc(a)}</span>`).join('') : '<span class="muted">χωρίς συνημμένο</span>'}</div></div>
-<p class="muted" style="margin:10px 0 4px">Κείμενο του email:</p><iframe class="send-preview-body" title="Κείμενο του email" sandbox="" srcdoc="${esc(html)}"></iframe>
-${note ? `<p class="warn">${esc(note)}</p>` : ''}<div class="toolbar" style="margin-top:12px"><button type="button" class="btn primary big" data-yes>📤 Επιβεβαίωση αποστολής</button><button type="button" class="btn big" data-no>Άκυρο</button></div></div>`;
+${editable ? '<p class="muted" style="margin:10px 0 4px">Κείμενο του email (διορθώνεται — η προεπισκόπηση από κάτω ενημερώνεται):</p><textarea class="ms-input ms-body" data-f="body" rows="9"></textarea>' : ''}
+<p class="muted" style="margin:10px 0 4px">${editable ? 'Όπως θα φτάσει:' : 'Κείμενο του email:'}</p><iframe class="send-preview-body" title="Κείμενο του email" sandbox="" srcdoc="${esc(htmlOf())}"></iframe>
+${note ? `<p class="warn">${esc(note)}</p>` : ''}<p class="warn ms-err" hidden></p><div class="toolbar" style="margin-top:12px"><button type="button" class="btn primary big" data-yes>📤 Επιβεβαίωση αποστολής</button><button type="button" class="btn big" data-no>Άκυρο</button></div></div>`;
     const close = (v) => { ov.remove(); document.removeEventListener('keydown', key); done(v); };
     const key = (e) => { if (e.key === 'Escape') close(false); };
-    ov.addEventListener('click', (e) => { if (e.target.closest('[data-yes]')) close(true); else if (e.target === ov || e.target.closest('[data-no]')) close(false); });
+    const err = (t) => { const p = ov.querySelector('.ms-err'); p.textContent = t; p.hidden = !t; };
+    const counts = () => { for (const c of ov.querySelectorAll('.ms-count')) { const n = list(m[c.dataset.c]).length; c.textContent = n ? `${n} διεύθυνση/εις` : ''; } };
+    if (editable) {
+      const body = ov.querySelector('.ms-body');
+      body.value = m.body || '';
+      let t = 0;
+      body.addEventListener('input', () => { m.body = body.value; m.htmlBody = ''; clearTimeout(t); t = setTimeout(() => { ov.querySelector('.send-preview-body').srcdoc = htmlOf(); }, 250); });
+      for (const i of ov.querySelectorAll('.ms-input:not(.ms-body)')) i.addEventListener('input', () => { m[i.dataset.f] = i.value; counts(); err(''); });
+      const addTo = (f, emails) => { const inp = ov.querySelector(`.ms-input[data-f="${f}"]`); inp.value = [...new Map([...list(inp.value), ...emails].map((e) => [e.toLowerCase(), e])).values()].join(', '); m[f] = inp.value; counts(); err(''); };
+      import('./pickers.js').then(({ attachPicker, contactItems, recipientGroups, recipientGroup }) => {
+        for (const p of ov.querySelectorAll('.ms-pick')) attachPicker(p, contactItems, (c) => { const e = list(c.email); if (!e.length) err(`${c.name || 'Η επαφή'}: δεν έχει email στο Μητρώο.`); else addTo(p.dataset.pick, e); });
+        const gb = ov.querySelector('.ms-groups');
+        if (gb) {
+          gb.innerHTML = recipientGroups().map((g) => `<button type="button" class="btn small" data-group="${esc(g.key)}">+ ${esc(g.label)}</button>`).join(' ');
+          gb.addEventListener('click', (e) => { const b = e.target.closest('[data-group]'); if (!b) return; const g = recipientGroup(b.dataset.group); addTo('bcc', g.emails);
+            if (g.missing.length) err(`Χωρίς email στο Μητρώο: ${g.missing.join(', ')}`); });
+        }
+      });
+      counts();
+    }
+    ov.addEventListener('click', (e) => {
+      if (e.target.closest('[data-yes]')) {
+        if (editable) {
+          if (![m.to, m.cc, m.bcc].some((x) => list(x).length)) { err('Συμπληρώστε τουλάχιστον έναν παραλήπτη.'); return; }
+          if (!list(m.to).length) m.to = from; // μόνο Bcc → «Προς» ο ίδιος ο αποστολέας
+          if (!String(m.subject || '').trim()) { err('Συμπληρώστε το θέμα.'); return; }
+        }
+        close(m);
+      } else if (e.target === ov || e.target.closest('[data-no]')) close(false);
+    });
     document.addEventListener('keydown', key);
     document.body.append(ov);
   });
@@ -125,13 +162,27 @@ export function mailSheet(el, { getMsg: baseMsg, getPdf, kind = 'general', pdfNa
     const m = getMsg();
     box.innerHTML = `<div class="ms-head"><span class="ms-g">M</span><div><b>Gmail</b> · <label class="ms-from">Αποστολή από <select data-ms="from">${Object.entries(MAIL_SENDERS).map(([k, v]) => `<option value="${k}"${k === kind ? ' selected' : ''}>${esc(senderFor(k))} — ${esc(v.label)}</option>`).join('')}</select></label></div></div>
 ${field('to', 'Προς', m)}${field('cc', 'Κοιν.', m)}${field('bcc', 'Bcc', m)}
-<div class="ms-row"><span>Θέμα</span><div><b>${esc(m.subject || '')}</b></div></div>
+<div class="ms-row"><span></span><div class="ms-groups"></div></div>
+<div class="ms-row"><span>Θέμα</span><div><input class="ms-input" data-f="subject" value="${esc(m.subject || '')}" autocomplete="off"></div></div>
 <div class="ms-row"><span>📎</span><div><span class="mchip att">${esc(pdfName || 'PDF επιστολής')}.pdf</span>${extras.map((x, i) => `<label class="ms-extra"><input type="checkbox" data-extra="${i}"${extraOn[i] ? ' checked' : ''}> ${esc(x.label || x.name)}</label>`).join('')}</div></div>
 <div class="ms-acts"><button type="button" class="btn primary big" data-ms="send">📤 Αποστολή τώρα από ${esc(senderFor(kind))}</button>
+<button type="button" class="btn big" data-ms="officers" title="Bcc σε όλους τους εν ενεργεία Μεγάλους Αξιωματικούς (κύριο email του Μητρώου) — διορθώνεται πριν φύγει">🏛 Ενημέρωση Μεγάλων Αξιωματικών</button>
 <button type="button" class="btn big" data-ms="go">✉ Άνοιγμα στο Gmail με το PDF (έλεγχος πριν την αποστολή)</button></div><div class="ms-state muted"></div>`;
     for (const i of box.querySelectorAll('.ms-input')) i.addEventListener('input', () => { edits[i.dataset.f] = i.value; });
     for (const c of box.querySelectorAll('[data-extra]')) c.addEventListener('change', () => { extraOn[Number(c.dataset.extra)] = c.checked; });
-    import('./pickers.js').then(({ attachPicker, contactItems }) => {
+    import('./pickers.js').then(({ attachPicker, contactItems, recipientGroups, recipientGroup }) => {
+      const gb = box.querySelector('.ms-groups');
+      gb.innerHTML = recipientGroups().map((g) => `<button type="button" class="btn small" data-group="${esc(g.key)}">+ Bcc: ${esc(g.label)}</button>`).join(' ');
+      gb.onclick = (e) => { const b = e.target.closest('[data-group]'); if (!b) return; const g = recipientGroup(b.dataset.group), inp = box.querySelector('.ms-input[data-f="bcc"]');
+        inp.value = [...new Map([...list(inp.value), ...g.emails].map((x) => [x.toLowerCase(), x])).values()].join(', '); edits.bcc = inp.value;
+        state(`✓ Προστέθηκαν ${g.emails.length} email (${esc(g.label)}) στο Bcc.${g.missing.length ? ` <span class="warn">Χωρίς email: ${esc(g.missing.join(', '))}</span>` : ''}`); };
+      box.querySelector('[data-ms=officers]').onclick = (e) => {
+        const g = recipientGroup('officers'), inp = box.querySelector('.ms-input[data-f="bcc"]');
+        inp.value = [...new Map([...list(inp.value), ...g.emails].map((x) => [x.toLowerCase(), x])).values()].join(', '); edits.bcc = inp.value;
+        if (!list(getMsg().to).length) { edits.to = senderFor(kind); box.querySelector('.ms-input[data-f="to"]').value = edits.to; }
+        if (g.missing.length) state(`<span class="warn">Χωρίς email στο Μητρώο: ${esc(g.missing.join(', '))}</span>`);
+        send(e);
+      };
       for (const p of box.querySelectorAll('.ms-pick')) attachPicker(p, contactItems, (c) => {
         const inp = box.querySelector(`.ms-input[data-f="${p.dataset.pick}"]`), add = list(c.email);
         if (!add.length) { state('<span class="warn">Η επαφή δεν έχει email.</span>'); return; }
@@ -149,7 +200,10 @@ ${field('to', 'Προς', m)}${field('cc', 'Κοιν.', m)}${field('bcc', 'Bcc',
     let m = getMsg();
     if (!list(m.to).length) { state('<span class="warn">Συμπληρώστε τον παραλήπτη (Προς).</span>'); return; }
     if (!driveReady()) { state('<span class="warn">Για άμεση αποστολή χρειάζεται το Google Client ID (Ρυθμίσεις → Google). Μέχρι τότε χρησιμοποιήστε «Άνοιγμα στο Gmail».</span>'); return; }
-    if (!await confirmSend({ from, msg: m, attachments: [`${pdfName || 'PDF επιστολής'}.pdf`, ...extras.filter((_, i) => extraOn[i]).map((x) => x.name)] })) return;
+    const ed = await confirmSend({ from, msg: m, editable: true, attachments: [`${pdfName || 'PDF επιστολής'}.pdf`, ...extras.filter((_, i) => extraOn[i]).map((x) => x.name)] });
+    if (!ed) return;
+    for (const f of ['to', 'cc', 'bcc', 'subject', 'body', 'htmlBody']) if (ed[f] !== m[f]) edits[f] = ed[f];
+    render(); // οι διορθώσεις της προεπισκόπησης φαίνονται και στην καρτέλα
     box.querySelectorAll('button').forEach((x) => { x.disabled = true; });
     try {
       state('⏳ Ετοιμάζεται το PDF…');

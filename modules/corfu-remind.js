@@ -140,10 +140,13 @@ ${err ? `<p class="warn">${esc(err)}</p>` : ''}
       bind(el, {
         async send() {
           const g = await ready(); if (!g) return;
-          const m = msg(), names = picked().map((x) => x.name);
-          if (!await g.confirmSend({ from: senderFor('general'), msg: m, note: `Θα σταλεί ένα email σε ${names.length} (Bcc): ${names.join(', ')}.` })) return;
+          const names = picked().map((x) => x.name);
+          // Προεπισκόπηση με δυνατότητα διόρθωσης: Προς / Κοιν. / Bcc (χειρόγραφα ή με όνομα από το Μητρώο), Θέμα, Κείμενο
+          const m = await g.confirmSend({ from: senderFor('general'), msg: msg(), editable: true, note: `Επιλεγμένοι στη λίστα: ${names.length} (Bcc): ${names.join(', ')}. Μπορείτε να προσθέσετε ή να αφαιρέσετε διευθύνσεις παραπάνω.` });
+          if (!m) return;
+          const n = [m.to, m.cc, m.bcc].join(',').split(/[,;\s]+/).filter((x) => x.includes('@')).length;
           state('⏳ Αποστολή…');
-          try { await g.sendNow(m, [], 'general'); state(`<span style="color:#0d7a3e"><b>✓ Στάλθηκε</b> σε ${names.length}: ${esc(names.join(', '))}.</span>`); toast('✓ Η υπενθύμιση στάλθηκε.'); }
+          try { await g.sendNow(m, [], 'general'); state(`<span style="color:#0d7a3e"><b>✓ Στάλθηκε</b> (${n} διευθύνσεις)· από τη λίστα: ${esc(names.join(', '))}.</span>`); toast('✓ Η υπενθύμιση στάλθηκε.'); }
           catch (e) { state(`<span class="warn">${esc(e.message || e)}</span>`); }
         },
         async draft() {

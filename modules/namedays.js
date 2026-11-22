@@ -96,6 +96,12 @@ db.migrate('nameday-marios-21-11-2026-11', (tx) => {
   if (!tx.all('namedays').some((n) => n.name_key === ndKey('Μάριος') && n.md === '11-21'))
     tx.insert('namedays', { name: 'Μάριος', name_key: ndKey('Μάριος'), official: 'Μάριος', md: '11-21', easter: null, rule: '', note: 'Δεύτερη εορτή: Εισόδια της Θεοτόκου (21 Νοεμβρίου)' });
 });
+// Δεύτερη ημερομηνία εορτής για τον Ιάκωβο (και το James): 22 Νοεμβρίου — Όσιος Ιάκωβος ο εν Ευβοία (Τσαλίκης), πέρα από τις 23 Οκτωβρίου
+db.migrate('nameday-iakovos-22-11-2026-11', (tx) => {
+  for (const name of ['Ιάκωβος', 'James'])
+    if (!tx.all('namedays').some((n) => n.name_key === ndKey(name) && n.md === '11-22'))
+      tx.insert('namedays', { name, name_key: ndKey(name), official: 'Ιάκωβος', md: '11-22', easter: null, rule: '', note: 'Δεύτερη εορτή: Όσιος Ιάκωβος ο εν Ευβοία (22 Νοεμβρίου)' });
+});
 // Κάλυψη: πόσα ενεργά μέλη του Μητρώου έχουν γνωστή ονομαστική εορτή, και ποια ονόματα λείπουν
 export function coverage() {
   const idx = namedayIndex(), ms = db.all('member_registry').filter((x) => x.active !== 0 && !noContact(x)), miss = {};

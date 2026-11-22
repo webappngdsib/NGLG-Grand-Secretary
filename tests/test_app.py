@@ -5431,6 +5431,19 @@ def test_nameday_second_date_marios(app):
     assert not app.errors, app.errors
 
 
+
+def test_nameday_second_date_iakovos(app):
+    """Ιάκωβος (και James): εορτάζει 23/10 και 22/11 (Όσιος Ιάκωβος ο εν Ευβοία)."""
+    app.connect_local()
+    app.page.evaluate("""async () => { const {db} = await import('./core/store.js');
+      return db.save('x', (tx) => { tx.insert('member_registry', { surname: 'Ιακωβάκης', first_name: 'Ιάκωβος', email: 'i@example.com', active: 1 });
+        tx.insert('member_registry', { surname: 'Greenakis', first_name: 'James Francis', email: 'j@example.com', active: 1 }); }); }""")
+    r = app.page.evaluate("""async () => { const n = await import('./modules/namedays.js'); const y = new Date().getFullYear();
+      const f = (md) => n.celebrants(`${y}-${md}`, `${y}-${md}`).flatMap((g) => g.members.map((m) => m.surname));
+      return [f('11-22'), f('10-23')]; }""")
+    assert {'Ιακωβάκης', 'Greenakis'} <= set(r[0]) and {'Ιακωβάκης', 'Greenakis'} <= set(r[1]), r
+    assert not app.errors, app.errors
+
 def test_corfu_correction_email_replaces_declaration(tmp_path):
     """«… - διόρθωση» από υπηρεσιακή διεύθυνση: ίδιο πρόσωπο (όχι νέο όνομα), email από το cc, σημειώσεις της διόρθωσης."""
     import json as _json, subprocess as _sp

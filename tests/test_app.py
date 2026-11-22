@@ -5481,3 +5481,15 @@ def test_corfu_shared_double_without_charge_hides_45():
     ov = json.loads((Path(__file__).resolve().parent.parent / 'corfu-2026/overrides.json').read_text(encoding='utf-8'))
     shared = {x['name'] for x in ov['overrides'] if x.get('no_charge')}
     assert {'ΛΑΓΙΟΣ ΦΩΤΗΣ', 'ΚΩΝΣΤΑΝΤΙΝΟΣ ΑΔΑΜΑΚΟΣ'} <= shared
+
+
+def test_corfu_reminder_uses_only_primary_registry_email(app):
+    """Υπενθύμιση Κέρκυρας: μόνο το κύριο email του Μητρώου — όχι τα «Άλλα email» (π.χ. εταιρικό)."""
+    app.connect_local().go('/corfu')
+    app.page.wait_for_selector('text=Υπενθύμιση σε όσους δεν δήλωσαν')
+    rows = app.page.evaluate("""async () => { const { db } = await import('./core/store.js');
+      await db.save('x', (tx) => { tx.insert('member_registry', { surname: 'Δοκιμάκος', first_name: 'Ευάγγελος', email: 'kyrio@example.com',
+        other_emails: 'etairiko@example.com', active: 1 }); });
+      const m = await import('./modules/corfu-remind.js');
+      return m.remindRows([], [{ name: 'Δοκιμάκος Ευάγγελος', title: 'Μέγας Δοκιμαστής' }], []).map(x => x.emails) }""")
+    assert rows == [['kyrio@example.com']], rows

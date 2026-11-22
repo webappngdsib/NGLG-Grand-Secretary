@@ -1,7 +1,7 @@
 // Κέρκυρα 2026 — Ευγενική Υπενθύμιση σε όσους εν ενεργεία Μεγάλους Αξιωματικούς δεν έχουν δηλώσει μετακίνηση/διαμονή.
 // Εν ενεργεία ΜΑΞ: corfu-2026/active-officers.json (επίσημος κατάλογος Μεγάλης Γραμματείας)· αλλιώς Επετηρίδα της εφαρμογής.
 // Δηλώσεις: corfu-2026/attendees.json · Δικαιολογημένες απουσίες: corfu-2026/excused.json (εκτός υπενθύμισης, πορτοκαλί).
-// Email: ΟΛΑ τα email του προσώπου από το Μητρώο (identify → person.emails) + όποιο email έχει στείλει στις δηλώσεις.
+// Email: το ΚΥΡΙΟ email του Μητρώου (όχι τα «Άλλα email») + όποιο email έχει στείλει στις δηλώσεις.
 // Επιλογή παραληπτών με κουτάκι ανά Μεγάλο Αξιωματικό· προσθήκη οποιουδήποτε μέλους από το Μητρώο· ένα email, όλοι σε Bcc,
 // με προεπισκόπηση και επιβεβαίωση πριν φύγει.
 import { module, bind, toast } from '../core/app.js';
@@ -51,10 +51,12 @@ const offNames = (o) => [o.name, ...(o.aliases || [])];
 const matchOff = (att, o) => { let best = ''; for (const n of offNames(o)) { const k = matchKind(att, n); if (k === 'full') return k; if (k) best = k; } return best; };
 const uniq = (xs) => [...new Map(xs.filter(Boolean).map((e) => [String(e).toLowerCase(), String(e)])).values()];
 
-// Όλα τα email ενός προσώπου: Μητρώο (όλες οι εγγραφές του) + email που έστειλε στις δηλώσεις
+// Μόνο το ΚΥΡΙΟ email του Μητρώου (πεδίο «Email» της εγγραφής του μέλους) — ΟΧΙ τα «Άλλα email»
+// (π.χ. εταιρικά/γραφείου) — + το email από το οποίο έστειλε τη δήλωσή του.
+export const primaryEmail = (p) => (p && p.member && String(p.member.email || '').split(/[;,\s]+/).find(Boolean)) || (p ? p.email : '') || '';
 function emailsFor(name, extra = []) {
   const id = identify({ full_name: name }), p = id ? person(id) : null;
-  return { emails: uniq([...(p ? p.emails : []), ...extra]), memberId: p ? p.id : null, inRegistry: !!p };
+  return { emails: uniq([primaryEmail(p), ...extra]), memberId: p ? p.id : null, inRegistry: !!p };
 }
 // → [{ name, title, status: ok|exc|pending, reason, emails, memberId }] σε τάξη προβαδίσματος
 export function remindRows(attendees, officers, excused = []) {
@@ -95,7 +97,7 @@ ${err ? `<p class="warn">${esc(err)}</p>` : ''}
 <p class="muted">Πηγή: ${esc(src)} · <b>${rows.length}</b> εν ενεργεία · <span style="color:#0d7a3e">δήλωσαν: <b>${n('ok')}</b></span> · <span style="color:#b45309">δικαιολογημένα απόντες: <b>${n('exc')}</b></span> ·
 <b style="color:#c01d1d">δεν δήλωσαν: ${n('pending')}</b>${noMail.length ? ` · <span class="warn">χωρίς email: ${noMail.map((x) => esc(x.name)).join(', ')}</span>` : ''}.
 <a href="corfu-2026/" target="_blank" rel="noopener">Λίστα δηλώσεων ↗</a> · <a href="corfu-2026/#max" target="_blank" rel="noopener">Πινάκιο ΜΑΞ ↗</a></p>
-<p class="muted">Προεπιλογή: όσοι <b>δεν έχουν δηλώσει</b>. Με τα κουτάκια βάζετε ή βγάζετε όποιον θέλετε (και όσους δήλωσαν ή απουσιάζουν)· χρησιμοποιούνται <b>όλα</b> τα email του από το Μητρώο.</p>
+<p class="muted">Προεπιλογή: όσοι <b>δεν έχουν δηλώσει</b>. Με τα κουτάκια βάζετε ή βγάζετε όποιον θέλετε (και όσους δήλωσαν ή απουσιάζουν)· χρησιμοποιείται το <b>κύριο email</b> του Μητρώου (όχι τα «Άλλα email») και όποιο email έστειλε τη δήλωση.</p>
 <div class="card tablecard"><table><thead><tr><th><input type="checkbox" id="cfAll" aria-label="Όλοι όσοι δεν δήλωσαν" checked></th><th>Μέγας Αξιωματικός</th><th>Κατάσταση</th><th>Email (Μητρώο / δήλωση)</th></tr></thead>
 <tbody id="cfRows">${rows.map((x, i) => rowHtml(x, i)).join('') || '<tr><td colspan="4" class="warn">Δεν βρέθηκε κατάλογος εν ενεργεία Μεγάλων Αξιωματικών.</td></tr>'}</tbody>
 <tbody id="cfExtra"></tbody></table>
@@ -122,7 +124,7 @@ ${err ? `<p class="warn">${esc(err)}</p>` : ''}
       import('../core/pickers.js').then(({ attachPicker, memberItems }) => attachPicker(el.querySelector('#cfAdd'), memberItems, (it) => {
         const m = it.value, p = person(m.id), name = `${m.surname || ''} ${m.first_name || ''}`.trim();
         if (extra.some((x) => x.memberId === (p ? p.id : m.id)) || rows.some((x) => x.memberId && p && x.memberId === p.id)) { toast('Είναι ήδη στη λίστα — επιλέξτε το κουτάκι του.', 'error'); return; }
-        extra.push({ name, title: '', status: 'extra', reason: '', emails: uniq(p ? p.emails : [m.email]), memberId: p ? p.id : m.id, inRegistry: true });
+        extra.push({ name, title: '', status: 'extra', reason: '', emails: uniq([p ? primaryEmail(p) : String(m.email || '').split(/[;,\s]+/)[0]]), memberId: p ? p.id : m.id, inRegistry: true });
         el.querySelector('#cfExtra').innerHTML = extra.map((x, i) => rowHtml(x, i, 'x')).join('');
         el.querySelector('#cfAdd').value = ''; refresh();
       }));

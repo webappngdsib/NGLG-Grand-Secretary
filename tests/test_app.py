@@ -5642,6 +5642,15 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     app.page.select_option('#dAction', 'characterize')
     assert app.page.input_value('#dTemplate') == 'decree-general'
     assert app.page.locator('#appointPart').is_hidden()
+    intro = app.page.locator('#dPreambleText')
+    assert 'Κανόνας 61, 62 και 128' in intro.input_value()
+    assert app.page.locator('#dPreamble .richbar [data-w=clear]').is_visible()
+    intro_text = intro.input_value().replace('των Συνταγμάτων και Κανονισμών,', '[i]των Συνταγμάτων και Κανονισμών,[/i]')
+    intro.fill(intro_text)
+    app.page.select_option('[name=preamble_align]', 'left')
+    app.page.fill('[name=preamble_top]', '4')
+    app.page.fill('[name=preamble_left]', '8')
+    app.page.fill('[name=preamble_right]', '12')
     labels = app.page.locator('#dLodge option').all_text_contents()
     assert all(label.startswith('Συμβολική Στοά') for label in labels[1:])
     app.page.select_option('#dLodge', str(lodge_id))
@@ -5683,7 +5692,7 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
         preview.locator(f'[aria-label={word}] img[src^="data:"]').wait_for()
     assert preview.locator('.decbody').evaluate("""el => {
       const [opening, act] = el.querySelectorAll('.dec-form-art');
-      return el.firstChild === opening && act.previousSibling.textContent.trimEnd().endsWith('και Κανονισμών,');
+      return el.firstChild === opening && act.previousElementSibling.textContent.trimEnd().endsWith('και Κανονισμών,');
     }""")
     assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998 με έδραν την πόλιν των Αθηνών, ως' in preview.inner_text()
     assert 'Στοάν Κέντρου για τη δοκιμή.' in preview.inner_text()
@@ -5693,6 +5702,9 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     app.page.fill('[name=logo_x]', '15')
     app.page.wait_for_function("document.querySelector('#dprev .decree-characterization')?.style.maxWidth === '82mm' && document.querySelector('#dprev .decree-lodge-logo')?.style.left === '15mm'")
     assert '2.5cm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
+    intro_preview = preview.locator('.decree-preamble')
+    assert intro_preview.evaluate('el => [el.style.textAlign, el.style.marginTop, el.style.marginLeft, el.style.marginRight]') == ['left', '4mm', '8mm', '12mm']
+    assert intro_preview.locator('i').inner_text() == 'των Συνταγμάτων και Κανονισμών,'
     assert 'top:-4mm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
     app.page.locator('#saveCharacterization').click()
     app.page.wait_for_url('**/#/decrees/1')
@@ -5708,10 +5720,13 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
         assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in xml and 'Στοάν Κέντρου για τη δοκιμή.' in xml
         assert '<w:ind w:left=' in xml
         assert '<w:b/><w:i/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t xml:space="preserve">' + phrase in xml
+        assert '<w:ind w:left="454" w:right="680"/><w:jc w:val="left"/>' in xml
         assert 'cx="900000"' in xml
         assert '<wp:positionV relativeFrom="paragraph"><wp:posOffset>-144000</wp:posOffset>' in xml
     app.go('/decrees/1/edit')
     assert app.page.input_value('#dLodge') == str(lodge_id)
+    assert intro.input_value() == intro_text
+    assert app.page.input_value('[name=preamble_left]') == '8'
     assert app.page.input_value('#dCharacterizationText') == wording
     assert app.page.input_value('[name=hmeis_width]') == '25'
     assert app.page.input_value('[name=hmeis_offset]') == '-4'

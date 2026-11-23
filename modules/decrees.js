@@ -115,6 +115,26 @@ const FORM_ART = {
   characterize: { label: 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', word: 8, img: 'img/charaktirizomen.png' },
 };
 const REGULATIONS_END = /(?<!\p{L})και\s+Κανονισμών(?:[ \t]*[,.;·:])?(?!\p{L})/iu;
+const CHARACTERIZATION_MARK = /(?:^|\n)ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ(?:\n|$)/;
+const OPENING_WORD = /^\s*(?:\[b\])?ΗΜΕΙΣ(?:\[\/b\])?\s*(?:\n|$)/i;
+const CHARACTERIZATION_PREAMBLE = `Ο Μέγας Διδάσκαλος της Εθνικής Μεγάλης Στοάς της Ελλάδος,
+Σεβασμιώτατος Αδελφός {Μέγας Διδάσκαλος},
+λαβόντες υπ’ όψιν τους Κανόνας 61, 62 και 128 περί Ερευνητικών, Στοών
+Κέντρου και Επαρχιακών ή Περιφερειακών Μεγάλων Στοών, του Βιβλίου
+των Συνταγμάτων και Κανονισμών,`;
+const PREAMBLE_ALIGN = { left: 'Αριστερά', center: 'Κέντρο', right: 'Δεξιά', justify: 'Πλήρης στοίχιση' };
+function preambleLayout(value = {}) {
+  const mm = (n) => Math.min(70, Math.max(0, Number(n) || 0));
+  return { align: Object.hasOwn(PREAMBLE_ALIGN, value.align) ? value.align : 'center',
+    left: mm(value.left), right: mm(value.right), top: mm(value.top) };
+}
+function preambleSection(body) {
+  const start = OPENING_WORD.exec(body)?.[0].length || 0;
+  const end = REGULATIONS_END.exec(body);
+  const marker = CHARACTERIZATION_MARK.exec(body);
+  const stop = marker ? marker.index : end ? end.index + end[0].length : start;
+  return { opening: body.slice(0, start).trim(), text: body.slice(start, stop).trim(), rest: body.slice(stop).trim() };
+}
 function decreeArtwork(d, previews = {}) {
   const { artwork = {}, characterize, hmeisWidth, hmeisOffset } = storedForm(d);
   return Object.fromEntries(Object.entries(FORM_ART).filter(([k]) => k === 'characterize' ? characterize : characterize || hmeisWidth || hmeisOffset || artwork[k] || previews[k])
@@ -135,8 +155,8 @@ function characterizeBody(body, sentence = '', previous = sentence) {
 }
 function artworkBody(body, art) {
   let text = String(body || '');
-  if (art.hmeis) text = 'ΗΜΕΙΣ\n\n' + text.replace(/^\s*(?:\[b\])?ΗΜΕΙΣ(?:\[\/b\])?\s*(?:\n|$)/i, '').trimStart();
-  return art.characterize ? characterizeBody(text) : text;
+  if (art.hmeis) text = 'ΗΜΕΙΣ\n\n' + text.replace(OPENING_WORD, '').trimStart();
+  return art.characterize && !CHARACTERIZATION_MARK.test(text) ? characterizeBody(text) : text;
 }
 function characterizationSection(d, body) {
   const form = storedForm(d);
@@ -197,15 +217,22 @@ async function decreeDocxBlob(d) {
   }
   const body = artworkBody(d.body, art);
   const section = characterizationSection(d, body), width = characterizationWidth(logo?.file ? logo : null);
+  const form = storedForm(d), layout = form.preamble, PT = 72 / 25.4, MARGIN_TOP = 1000 / 1440 * 25.4;
   const sections = section ? [[section.before], [section.text, width], [section.after]] : [[body]];
-  const paragraphs = sections.flatMap(([text, narrow]) => {
+  const paragraphs = sections.flatMap(([text, narrow], i) => {
     const formatted = isGeneralDecree(d) ? text : markNames(tightPeri(text), (n) => `[b][size=15]${n}[/size][/b]`);
+    const indent = narrow ? (210 - 2 * (1250 / 1440 * 25.4) - narrow) / 2 : 0;
+    if (layout && i === 0) {
+      const intro = preambleSection(formatted), position = preambleLayout(layout);
+      return [{ text: intro.opening, align: 'center' },
+        { text: intro.text, align: position.align === 'justify' ? 'both' : position.align, before: position.top * PT,
+          indentLeft: position.left, indentRight: position.right },
+        { text: intro.rest, align: 'center' }];
+    }
     return formatted.split(/\n\s*\n/).map((t) => ({
-      text: t.trim(), align: 'center', indent: narrow ? (210 - 2 * (1250 / 1440 * 25.4) - narrow) / 2 : 0,
-      bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()),
+      text: t.trim(), align: 'center', indent, bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()),
     }));
   });
-  const PT = 72 / 25.4, MARGIN_TOP = 1000 / 1440 * 25.4; // περιθώριο σελίδας (mm)
   const blocks = letterBlocks({ noHead: top != null, topSpace: top != null ? (top - MARGIN_TOP) * PT : 0, org: S('organization_name'), founded: S('founded_year'), gmTitle: S('grand_master_title'), gmName: S('grand_master_name'),
     number: d.protocol_seq ? String(d.protocol_seq) : (d.protocol_no || ''), date: fmtDate(d.decree_date), place: 'Εν Αθήναις', title: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${decreeNo(d)}${protoPhrase(d)}`,
     paragraphs,
@@ -244,9 +271,15 @@ export function decreePaper(d, opts = {}) {
   const logo = storedForm(d).logo;
   const section = characterizationSection(d, body);
   const width = characterizationWidth(logo?.file || urls.lodgeLogo ? logo : null);
+  const layout = storedForm(d).preamble;
+  const before = (text) => {
+    if (!layout) return toHtml(text);
+    const intro = preambleSection(text), position = preambleLayout(layout);
+    return `${toHtml(intro.opening)}\n\n<span class="decree-preamble" style="display:block;text-align:${position.align};margin:${position.top}mm ${position.right}mm 0 ${position.left}mm">${toHtml(intro.text)}</span>\n${toHtml(intro.rest)}`;
+  };
   const bodyHtml = section
-    ? `${toHtml(section.before.trimEnd())}\n<span class="decree-characterization"${width ? ` style="max-width:${width}mm"` : ''}>${toHtml(section.text)}</span>\n${toHtml(section.after.trimStart())}`
-    : toHtml(body);
+    ? `${before(section.before.trimEnd())}\n<span class="decree-characterization"${width ? ` style="max-width:${width}mm"` : ''}>${toHtml(section.text)}</span>\n${toHtml(section.after.trimStart())}`
+    : before(body);
   // «ΗΜΕΙΣ» / «ΔΙΟΡΙΖΟΜΕΝ»: καλλιγραφικές εικόνες, μεγάλες και πίσω από το κείμενο (πιάνουν λίγο ύψος — το κεφαλαίο απλώνεται προς τα πάνω)
   // η γραμμή μόνο με τη λέξη (ό,τι μορφοποίηση κι αν έχει: έντονα, μέγεθος, κενά) γίνεται εικόνα
   const custom = Object.fromEntries(Object.entries(art).map(([k, a]) => [a.label, { ...a, cls: k }]));
@@ -397,7 +430,7 @@ function mountDecreeArtwork(f, source, preview) {
     previews: () => Object.fromEntries(Object.entries(pending).filter(([, a]) => a.url).map(([k, a]) => [k, a.url])),
     async prepare(body, characterize, width, offset) {
       const artwork = { ...saved }, files = [], chosen = Object.entries(pending);
-      if (characterize && !REGULATIONS_END.test(body)) {
+      if (characterize && !CHARACTERIZATION_MARK.test(body) && !REGULATIONS_END.test(body)) {
         throw new Error('Στο κείμενο χρειάζεται η φράση «και Κανονισμών» για τη θέση του ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ.');
       }
       for (const [k, a] of chosen) {
@@ -429,6 +462,7 @@ function mountTemplateFields(f, source, key) {
   const details = f.querySelector('#dLodgeDetails'), logoBox = f.querySelector('#dLodgeLogo');
   const phrasing = f.elements.characterization_text, phrasingBox = f.querySelector('#dCharacterization');
   const lodgeValue = f.querySelector('#dCharacterizationLodge');
+  const preambleBox = f.querySelector('#dPreamble'), preambleSource = f.elements.preamble_text;
   const isCharacterize = () => f.elements.action.value === 'characterize';
   const syncLodge = () => {
     const visible = affiliation || isCharacterize();
@@ -437,6 +471,7 @@ function mountTemplateFields(f, source, key) {
     logoBox.hidden = !visible;
     phrasingBox.hidden = phrasing.disabled = !isCharacterize();
     phrasing.required = isCharacterize();
+    preambleBox.hidden = preambleBox.disabled = !isCharacterize();
     lodgeValue.textContent = lodge ? `${lodge.name} · αρ. ${lodge.number}` : '—';
     if (isCharacterize() && !phrasing.value) phrasing.value = defaultCharacterization(lodge || {});
     const automatic = lodgeFields();
@@ -476,6 +511,11 @@ function mountTemplateFields(f, source, key) {
     if (lodge && ![...lodgeSelect.options].some((o) => o.value === String(lodge.id))) lodgeSelect.add(new Option(lodgeTitle(lodge, 'Συμβολική Στοά'), lodge.id));
     lodgeSelect.value = lodge?.id || '';
     savedLogo = keep ? saved.logo : null;
+    const original = preambleSection(body.value).text;
+    preambleSource.value = keep && saved.preamble ? saved.preamble.source
+      : original && (keep && saved.characterize || original !== preambleSection(GENERAL_BODY).text) ? original : CHARACTERIZATION_PREAMBLE;
+    const layout = preambleLayout(keep ? saved.preamble : undefined);
+    for (const [k, v] of Object.entries(layout)) f.elements['preamble_' + k].value = v;
     phrasing.value = keep ? saved.characterizationSource ?? saved.characterizationText ?? defaultCharacterization(lodge) : '';
     logoMode.value = savedLogo?.mode || 'lodge';
     for (const [k, input] of Object.entries(logoInputs)) input.value = savedLogo?.[k] ?? LOGO_DEFAULT[k];
@@ -555,11 +595,22 @@ function mountTemplateFields(f, source, key) {
     const characterizationSource = data.action === 'characterize' ? String(data.characterization_text || '').trim() : undefined;
     const characterizationText = characterizationSource === undefined ? undefined
       : fill(characterizationSource, ctx).replace(/\n{3,}/g, '\n\n').trim();
-    const bodyText = characterizationText === undefined ? text
-      : characterizeBody(text, characterizationText, storedForm(source).characterizationText ?? defaultCharacterization(storedForm(source).lodge));
+    let bodyText = text, preamble;
+    if (characterizationText !== undefined) {
+      preamble = { source: String(data.preamble_text || '').trim(), ...preambleLayout({
+        align: data.preamble_align, top: data.preamble_top, left: data.preamble_left, right: data.preamble_right,
+      }) };
+      const intro = preambleSection(text);
+      const previous = saved.characterizationText ?? defaultCharacterization(saved.lodge);
+      let rest = intro.rest.replace(CHARACTERIZATION_MARK, '').trim();
+      if (previous && rest.startsWith(previous)) rest = rest.slice(previous.length).trimStart();
+      rest = rest.replace(/^[ \t]*(?:\[b\])?ΑΠΟΦΑΣΙΖΟΜΕΝ(?:\[\/b\])?[ \t]*$/gmi, '').replace(/\n{3,}/g, '\n\n');
+      bodyText = [intro.opening || 'ΗΜΕΙΣ', fill(preamble.source, { ...ctx, matter: subject }),
+        'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', characterizationText, rest].filter(Boolean).join('\n\n');
+    }
     return { template_key: form.key, decree_no: no, decree_year: year, decree_date: date, matter: subject,
       subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${subject}`, body: bodyText, body_src: src,
-      rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge, logo, characterizationSource, characterizationText }), appointments: '[]' };
+      rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge, logo, characterizationSource, characterizationText, preamble }), appointments: '[]' };
   };
   return {
     loadTemplate, row, capture, syncLodge,
@@ -639,6 +690,13 @@ ${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option va
 <label>Κάθετη θέση (mm)<input type="number" name="logo_y" min="0" max="292" step="any" value="15"></label>
 <label>Πλάτος (mm)<input type="number" name="logo_w" min="5" max="210" step="any" value="25"></label></div>
 <small class="muted">Μετακινήστε το λογότυπο στην προεπισκόπηση ή ορίστε τη θέση του σε χιλιοστά.</small></div></div>
+<fieldset id="dPreamble" class="full plainfs" hidden disabled>
+<label for="dPreambleText">Εισαγωγικό κείμενο πριν από το «ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ»</label>
+<textarea id="dPreambleText" name="preamble_text" rows="7" data-rich required></textarea>
+<div class="grid">
+<label>Στοίχιση<select name="preamble_align">${Object.entries(PREAMBLE_ALIGN).map(([key, label]) => `<option value="${key}">${label}</option>`).join('')}</select></label>
+${[['top', 'Κενό πάνω'], ['left', 'Αριστερή εσοχή'], ['right', 'Δεξιά εσοχή']].map(([key, label]) => `<label>${label} (mm)<input type="number" name="preamble_${key}" min="0" max="70" step="any" value="0"></label>`).join('')}
+</div></fieldset>
 <div id="dCharacterization" class="full" hidden>
 <label for="dCharacterizationText">Διατύπωση κάτω από το «ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ»</label>
 <small class="muted">Ποια Στοά: <output id="dCharacterizationLodge"></output>. Μπορείτε επίσης να γράψετε {Στοά} και {Αρ. Στοάς} για αυτόματη συμπλήρωση.</small>

@@ -5649,7 +5649,25 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     wording = app.page.input_value('#dCharacterizationText')
     assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in wording
     wording = wording.replace('ΔΟΚΙΜΗ υπ’ αρ. 998', '{Στοά} υπ’ αρ. {Αρ. Στοάς}').replace('Στοάν Κέντρου.', 'Στοάν Κέντρου για τη δοκιμή.')
-    app.page.fill('#dCharacterizationText', wording)
+    field = app.page.locator('#dCharacterizationText')
+    field.fill(wording)
+    bar = app.page.locator('#dCharacterization .richbar')
+    phrase = 'Στοάν Κέντρου για τη δοκιμή.'
+    field.evaluate("(el, phrase) => { const start = el.value.indexOf(phrase); el.setSelectionRange(start, start + phrase.length); }", phrase)
+    bar.locator('[data-w=b]').click()
+    bar.locator('[data-w=i]').click()
+    bar.locator('[data-w=size]').select_option('16')
+    formatted = field.input_value()
+    assert '[b][i][size=16]' + phrase in formatted
+    preview_phrase = app.page.locator('#dprev .decree-characterization b i span')
+    preview_phrase.wait_for()
+    assert preview_phrase.inner_text() == phrase
+    assert preview_phrase.evaluate('el => el.style.fontSize') == '16pt'
+    field.evaluate('el => el.setSelectionRange(0, 0)')
+    bar.locator('[data-w=clear]').click()
+    assert field.input_value() == wording
+    field.fill(formatted)
+    wording = formatted
     app.page.select_option('#dLogoMode', 'upload')
     app.page.set_input_files('#dLogoFile', 'img/seal.png')
     app.page.fill('[name=logo_x]', '150')
@@ -5689,6 +5707,7 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
         assert xml.index('<w:drawing', xml.index('Κανονισμών,')) < xml.index('περί Δοκιμής')
         assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in xml and 'Στοάν Κέντρου για τη δοκιμή.' in xml
         assert '<w:ind w:left=' in xml
+        assert '<w:b/><w:i/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t xml:space="preserve">' + phrase in xml
         assert 'cx="900000"' in xml
         assert '<wp:positionV relativeFrom="paragraph"><wp:posOffset>-144000</wp:posOffset>' in xml
     app.go('/decrees/1/edit')

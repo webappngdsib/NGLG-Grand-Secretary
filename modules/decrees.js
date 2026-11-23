@@ -116,9 +116,9 @@ const FORM_ART = {
 };
 const REGULATIONS_END = /(?<!\p{L})και\s+Κανονισμών(?:[ \t]*[,.;·:])?(?!\p{L})/iu;
 function decreeArtwork(d, previews = {}) {
-  const { artwork = {}, characterize, hmeisWidth } = storedForm(d);
-  return Object.fromEntries(Object.entries(FORM_ART).filter(([k]) => k === 'characterize' ? characterize : characterize || hmeisWidth || artwork[k] || previews[k])
-    .map(([k, art]) => [k, { ...art, word: k === 'hmeis' && hmeisWidth ? hmeisWidth / 10 : art.word, file: artwork[k], url: previews[k] || (!artwork[k] ? art.img : '') }]));
+  const { artwork = {}, characterize, hmeisWidth, hmeisOffset } = storedForm(d);
+  return Object.fromEntries(Object.entries(FORM_ART).filter(([k]) => k === 'characterize' ? characterize : characterize || hmeisWidth || hmeisOffset || artwork[k] || previews[k])
+    .map(([k, art]) => [k, { ...art, word: k === 'hmeis' && hmeisWidth ? hmeisWidth / 10 : art.word, offset: k === 'hmeis' ? Number(hmeisOffset) || 0 : 0, file: artwork[k], url: previews[k] || (!artwork[k] ? art.img : '') }]));
 }
 function characterizeBody(body, lodge) {
   const text = body.replace(/^[ \t]*(?:\[b\])?(?:ΑΠΟΦΑΣΙΖΟΜΕΝ|ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ)(?:\[\/b\])?[ \t]*$/gmi, '')
@@ -173,7 +173,7 @@ async function decreeDocxBlob(d) {
     const png = a.file && await layerPng(a.file);
     const img = png ? URL.createObjectURL(new Blob([png], { type: 'image/png' })) : a.img;
     if (png) temporary.push(img);
-    wordArt[a.label] = { img, width: a.word };
+    wordArt[a.label] = { img, width: a.word, offset: a.offset };
   }
   const body = artworkBody(d.body, art);
   const PT = 72 / 25.4, MARGIN_TOP = 1000 / 1440 * 25.4; // περιθώριο σελίδας (mm)
@@ -216,7 +216,7 @@ export function decreePaper(d, opts = {}) {
   // η γραμμή μόνο με τη λέξη (ό,τι μορφοποίηση κι αν έχει: έντονα, μέγεθος, κενά) γίνεται εικόνα
   const custom = Object.fromEntries(Object.entries(art).map(([k, a]) => [a.label, { ...a, cls: k }]));
   const hmeisHtml = Object.entries({ ...DECREE_ARTWORK, ...custom }).reduce((h, [w, a]) => h.replace(new RegExp(`^(?:<[^>]+>|[ \\t])*${w}(?:</[^>]+>|[ \\t])*$`, 'm'),
-    custom[w] ? `<span class="dec-form-art" role="img" aria-label="${w}"><img alt="" ${a.url ? `src="${esc(a.url)}"` : `data-dfile="${esc(a.file)}"`} style="width:${a.word}cm"></span>`
+    custom[w] ? `<span class="dec-form-art" role="img" aria-label="${w}"><img alt="" ${a.url ? `src="${esc(a.url)}"` : `data-dfile="${esc(a.file)}"`} style="width:${a.word}cm${a.offset ? `;position:relative;top:${a.offset}mm` : ''}"></span>`
       : w === 'ΔΙΟΡΙΖΟΜΕΝ' ? diorHtml(L, urls) : `<span class="${a.cls}" role="img" aria-label="${w}"><img src="${a.img}" alt=""></span>`), bodyHtml);
   const logo = storedForm(d).logo;
   const logoSrc = urls.lodgeLogo ? ` src="${esc(urls.lodgeLogo)}"` : logo?.file ? ` data-dfile="${esc(logo.file)}"` : '';
@@ -361,7 +361,7 @@ function mountDecreeArtwork(f, source, preview) {
   return {
     saved: () => ({ ...saved }),
     previews: () => Object.fromEntries(Object.entries(pending).filter(([, a]) => a.url).map(([k, a]) => [k, a.url])),
-    async prepare(body, characterize, width) {
+    async prepare(body, characterize, width, offset) {
       const artwork = { ...saved }, files = [], chosen = Object.entries(pending);
       if (characterize && !REGULATIONS_END.test(body)) {
         throw new Error('Στο κείμενο χρειάζεται η φράση «και Κανονισμών» για τη θέση του ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ.');
@@ -376,7 +376,7 @@ function mountDecreeArtwork(f, source, preview) {
         artwork[k] = path;
         files.push({ path, bytes: new Uint8Array(await a.file.arrayBuffer()) });
       }
-      return { artwork, files, characterize, hmeisWidth: Number(width) || undefined };
+      return { artwork, files, characterize, hmeisWidth: Number(width) || undefined, hmeisOffset: Number(offset) || undefined };
     },
   };
 }
@@ -573,7 +573,8 @@ ${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option va
   `<option value="${k}"${k === (gen ? (storedForm(d).characterize || query.action === 'characterize' ? 'characterize' : 'general') : m.action) ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
 <div class="card"><div class="grid">${Object.entries(FORM_ART).map(([k, a]) =>
   `<div data-art-field="${k}"><label>Εικόνα «${a.label}»<input type="file" data-decree-art="${k}" accept="image/png,image/jpeg,image/webp"></label><button type="button" class="btn small" hidden>Αφαίρεση εικόνας «${a.label}»</button></div>`).join('')}
-<label>Πλάτος «ΗΜΕΙΣ» (mm)<input name="hmeis_width" type="number" min="5" max="175" step="any" placeholder="Προεπιλογή" value="${esc(storedForm(d).hmeisWidth ?? '')}"></label></div>
+<label>Πλάτος «ΗΜΕΙΣ» (mm)<input name="hmeis_width" type="number" min="5" max="175" step="any" placeholder="Προεπιλογή" value="${esc(storedForm(d).hmeisWidth ?? '')}"></label>
+<label>Κατακόρυφη μετατόπιση «ΗΜΕΙΣ» (mm)<input name="hmeis_offset" type="number" step="any" value="${esc(storedForm(d).hmeisOffset ?? 0)}"><small class="muted">Θετική τιμή προς τα κάτω, αρνητική προς τα πάνω.</small></label></div>
 <small class="muted">Το ΗΜΕΙΣ κεντράρεται κάτω από τον τίτλο. Το ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ ακολουθεί τη φράση «και Κανονισμών».</small></div>
 <fieldset class="plainfs" id="generalPart"${gen ? '' : ' disabled hidden'}><div class="card"><div class="grid">
 <div class="full" id="decreeLodge" hidden><label for="dLodge">Στοά από τη βάση</label><select id="dLodge" name="lodge_id"><option value="">— Επιλογή Στοάς —</option>${lodgesAll().map((l) => `<option value="${l.id}">${esc(lodgeTitle(l, 'Συμβολική Στοά'))}</option>`).join('')}</select>
@@ -720,7 +721,7 @@ function mountDecreeForm(el, d, m0) {
     tmr = setTimeout(() => {
       try {
         const doc = draft();
-        doc.rules = JSON.stringify({ ...storedForm(doc), artwork: artwork.saved(), characterize: act.value === 'characterize', hmeisWidth: f.elements.hmeis_width.valueAsNumber || undefined });
+        doc.rules = JSON.stringify({ ...storedForm(doc), artwork: artwork.saved(), characterize: act.value === 'characterize', hmeisWidth: f.elements.hmeis_width.valueAsNumber || undefined, hmeisOffset: f.elements.hmeis_offset.valueAsNumber || undefined });
         pv.innerHTML = decreePaper(doc, { urls: { lodgeLogo: extra.previewUrl(), formArtwork: artwork.previews() } });
         resolveFileImages(pv).catch(console.warn);
       } catch (e) { console.warn(e); }
@@ -728,7 +729,7 @@ function mountDecreeForm(el, d, m0) {
   };
   const artwork = mountDecreeArtwork(f, m0.source, preview);
   const saveArtwork = (tx, row, art) => {
-    row.rules = JSON.stringify({ ...storedForm(row), artwork: art.artwork, characterize: art.characterize, hmeisWidth: art.hmeisWidth });
+    row.rules = JSON.stringify({ ...storedForm(row), artwork: art.artwork, characterize: art.characterize, hmeisWidth: art.hmeisWidth, hmeisOffset: art.hmeisOffset });
     for (const file of art.files) tx.putFile(file.path, file.bytes);
   };
   f.addEventListener('input', preview); f.addEventListener('change', preview);
@@ -744,7 +745,7 @@ function mountDecreeForm(el, d, m0) {
       if (!matter) throw new Error('Συμπληρώστε το «Περί».');
       if (!src) throw new Error('Συμπληρώστε το κείμενο του Διατάγματος.');
       if (bad.length) throw new Error('Μη έγκυρο email: ' + bad.join(', '));
-      const art = await artwork.prepare(body, data.action === 'characterize', data.hmeis_width);
+      const art = await artwork.prepare(body, data.action === 'characterize', data.hmeis_width, data.hmeis_offset);
       const upload = await extra.prepare(form);
       const proto = askFormProtocol(data, d);
       if (proto === null) return;
@@ -781,7 +782,7 @@ function mountDecreeForm(el, d, m0) {
     });
     if (!people.length) throw new Error('Συμπληρώστε τουλάχιστον έναν Αδελφό.');
     const sample = decreeBody(matter, people, data.decree_date || today(), action, action === 'award' ? office : '', period);
-    const art = await artwork.prepare(sample.body, false, data.hmeis_width);
+    const art = await artwork.prepare(sample.body, false, data.hmeis_width, data.hmeis_offset);
     const proto = askFormProtocol(data, d);
     if (proto === null) return;
     // Διάταγμα → Επετηρίδα → Μητρώο: ερώτηση πριν από την αυτόματη ενημέρωση, με ό,τι θα αλλάξει

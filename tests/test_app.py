@@ -5646,6 +5646,7 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     assert all(label.startswith('Συμβολική Στοά') for label in labels[1:])
     app.page.select_option('#dLodge', str(lodge_id))
     app.page.fill('[name=hmeis_width]', '25')
+    app.page.fill('[name=hmeis_offset]', '-4')
     app.page.fill('[name=g_matter]', 'Δοκιμής χαρακτηρισμού')
     preview = app.page.locator('#dprev')
     preview.locator('[aria-label=ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ] img[src$="charaktirizomen.png"]').wait_for()
@@ -5660,6 +5661,7 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998 με έδραν την πόλιν των Αθηνών, ως' in preview.inner_text()
     assert 'Στοάν Κέντρου.' in preview.inner_text()
     assert '2.5cm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
+    assert 'top:-4mm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
     app.click('Έκδοση Διατάγματος')
     app.page.wait_for_url('**/#/decrees/1')
     images = app.page.locator('.print-area .dec-form-art img[data-dfile]')
@@ -5673,9 +5675,11 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
         assert xml.index('<w:drawing', xml.index('Κανονισμών,')) < xml.index('περί Δοκιμής')
         assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in xml and 'Στοάν Κέντρου.' in xml
         assert 'cx="900000"' in xml
+        assert '<wp:positionV relativeFrom="paragraph"><wp:posOffset>-144000</wp:posOffset>' in xml
     app.go('/decrees/1/edit')
     assert app.page.input_value('#dLodge') == str(lodge_id)
     assert app.page.input_value('[name=hmeis_width]') == '25'
+    assert app.page.input_value('[name=hmeis_offset]') == '-4'
     assert app.page.input_value('#dAction') == 'characterize'
     app.page.get_by_role('button', name='Αφαίρεση εικόνας «ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ»').click()
     preview.locator('[aria-label=ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ] img[src$="charaktirizomen.png"]').wait_for()

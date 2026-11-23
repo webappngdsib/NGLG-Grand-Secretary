@@ -28,6 +28,10 @@ function para(b) { // σειρά στοιχείων κατά το σχήμα OOX
 
 function image(b, rid, n, w, h) {
   const cx = Math.round((b.width || 4) * 360000), cy = Math.round(cx * h / w);
+  if (b.offset) {
+    const drawing = anchored({ w: cx / MM, h: cy / MM, y: b.offset, paragraph: true }, rid, n);
+    return `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${Math.max(1, Math.round(cy / 635))}" w:lineRule="exact"/></w:pPr>${drawing}</w:p>`;
+  }
   return `<w:p><w:pPr><w:spacing w:before="${Math.round((b.before || 0) * 20)}" w:after="${Math.round((b.after ?? 4) * 20)}"/><w:jc w:val="${b.align || 'center'}"/></w:pPr><w:r><w:drawing>`
     + `<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="Εικόνα ${n}"/>`
     + `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${n}" name="image${n}.png"/><pic:cNvPicPr/></pic:nvPicPr>`
@@ -40,8 +44,10 @@ const MM = 36000; // EMU ανά mm
 function anchored(a, rid, n) {
   const e = (v) => Math.round((Number(v) || 0) * MM), cx = e(a.w), cy = e(a.h);
   const alpha = a.opacity != null && a.opacity < 1 ? `<a:alphaModFix amt="${Math.round(Math.max(0, a.opacity) * 100000)}"/>` : '';
+  const positionH = a.paragraph ? '<wp:positionH relativeFrom="margin"><wp:align>center</wp:align></wp:positionH>'
+    : `<wp:positionH relativeFrom="page"><wp:posOffset>${e(a.x)}</wp:posOffset></wp:positionH>`;
   return `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${a.behind ? n : 251658240 + n}" behindDoc="${a.behind ? 1 : 0}" locked="1" layoutInCell="1" allowOverlap="1">`
-    + `<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${e(a.x)}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${e(a.y)}</wp:posOffset></wp:positionV>`
+    + `<wp:simplePos x="0" y="0"/>${positionH}<wp:positionV relativeFrom="${a.paragraph ? 'paragraph' : 'page'}"><wp:posOffset>${e(a.y)}</wp:posOffset></wp:positionV>`
     + `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${n}" name="Εικόνα ${n}"/><wp:cNvGraphicFramePr/>`
     + `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${n}" name="image${n}.png"/><pic:cNvPicPr/></pic:nvPicPr>`
     + `<pic:blipFill><a:blip r:embed="${rid}">${alpha}</a:blip><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
@@ -121,7 +127,7 @@ export function letterBlocks({ base = '', org, founded, gmTitle, gmName, number,
   for (const p of paragraphs) if (String(p.text || '').trim()) for (const t of String(p.text).split(/\n\s*\n/)) {
     // λέξη στην αρχή της παραγράφου που γράφεται ως καλλιγραφική εικόνα (π.χ. «ΗΜΕΙΣ», «ΔΙΟΡΙΖΟΜΕΝ» στα Διατάγματα)
     const [first, ...more] = t.trim().split('\n'), w = Object.keys(artwork).find((k) => first.replace(/\[\/?[a-z]+(=\d+)?\]/g, '').trim() === k);
-    if (w) { B.push({ img: artwork[w].img, width: artwork[w].width, align: 'center', after: 0 }); const rest = more.join('\n').trim(); if (rest) B.push({ align: 'both', after: 8, ...p, bold: false, text: rest }); continue; }
+    if (w) { B.push({ img: artwork[w].img, width: artwork[w].width, offset: artwork[w].offset, align: 'center', after: 0 }); const rest = more.join('\n').trim(); if (rest) B.push({ align: 'both', after: 8, ...p, bold: false, text: rest }); continue; }
     B.push({ align: 'both', after: 8, ...p, text: t.trim() });
   }
   if (closing) B.push({ text: closing, before: 14, after: 6 });

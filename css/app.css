@@ -797,3 +797,5 @@ dialog.lodgenos::backdrop { background: rgba(11, 31, 58, .45); }
 .btn.gs-btn:hover{background:#5e1520!important}
 .decree-lodge-logo{position:absolute;z-index:3;height:auto;object-fit:contain}
 .dec-live .decree-lodge-logo{cursor:move;touch-action:none;user-select:none}
+.decbody .dec-form-art{display:inline-block;max-width:100%;vertical-align:middle}
+.decbody .dec-form-art img{display:block;max-width:100%;height:auto;margin:auto}

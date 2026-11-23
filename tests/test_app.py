@@ -5630,3 +5630,37 @@ def test_decree_catalog_affiliation_logo_and_edit(app):
     app.page.get_by_role('button', name='Αποθήκευση Διατάγματος').click()
     app.page.wait_for_url('**/#/decrees/1')
     assert 'Διορθωμένη Επαρχία' in app.text('.print-area')
+
+
+def test_decree_characterize_artwork_positions_and_persistence(app):
+    app.connect_local()
+    app.go('/decrees/new')
+    app.page.select_option('#dAction', 'characterize')
+    assert app.page.input_value('#dTemplate') == 'decree-general'
+    assert app.page.locator('#appointPart').is_hidden()
+    app.page.fill('[name=g_matter]', 'Δοκιμής χαρακτηρισμού')
+    preview = app.page.locator('#dprev')
+    preview.locator('[aria-label=ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ] img[src$="charaktirizomen.png"]').wait_for()
+    app.page.set_input_files('[data-decree-art=hmeis]', 'img/hmeis.png')
+    app.page.set_input_files('[data-decree-art=characterize]', 'img/header_emblem.png')
+    for word in ['ΗΜΕΙΣ', 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ']:
+        preview.locator(f'[aria-label={word}] img[src^="data:"]').wait_for()
+    assert preview.locator('.decbody').evaluate("""el => {
+      const [opening, act] = el.querySelectorAll('.dec-form-art');
+      return el.firstChild === opening && act.previousSibling.textContent.trimEnd().endsWith('και Κανονισμών,');
+    }""")
+    app.click('Έκδοση Διατάγματος')
+    app.page.wait_for_url('**/#/decrees/1')
+    images = app.page.locator('.print-area .dec-form-art img[data-dfile]')
+    assert images.count() == 2
+    with app.page.expect_download() as docx:
+        app.page.get_by_role('button', name='Word').click()
+    from zipfile import ZipFile
+    with ZipFile(docx.value.path()) as archive:
+        xml = archive.read('word/document.xml').decode()
+        assert 'Κανονισμών,' in xml and 'ΑΠΟΦΑΣΙΖΟΜΕΝ' not in xml
+        assert xml.index('<w:drawing', xml.index('Κανονισμών,')) < xml.index('περί Δοκιμής')
+    app.go('/decrees/1/edit')
+    assert app.page.input_value('#dAction') == 'characterize'
+    app.page.get_by_role('button', name='Αφαίρεση εικόνας «ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ»').click()
+    preview.locator('[aria-label=ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ] img[src$="charaktirizomen.png"]').wait_for()

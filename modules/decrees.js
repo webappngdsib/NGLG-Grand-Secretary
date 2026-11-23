@@ -110,6 +110,29 @@ async function layerPng(path) {
 // Λέξεις του Διατάγματος που γράφονται ως καλλιγραφική εικόνα (cls: θέση/μέγεθος στο css, word: πλάτος στο Word σε cm)
 const DECREE_ARTWORK = { 'ΕΥΑΡΕΣΤΟΥΜΕΘΑ ΝΑ ΑΠΟΝΕΙΜΩΜΕΝ': { img: IMG.evarestoumetha, cls: 'evarest', word: 7 }, ΗΜΕΙΣ: { img: IMG.hmeis, cls: 'hmeis', word: 3.3 }, ΔΙΟΡΙΖΟΜΕΝ: { img: IMG.diorizomen, cls: 'diorizomen', word: 2.6 },
   ΑΠΟΝΕΜΕΙ: { img: IMG.aponemei, cls: 'aponemei', word: 3.1 } };
+const FORM_ART = {
+  hmeis: { label: 'ΗΜΕΙΣ', word: 5, img: IMG.hmeis },
+  characterize: { label: 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', word: 8, img: 'img/charaktirizomen.png' },
+};
+const REGULATIONS_END = /(?<!\p{L})και\s+Κανονισμών(?:[ \t]*[,.;·:])?(?!\p{L})/iu;
+function decreeArtwork(d, previews = {}) {
+  const { artwork = {}, characterize } = storedForm(d);
+  return Object.fromEntries(Object.entries(FORM_ART).filter(([k]) => k === 'characterize' ? characterize : characterize || artwork[k] || previews[k])
+    .map(([k, art]) => [k, { ...art, file: artwork[k], url: previews[k] || (!artwork[k] ? art.img : '') }]));
+}
+function characterizeBody(body) {
+  const text = body.replace(/^[ \t]*(?:\[b\])?(?:ΑΠΟΦΑΣΙΖΟΜΕΝ|ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ)(?:\[\/b\])?[ \t]*$/gmi, '')
+    .replace(/\n{3,}/g, '\n\n');
+  const end = REGULATIONS_END.exec(text);
+  if (!end) return body;
+  const index = end.index + end[0].length;
+  return [text.slice(0, index), 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', text.slice(index).trimStart()].filter(Boolean).join('\n\n');
+}
+function artworkBody(body, art) {
+  let text = String(body || '');
+  if (art.hmeis) text = 'ΗΜΕΙΣ\n\n' + text.replace(/^\s*(?:\[b\])?ΗΜΕΙΣ(?:\[\/b\])?\s*(?:\n|$)/i, '').trimStart();
+  return art.characterize ? characterizeBody(text) : text;
+}
 // «ΔΙΟΡΙΖΟΜΕΝ» (εικόνα της πράξης): πλάτος/ύψος σε mm, πάντα στο κέντρο, κάθετη μετατόπιση dy (mm)·
 // προαιρετικά δική του εικόνα ανά πρότυπο (Σχεδίαση σελίδας → layout.dior.file)
 export const DIOR_DEFAULT = { w: 45, h: 20.7, dy: 0 }, DIOR_RATIO = 0.4608;
@@ -138,14 +161,27 @@ async function decreeDocxBlob(d) {
       bmp.close();
     }
   }
+  const art = decreeArtwork(d);
+  const wordArt = Object.fromEntries(Object.entries(DECREE_ARTWORK).map(([w, a]) => [w, w === 'ΔΙΟΡΙΖΟΜΕΝ'
+    ? { img: dioImg, width: Math.max(5, +dio.w) / 10 } : { img: a.img, width: a.word }]));
+  const temporary = [];
+  if (dioPng) temporary.push(dioImg);
+  for (const a of Object.values(art)) {
+    const png = a.file && await layerPng(a.file);
+    const img = png ? URL.createObjectURL(new Blob([png], { type: 'image/png' })) : a.img;
+    if (png) temporary.push(img);
+    wordArt[a.label] = { img, width: a.word };
+  }
+  const body = artworkBody(d.body, art);
   const PT = 72 / 25.4, MARGIN_TOP = 1000 / 1440 * 25.4; // περιθώριο σελίδας (mm)
   const blocks = letterBlocks({ noHead: top != null, topSpace: top != null ? (top - MARGIN_TOP) * PT : 0, org: S('organization_name'), founded: S('founded_year'), gmTitle: S('grand_master_title'), gmName: S('grand_master_name'),
     number: d.protocol_seq ? String(d.protocol_seq) : (d.protocol_no || ''), date: fmtDate(d.decree_date), place: 'Εν Αθήναις', title: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${decreeNo(d)}${protoPhrase(d)}`,
-    paragraphs: (isGeneralDecree(d) ? String(d.body || '') : markNames(tightPeri(d.body), (n) => `[b][size=15]${n}[/size][/b]`)).split(/\n\s*\n/).map((t) => ({ text: t.trim(), align: 'center', bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()) })),
-    artwork: Object.fromEntries(Object.entries(DECREE_ARTWORK).map(([w, a]) => [w, w === 'ΔΙΟΡΙΖΟΜΕΝ' ? { img: dioImg, width: +(Math.max(5, +dio.w) / 10).toFixed(2) } : { img: a.img, width: a.word }])),
+    paragraphs: (isGeneralDecree(d) ? body : markNames(tightPeri(body), (n) => `[b][size=15]${n}[/size][/b]`)).split(/\n\s*\n/).map((t) => ({ text: t.trim(), align: 'center', bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()) })),
+    artwork: wordArt,
     signature: IMG.signature, signer: 'Δημήτριος Σκιαδόπουλος', signerTitle: 'Ο ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΑΣ',
     head: headOn(L.head) ? { ...L.head, lines: L.head.lines.map((l) => ({ ...l, hex: (HEAD_COLORS[l.color] || HEAD_COLORS.navy).slice(1).toUpperCase() })) } : null });
-  return makeDocx(blocks, { title: d.subject, author: 'Μεγάλη Γραμματεία', anchors });
+  try { return await makeDocx(blocks, { title: d.subject, author: 'Μεγάλη Γραμματεία', anchors }); }
+  finally { for (const url of temporary) URL.revokeObjectURL(url); }
 }
 // Προτεινόμενος αριθμός: ο επόμενος του μεγαλύτερου (ή ο αρχικός των Ρυθμίσεων)· ο αριθμός αλλάζει ελεύθερα στη φόρμα και το επόμενο Διάταγμα έπεται του μεγαλύτερου
 export const suggestDecreeNo = (src = db) => Math.max(src.all('decree_documents').reduce((m, d) => Math.max(m, Number(d.decree_no) || 0), 0) + 1, Number(db.setting('decree_first_no')) || 513);
@@ -170,12 +206,15 @@ function formDecreeNo(tx, data, d) {
 export function decreePaper(d, opts = {}) {
   const action = meta(d).action, general = isGeneralDecree(d);
   const L = opts.layout || layoutOf(decreeTemplate(decreeKey(d))), urls = opts.urls || {}, layers = pageLayers(L, urls), top = layoutTop(L, urls);
-  const bodyHtml = general ? richHtml(d.body, { links: false }).replace(/^([Α-ΩΆ-Ώ][Α-ΩΆ-ΏΪΫ ’'΄-]{3,})$/gm, '<b>$1</b>')
-    : markNames(richHtml(tightPeri(d.body), { links: false }).replace(/^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ ΝΑ ΑΠΟΝΕΙΜΩΜΕΝ)$/gm, '<b>$1</b>'), (n) => `<span class="dec-name">${n}</span>`);
+  const art = decreeArtwork(d, urls.formArtwork), body = artworkBody(d.body, art);
+  const bodyHtml = general ? richHtml(body, { links: false }).replace(/^([Α-ΩΆ-Ώ][Α-ΩΆ-ΏΪΫ ’'΄-]{3,})$/gm, '<b>$1</b>')
+    : markNames(richHtml(tightPeri(body), { links: false }).replace(/^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ ΝΑ ΑΠΟΝΕΙΜΩΜΕΝ)$/gm, '<b>$1</b>'), (n) => `<span class="dec-name">${n}</span>`);
   // «ΗΜΕΙΣ» / «ΔΙΟΡΙΖΟΜΕΝ»: καλλιγραφικές εικόνες, μεγάλες και πίσω από το κείμενο (πιάνουν λίγο ύψος — το κεφαλαίο απλώνεται προς τα πάνω)
   // η γραμμή μόνο με τη λέξη (ό,τι μορφοποίηση κι αν έχει: έντονα, μέγεθος, κενά) γίνεται εικόνα
-  const hmeisHtml = Object.entries(DECREE_ARTWORK).reduce((h, [w, a]) => h.replace(new RegExp(`^(?:<[^>]+>|[ \\t])*${w}(?:</[^>]+>|[ \\t])*$`, 'm'),
-    w === 'ΔΙΟΡΙΖΟΜΕΝ' ? diorHtml(L, urls) : `<span class="${a.cls}" role="img" aria-label="${w}"><img src="${a.img}" alt=""></span>`), bodyHtml);
+  const custom = Object.fromEntries(Object.entries(art).map(([k, a]) => [a.label, { ...a, cls: k }]));
+  const hmeisHtml = Object.entries({ ...DECREE_ARTWORK, ...custom }).reduce((h, [w, a]) => h.replace(new RegExp(`^(?:<[^>]+>|[ \\t])*${w}(?:</[^>]+>|[ \\t])*$`, 'm'),
+    custom[w] ? `<span class="dec-form-art" role="img" aria-label="${w}"><img alt="" ${a.url ? `src="${esc(a.url)}"` : `data-dfile="${esc(a.file)}"`} style="width:${a.word}cm"></span>`
+      : w === 'ΔΙΟΡΙΖΟΜΕΝ' ? diorHtml(L, urls) : `<span class="${a.cls}" role="img" aria-label="${w}"><img src="${a.img}" alt=""></span>`), bodyHtml);
   const logo = storedForm(d).logo;
   const logoSrc = urls.lodgeLogo ? ` src="${esc(urls.lodgeLogo)}"` : logo?.file ? ` data-dfile="${esc(logo.file)}"` : '';
   const logoHtml = logo && logoSrc ? `<img class="decree-lodge-logo" alt="Λογότυπο Στοάς" draggable="false"${logoSrc} style="left:${+logo.x}mm;top:${+logo.y}mm;width:${+logo.w}mm">` : '';
@@ -271,6 +310,72 @@ ${table(['Προβάδισμα', 'Αξίωμα / Διορισμός', 'Κανό�
 function storedForm(d) {
   try { return (typeof d?.rules === 'string' ? JSON.parse(d.rules) : d?.rules) || {}; }
   catch { return {}; }
+}
+
+function mountDecreeArtwork(f, source, preview) {
+  const saved = { ...storedForm(source).artwork }, pending = {};
+  for (const input of f.querySelectorAll('[data-decree-art]')) {
+    const key = input.dataset.decreeArt, remove = input.parentElement.nextElementSibling;
+    const refresh = () => { remove.hidden = !saved[key] && !pending[key]; };
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 5 * 1024 * 1024) {
+        input.value = '';
+        toast('Επιλέξτε εικόνα PNG, JPG ή WEBP έως 5 MB.');
+        return;
+      }
+      const reader = new FileReader(), item = { file };
+      pending[key] = item;
+      refresh();
+      reader.onload = async () => {
+        const img = new Image();
+        img.src = reader.result;
+        try { await img.decode(); }
+        catch {
+          if (pending[key] === item) {
+            delete pending[key];
+            input.value = '';
+            refresh();
+            toast('Το αρχείο δεν ανοίγει ως εικόνα.');
+          }
+          return;
+        }
+        item.url = reader.result;
+        if (pending[key] === item) preview();
+      };
+      reader.readAsDataURL(file);
+    });
+    remove.addEventListener('click', () => {
+      delete saved[key];
+      delete pending[key];
+      input.value = '';
+      refresh();
+      preview();
+    });
+    refresh();
+  }
+  return {
+    saved: () => ({ ...saved }),
+    previews: () => Object.fromEntries(Object.entries(pending).filter(([, a]) => a.url).map(([k, a]) => [k, a.url])),
+    async prepare(body, characterize) {
+      const artwork = { ...saved }, files = [], chosen = Object.entries(pending);
+      if (characterize && !REGULATIONS_END.test(body)) {
+        throw new Error('Στο κείμενο χρειάζεται η φράση «και Κανονισμών» για τη θέση του ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ.');
+      }
+      for (const [k, a] of chosen) {
+        if (!a.url) {
+          const bmp = await createImageBitmap(a.file);
+          bmp.close();
+        }
+        const ext = a.file.type.split('/')[1].replace('jpeg', 'jpg');
+        const path = `decrees/artwork/${crypto.randomUUID()}.${ext}`;
+        artwork[k] = path;
+        files.push({ path, bytes: new Uint8Array(await a.file.arrayBuffer()) });
+      }
+      return { artwork, files, characterize };
+    },
+  };
 }
 
 const LOGO_DEFAULT = { x: 170, y: 15, w: 25 };
@@ -429,7 +534,7 @@ function decreeForm(d, query = {}) {
   const list = d ? apps(d) : [];
   if (m.action === 'appoint' && !m.decree_office && list.length) m.decree_office = list[0].office || '';
   const choices = decreeChoices(), available = new Set(choices.map(templateKey));
-  const preferred = query.kind || keyFor(m.action);
+  const preferred = query.kind || keyFor(query.action === 'characterize' ? 'general' : m.action);
   const key = d ? decreeKey(d) : available.has(preferred) ? preferred : available.has('decree-general') ? 'decree-general' : templateKey(choices[0] || { id: '' });
   const tpl = decreeTemplate(key), gen = d ? isGeneralDecree(d) : decreeProfile(tpl) === 'decree-general';
   if (d && !available.has(key)) choices.unshift({ ...tpl, name: tpl.name || d.template_key, formKey: key });
@@ -446,6 +551,12 @@ ${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option va
 <small class="muted">${d && d.id ? 'Μπορείτε να διορθώσετε τον αριθμό.' : 'Προτείνεται ο επόμενος· μπορείτε να τον αλλάξετε.'} Το επόμενο Διάταγμα θα προταθεί αμέσως μετά τον μεγαλύτερο αριθμό.</small>
 <label style="margin-top:14px">Αρ. Πρωτοκόλλου</label><div class="dec-norow"><input name="protocol_seq" type="number" min="1" step="1" inputmode="numeric" value="${esc((d && d.id && d.protocol_seq) || suggestedProtocol())}" required></div>
 <small class="muted">${d && d.id && d.protocol_seq ? 'Ο αριθμός του Διατάγματος στο Βιβλίο Πρωτοκόλλου· μπορείτε να τον διορθώσετε.' : 'Προτείνεται ο επόμενος ελεύθερος του Βιβλίου Πρωτοκόλλου· γράψτε τον τελικό αριθμό.'} Ενιαία αρίθμηση Επιστολών και Διαταγμάτων: η αρίθμηση συνεχίζει από τον αριθμό που γράφετε.</small></div></div>
+<div class="card"><label for="dAction">Πράξη Διατάγματος</label>
+<select name="action" id="dAction">${Object.entries({ ...ACTIONS, general: 'Γενική πράξη', characterize: 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ' }).map(([k, v]) =>
+  `<option value="${k}"${k === (gen ? (storedForm(d).characterize || query.action === 'characterize' ? 'characterize' : 'general') : m.action) ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+<div class="card"><div class="grid">${Object.entries(FORM_ART).map(([k, a]) =>
+  `<div data-art-field="${k}"><label>Εικόνα «${a.label}»<input type="file" data-decree-art="${k}" accept="image/png,image/jpeg,image/webp"></label><button type="button" class="btn small" hidden>Αφαίρεση εικόνας «${a.label}»</button></div>`).join('')}</div>
+<small class="muted">Το ΗΜΕΙΣ κεντράρεται κάτω από τον τίτλο. Το ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ ακολουθεί τη φράση «και Κανονισμών».</small></div>
 <fieldset class="plainfs" id="generalPart"${gen ? '' : ' disabled hidden'}><div class="card"><div class="grid">
 <div class="full" id="decreeLodge" hidden><label for="dLodge">Στοά από τη βάση</label><select id="dLodge" name="lodge_id"><option value="">— Επιλογή Στοάς —</option>${lodgesAll().map((l) => `<option value="${l.id}">${esc(lodgeTitle(l))}</option>`).join('')}</select>
 <div id="dLodgeDetails" class="muted"></div>
@@ -461,8 +572,7 @@ ${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option va
 <div class="full"><label>🔎 Παραλήπτες από τον Κατάλογο (Στοές, Επαρχίες, μέλη)</label><input id="gPick" placeholder="Στοά, Επαρχία, όνομα…" autocomplete="off"></div>
 <div><label>Προς (για το email)</label><input name="g_to_name" value="${esc(d && gen ? d.recipient_name : '')}"></div><div><label>Email παραληπτών</label><input name="g_to_email" value="${esc(d && gen ? d.recipient_email : '')}" placeholder="πολλά με κόμμα"></div>
 </div></div></fieldset>
-<fieldset class="plainfs" id="appointPart"${gen ? ' disabled hidden' : ''}><div class="card"><div class="grid"><div><label>Πράξη Διατάγματος</label><select name="action" id="dAction">${Object.entries(ACTIONS).map(([k, v]) => `<option value="${k}"${k === m.action ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
-<div id="matterWrap"><label>Περί</label><input name="matter" value="${esc(d ? d.matter : '')}"></div></div></div>
+<fieldset class="plainfs" id="appointPart"${gen ? ' disabled hidden' : ''}><div class="card"><div class="grid"><div id="matterWrap"><label>Περί</label><input name="matter" value="${esc(d ? d.matter : '')}"></div></div></div>
 <div class="card" id="officeCard"><label id="officeLabel">Ενεργός Μέγας Αξιωματικός</label><select name="office" id="dOffice"></select></div>
 <div class="card" id="periodCard"><label>Τεκτονική Περίοδος</label><input name="period" value="${esc(m.period)}" placeholder="2026 - 2027"></div>
 <div class="card" id="serviceText" hidden><h3 style="margin-top:0">Σταθερό κείμενο — Τάξις του Μεγάλου Διδασκάλου</h3><p style="text-align:center;white-space:pre-line"><b>ΗΜΕΙΣ</b>
@@ -516,9 +626,14 @@ function mountDecreeForm(el, d, m0) {
   });
   el.querySelectorAll('.dec-person').forEach(wire);
   act.addEventListener('change', () => {
-    if (!DECREE_KINDS[profileNow()].actions.includes(act.value) && !d) {
-      const next = keyFor(act.value);
-      if ([...templateSelect.options].some((option) => option.value === next)) templateSelect.value = next;
+    const general = ['general', 'characterize'].includes(act.value);
+    const allowed = DECREE_KINDS[profileNow()].actions;
+    if (!(general ? isGen() : allowed.includes(act.value)) && !d) {
+      const next = keyFor(general ? 'general' : act.value);
+      if ([...templateSelect.options].some((option) => option.value === next)) {
+        templateSelect.value = next;
+        if (general) extra.loadTemplate();
+      }
     }
     syncKind();
   });
@@ -529,7 +644,15 @@ function mountDecreeForm(el, d, m0) {
   const syncKind = () => {
     const g = isGen(), gp = el.querySelector('#generalPart'), ap = el.querySelector('#appointPart');
     gp.disabled = gp.hidden = !g; ap.disabled = ap.hidden = g; el.querySelector('[data-act=addPerson]').hidden = g;
+    for (const option of act.options) {
+      const textAction = ['general', 'characterize'].includes(option.value);
+      const target = keyFor(textAction ? 'general' : option.value);
+      option.disabled = d ? textAction !== g || (!g && !DECREE_KINDS[profileNow()].actions.includes(option.value))
+        : textAction !== g && ![...templateSelect.options].some((t) => t.value === target);
+    }
+    if (g && !['general', 'characterize'].includes(act.value)) act.value = 'general';
     if (!g) { const allowed = DECREE_KINDS[profileNow()].actions; if (!allowed.includes(act.value)) act.value = allowed[0]; sync(); }
+    f.querySelector('[data-art-field=characterize]').hidden = act.value !== 'characterize';
   };
   // «ΠΡΩΗΝ» → πράξη «ΑΠΟΝΕΜΕΙ» με όλα τα πρώην αξιώματα (ο διορισμός Επαρχιακού/Περιφερειακού Μ.Δ. επιλέγεται από την «Πράξη»)
   const extra = mountTemplateFields(f, m0.source, kindNow);
@@ -573,7 +696,23 @@ function mountDecreeForm(el, d, m0) {
   if (dIn && yIn) dIn.addEventListener('change', () => { const y = String(dIn.value).slice(0, 4); if (/^\d{4}$/.test(y)) yIn.value = y; });
   const pv = el.querySelector('#dprev');
   let tmr;
-  const preview = () => { clearTimeout(tmr); tmr = setTimeout(() => { try { pv.innerHTML = decreePaper(draft(), { urls: { lodgeLogo: extra.previewUrl() } }); resolveFileImages(pv).catch(console.warn); } catch (e) { console.warn(e); } }, 120); };
+  const preview = () => {
+    clearTimeout(tmr);
+    tmr = setTimeout(() => {
+      try {
+        const doc = draft();
+        doc.rules = JSON.stringify({ ...storedForm(doc), artwork: artwork.saved(), characterize: act.value === 'characterize' });
+        pv.innerHTML = decreePaper(doc, { urls: { lodgeLogo: extra.previewUrl(), formArtwork: artwork.previews() } });
+        resolveFileImages(pv).catch(console.warn);
+      } catch (e) { console.warn(e); }
+    }, 120);
+  };
+  const artwork = mountDecreeArtwork(f, m0.source, preview);
+  const saveArtwork = (tx, row, art) => {
+    if (art.characterize) row.body = characterizeBody(row.body);
+    row.rules = JSON.stringify({ ...storedForm(row), artwork: art.artwork, characterize: art.characterize });
+    for (const file of art.files) tx.putFile(file.path, file.bytes);
+  };
   f.addEventListener('input', preview); f.addEventListener('change', preview);
   el.addEventListener('click', (e) => { if (e.target.closest('[data-act], .picker-list button')) setTimeout(preview, 50); });
   extra.onPreview(preview, pv);
@@ -583,10 +722,11 @@ function mountDecreeForm(el, d, m0) {
     if (isGen()) {
       const emails = splitEmails(data.g_to_email), bad = emails.filter((e) => !EMAIL_RE.test(e));
       const form = extra.capture();
-      const { matter, body_src: src } = extra.row(data, data.decree_no, data.decree_year, data.decree_date || today(), form);
+      const { matter, body_src: src, body } = extra.row(data, data.decree_no, data.decree_year, data.decree_date || today(), form);
       if (!matter) throw new Error('Συμπληρώστε το «Περί».');
       if (!src) throw new Error('Συμπληρώστε το κείμενο του Διατάγματος.');
       if (bad.length) throw new Error('Μη έγκυρο email: ' + bad.join(', '));
+      const art = await artwork.prepare(body, data.action === 'characterize');
       const upload = await extra.prepare(form);
       const proto = askFormProtocol(data, d);
       if (proto === null) return;
@@ -594,6 +734,7 @@ function mountDecreeForm(el, d, m0) {
         const date = formDecreeDate(data, d), { no, year } = formDecreeNo(tx, data, d);
         const row = extra.row(data, no, year, date, form);
         if (upload) tx.putFile(upload.path, upload.bytes);
+        saveArtwork(tx, row, art);
         row.recipient_name = String(data.g_to_name || '').trim();
         row.recipient_email = emails.join(', ');
         const r = d ? tx.update('decree_documents', d.id, row) : tx.insert('decree_documents', { ...row, status: 'draft' });
@@ -621,6 +762,8 @@ function mountDecreeForm(el, d, m0) {
         honorific: service ? '' : hon, former_office: service ? '' : q('.former'), email: em, mobile: mo, office: action === 'appoint' ? office : '', rule: action === 'appoint' ? DEC_MAP[office].rule : '19' };
     });
     if (!people.length) throw new Error('Συμπληρώστε τουλάχιστον έναν Αδελφό.');
+    const sample = decreeBody(matter, people, data.decree_date || today(), action, action === 'award' ? office : '', period);
+    const art = await artwork.prepare(sample.body, false);
     const proto = askFormProtocol(data, d);
     if (proto === null) return;
     // Διάταγμα → Επετηρίδα → Μητρώο: ερώτηση πριν από την αυτόματη ενημέρωση, με ό,τι θα αλλάξει
@@ -634,6 +777,7 @@ function mountDecreeForm(el, d, m0) {
       const row = { template_key: template, decree_no: no, decree_year: year, decree_date: date, subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${matter}`, body, matter,
         rules: JSON.stringify({ rules, action, award_office: action === 'award' ? office : '', decree_office: action === 'appoint' ? office : '', period: action === 'appoint' ? period : '' }),
         appointments: JSON.stringify(people), recipient_name: people.map((a) => a.full_name).join(', '), recipient_email: [...new Set(people.map((a) => a.email.toLowerCase()))].join(', ') };
+      saveArtwork(tx, row, art);
       let r;
       if (d) r = tx.update('decree_documents', d.id, row);
       else r = tx.insert('decree_documents', { ...row, status: 'draft' });

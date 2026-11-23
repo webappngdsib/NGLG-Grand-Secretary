@@ -20,6 +20,7 @@ import { identify } from '../core/people.js';
 import { DEC_OFFICES, AWARD_OFFICES, AWARD_MAP, DEC_MAP, DEC_BASIS, HON_ACC_BY_SHORT, HONORIFIC_OPTIONS, OFFICE_FORMS, DEGREE_CC_DEFAULT, PRECEDENCE, precedenceOf } from './decree-catalog.js';
 
 db.defaultSettings({ decree_cc: DEGREE_CC_DEFAULT.join(', '), decree_first_no: '513' });
+const SECRETARY_TITLE = 'Ο ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΥΣ';
 const ACTIONS = { appoint: 'ΔΙΟΡΙΖΟΜΕΝ', award: 'ΑΠΟΝΕΜΕΙ', service_award: 'ΕΥΑΡΕΣΤΟΥΜΕΘΑ ΝΑ ΑΠΟΝΕΙΜΩΜΕΝ' };
 const SERVICE_MATTER = 'Απονομή της Τάξεως του Μεγάλου Διδασκάλου δι’ Υπηρεσίας προς την Τεκτονικήν';
 
@@ -237,7 +238,7 @@ async function decreeDocxBlob(d) {
     number: d.protocol_seq ? String(d.protocol_seq) : (d.protocol_no || ''), date: fmtDate(d.decree_date), place: 'Εν Αθήναις', title: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${decreeNo(d)}${protoPhrase(d)}`,
     paragraphs,
     artwork: wordArt,
-    signature: IMG.signature, signer: 'Δημήτριος Σκιαδόπουλος', signerTitle: 'Ο ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΑΣ',
+    signature: IMG.signature, signer: 'Δημήτριος Σκιαδόπουλος', signerTitle: SECRETARY_TITLE,
     head: headOn(L.head) ? { ...L.head, lines: L.head.lines.map((l) => ({ ...l, hex: (HEAD_COLORS[l.color] || HEAD_COLORS.navy).slice(1).toUpperCase() })) } : null });
   try { return await makeDocx(blocks, { title: d.subject, author: 'Μεγάλη Γραμματεία', anchors }); }
   finally { for (const url of temporary) URL.revokeObjectURL(url); }
@@ -292,7 +293,7 @@ export function decreePaper(d, opts = {}) {
   return `<article class="paper decree${layers ? ' has-layers' : ''}"${top != null ? ` style="--pt:${top}mm"` : ''}>${layers}${logoHtml}${top != null ? '' : headOn(L.head) ? customHead(L.head) : letterhead()}<div class="dec-title">ΔΙΑΤΑΓΜΑ</div>
 <div class="dec-no official-number">${action === 'service_award' ? 'υπ’ αριθ. ' : 'υπ’ αριθμ. '}${esc(decreeNo(d))}, ημερ. ${esc(fmtDate(d.decree_date))}${esc(protoPhrase(d))}</div>
 <div class="decbody">${withOffice}</div>
-<div class="decsig"><div><div class="t">ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΑΣ</div><img class="signature-img" src="${IMG.signature}" alt=""><div class="signature-line"></div><b>Δημήτριος Σκιαδόπουλος</b></div>
+<div class="decsig"><div><div class="t">${SECRETARY_TITLE}</div><img class="signature-img" src="${IMG.signature}" alt=""><div class="signature-line"></div><b>Δημήτριος Σκιαδόπουλος</b></div>
 <div><img class="seal-img" src="${IMG.seal}" alt=""></div><div><div class="t">Ο ΜΕΓΑΣ ΔΙΔΑΣΚΑΛΟΣ</div><img class="signature-img" src="${IMG.grandMaster}" alt=""><div class="signature-line"></div><b>Ιωάννης Μπενετάτος</b></div></div></article>`;
 }
 

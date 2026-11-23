@@ -5710,11 +5710,13 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     app.page.wait_for_url('**/#/decrees/1')
     images = app.page.locator('.print-area .dec-form-art img[data-dfile]')
     assert images.count() == 2
+    assert app.page.locator('.print-area .decsig .t').first.inner_text() == 'Ο ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΥΣ'
     with app.page.expect_download() as docx:
         app.page.get_by_role('button', name='Word').click()
     from zipfile import ZipFile
     with ZipFile(docx.value.path()) as archive:
         xml = archive.read('word/document.xml').decode()
+        assert 'Ο ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΥΣ' in xml
         assert 'Κανονισμών,' in xml and 'ΑΠΟΦΑΣΙΖΟΜΕΝ' not in xml
         assert xml.index('<w:drawing', xml.index('Κανονισμών,')) < xml.index('περί Δοκιμής')
         assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in xml and 'Στοάν Κέντρου για τη δοκιμή.' in xml

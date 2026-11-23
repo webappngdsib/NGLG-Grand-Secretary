@@ -1,3 +1,4 @@
+import { hasDecreeTitle, decreeProfile } from './decree-templates.js';
 // Επιστολές — νέα (με πρότυπο ή «πάνω σε» παλαιότερη), προβολή στο επίσημο έντυπο, PDF/εκτύπωση, αποστολή, αρχείο.
 // Και τα Πρότυπα Επιστολών.
 import { db } from '../core/store.js';
@@ -27,7 +28,7 @@ const TEMPLATE_SEED = [['Ελεύθερη επιστολή', ''], ['Επίσκε
 db.seed('letter_templates', () => TEMPLATE_SEED.map(([name, body], i) => ({ id: i + 1, name, body, active: 1 })));
 
 const PH_HELP = 'Πεδία που συμπληρώνονται από τη βάση: ' + PLACEHOLDERS.map(([k, d]) => `{${k}} = ${d}`).join(' · ') + ' · Πεδία της επιστολής: ' + LETTER_FIELDS.map(([k, d]) => `{${k}} = ${d}`).join(' · ');
-const templates = () => sortBy(db.all('letter_templates').filter((t) => t.active && t.name !== 'ΔΙΑΤΑΓΜΑΤΑ' && t.kind !== 'decree' && t.kind !== 'diploma'), 'id');
+const templates = () => sortBy(db.all('letter_templates').filter((t) => t.active && t.name !== 'ΔΙΑΤΑΓΜΑΤΑ' && !hasDecreeTitle(t) && t.kind !== 'decree' && t.kind !== 'diploma'), 'id');
 export const lettersAll = () => { const dec = legacyDecreeLetterIds(); return db.all('letters').filter((l) => !dec.has(l.id)); };
 const STATUS = { draft: 'Πρόχειρη', ready: 'Έτοιμη' };
 const statusPill = (s) => `<span class="pill ${s === 'ready' ? 'ok' : 'warn'}">${STATUS[s] || esc(s)}</span>`;
@@ -629,14 +630,15 @@ module({
         { k: 'ask_proto_image', label: 'ΕΙΚΟΝΑ ΠΡΩΤΟΚΟΛΛΟΥ: ζητείται στη νέα επιστολή', type: 'select', options: [['', 'Αυτόματα — όταν το κείμενο έχει {Αρ. Πρωτ.}'], ['1', 'Ναι, πάντα'], ['0', 'Όχι']], help: 'Η εικόνα (π.χ. το εγκεκριμένο πρωτόκολλο-σφραγίδα) φορτώνεται σε κάθε επιστολή και μπαίνει κάτω από τη σφραγίδα, στο κέντρο, ~400×200.' }],
       defaults: { active: 1 },
       // Νέο αντίγραφο: χωρίς το κλειδί (key), ώστε τα Διατάγματα/Δίπλωμα να συνεχίζουν να βρίσκουν το αρχικό πρότυπο
-      copy: { omit: ['key'], prepare: (r) => ({ ...r, name: `${r.name} (αντίγραφο)` }) },
+      copy: { omit: ['key'], prepare: (r, source) => ({ ...r, name: `${r.name} (αντίγραφο)`,
+        ...(r.kind === 'decree' ? { decree_profile: decreeProfile(source || r) } : {}) }) },
       sort: (xs) => sortBy(xs.filter((t) => t.name !== 'ΔΙΑΤΑΓΜΑΤΑ'), 'id'),
       // Κατηγορίες: Επιστολές · Επισκέψεις · ΣΓΥ · Διατάγματα (και τα πρότυπα ΣΓΥ μαζί στη σελίδα ΣΓΥ)
-      filter: (xs, q) => (q.category === 'ΔΙΑΤΑΓΜΑ' ? xs.filter((t) => t.kind === 'decree' || t.kind === 'diploma') : LETTER_CATEGORIES[q.category] ? xs.filter((t) => !t.kind && (t.category || 'ΕΠΙΣΤΟΛΗ') === q.category) : xs),
+      filter: (xs, q) => (q.category === 'ΔΙΑΤΑΓΜΑ' ? xs.filter((t) => t.kind === 'decree' || t.kind === 'diploma' || hasDecreeTitle(t)) : LETTER_CATEGORIES[q.category] ? xs.filter((t) => !t.kind && !hasDecreeTitle(t) && (t.category || 'ΕΠΙΣΤΟΛΗ') === q.category) : xs),
       intro: () => { const q = (location.hash.split('?')[1] || '').match(/category=([^&]+)/), cur = q ? decodeURIComponent(q[1]) : '';
         return `<div class="toolbar tpl-cats">${[['', 'Όλα'], ['ΕΠΙΣΤΟΛΗ', 'Επιστολές'], ['ΕΠΙΣΚΕΨΗ', 'Επισκέψεις'], ['ΣΓΥ', '🏛 ΣΓΥ'], ['ΔΙΑΤΑΓΜΑ', '📜 Διατάγματα & Δίπλωμα']].map(([k, l]) => `<a class="btn small${k === cur ? ' primary' : ''}" href="#/templates${k ? '?category=' + encodeURIComponent(k) : ''}">${l}</a>`).join('')}</div>`; },
       validate: (d) => ({ ...d, active: Number(d.active) ? 1 : 0 }),
-      columns: [{ label: 'Αρ.', v: (t) => `<b>${t.id}</b>` }, { label: 'Όνομα', v: (t) => `<b>${esc(t.name)}</b>${t.kind === 'decree' ? ' <span class="pill">📜 Διάταγμα</span><br><a class="btn small" href="#/templates/' + t.id + '/design">🎨 Σχεδίαση σελίδας</a>' : t.kind === 'diploma' ? ` <span class="pill">🎓 Δίπλωμα A3</span><br><a class="btn small" href="#/templates/${t.id}/diploma">🎨 Σχεδίαση Διπλώματος</a> <a class="btn small" href="#/members/diploma">🖨 Έκδοση</a>` : ''}${t.category === 'ΣΓΥ' && !t.kind ? ` <span class="pill">🏛 ΣΓΥ</span><br><a class="btn small" href="#/letters/new?category=ΣΓΥ&template_id=${t.id}&to_name=${encodeURIComponent(SGY_TO_NAME)}">✉ Νέα επιστολή ΣΓΥ</a>` : ''}${hasPlaceholders([t.body, t.subject].join(' ')) ? ' <span class="pill ok">⚙ από τη βάση</span>' : ''}` }, { label: 'Κορμός', v: (t) => `<small class="muted">${esc(String(t.body || '').slice(0, 120))}</small>` }, { label: 'Ενεργό', v: (t) => (t.active ? '✓' : '—') }],
+      columns: [{ label: 'Αρ.', v: (t) => `<b>${t.id}</b>` }, { label: 'Όνομα', v: (t) => `<b>${esc(t.name)}</b>${(t.kind === 'decree' || hasDecreeTitle(t)) ? ' <span class="pill">📜 Διάταγμα</span><br><a class="btn small" href="#/templates/' + t.id + '/design">🎨 Σχεδίαση σελίδας</a>' : t.kind === 'diploma' ? ` <span class="pill">🎓 Δίπλωμα A3</span><br><a class="btn small" href="#/templates/${t.id}/diploma">🎨 Σχεδίαση Διπλώματος</a> <a class="btn small" href="#/members/diploma">🖨 Έκδοση</a>` : ''}${t.category === 'ΣΓΥ' && !t.kind ? ` <span class="pill">🏛 ΣΓΥ</span><br><a class="btn small" href="#/letters/new?category=ΣΓΥ&template_id=${t.id}&to_name=${encodeURIComponent(SGY_TO_NAME)}">✉ Νέα επιστολή ΣΓΥ</a>` : ''}${hasPlaceholders([t.body, t.subject].join(' ')) ? ' <span class="pill ok">⚙ από τη βάση</span>' : ''}` }, { label: 'Κορμός', v: (t) => `<small class="muted">${esc(String(t.body || '').slice(0, 120))}</small>` }, { label: 'Ενεργό', v: (t) => (t.active ? '✓' : '—') }],
     }),
   },
   tile: { order: 10, render: () => {

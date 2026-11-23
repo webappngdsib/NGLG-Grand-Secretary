@@ -3076,11 +3076,11 @@ def test_decree_updates_epeteirida_and_registry_title_with_confirmation(app):
     app.page.on('dialog', lambda d: msgs.append(d.message))
     app.go('/decrees/new')
     assert app.page.locator('#dOffice option', has_text='Επαρχιακός Μέγας Διδάσκαλος').count() == 0  # χωριστό πρότυπο
-    app.page.check('[name=template_key][value=decree-provincial]')
+    app.page.select_option('#dTemplate', 'decree-provincial')
     assert app.page.locator('#dOffice option', has_text='Πρώην Επαρχιακός Μέγας Διδάσκαλος').count() == 1  # «ΠΡΩΗΝ» → ΑΠΟΝΕΜΕΙ
     app.page.select_option('#dAction', 'appoint')
     assert app.page.locator('#dOffice option', has_text='Επαρχιακός Μέγας Διδάσκαλος').count() == 1  # Καν. 63
-    app.page.check('[name=template_key][value=decree-appoint]')
+    app.page.select_option('#dTemplate', 'decree-appoint')
     app.page.select_option('#dOffice', 'Μέγας Γραμματεύς')
     app.pick('.registry-search', 'Παπαδ')
     app.click('Έκδοση Διατάγματος')
@@ -3170,13 +3170,13 @@ def test_decree_template_follows_action_and_office(app):
     add_member(app)
     app.go('/decrees/new')
     app.page.select_option('#dAction', 'award')
-    assert app.page.is_checked('[name=template_key][value=decree-provincial]')
+    assert app.page.input_value('#dTemplate') == 'decree-provincial'
     app.page.select_option('#dAction', 'service_award')
-    assert app.page.is_checked('[name=template_key][value=decree-service]')
-    app.page.check('[name=template_key][value=decree-provincial]')
+    assert app.page.input_value('#dTemplate') == 'decree-service'
+    app.page.select_option('#dTemplate', 'decree-provincial')
     assert app.page.input_value('#dAction') == 'award'  # «ΠΡΩΗΝ» → ΑΠΟΝΕΜΕΙ· ο διορισμός Επαρχιακού / Περιφερειακού από την Πράξη
     app.page.select_option('#dAction', 'appoint')
-    assert app.page.is_checked('[name=template_key][value=decree-provincial]')
+    assert app.page.input_value('#dTemplate') == 'decree-provincial'
     opts = app.page.eval_on_selector_all('#dOffice option', 'os => os.map((o) => o.value).filter(Boolean)')
     assert opts == ['Επαρχιακός Μέγας Διδάσκαλος', 'Περιφερειακός Μέγας Διδάσκαλος'], opts
     app.page.select_option('#dOffice', 'Περιφερειακός Μέγας Διδάσκαλος')
@@ -3186,15 +3186,13 @@ def test_decree_template_follows_action_and_office(app):
     d = app.page.evaluate("async () => (await import('./core/store.js')).db.get('decree_documents', 1)")
     assert d['template_key'] == 'decree-provincial' and 'ΠΕΡΙΦΕΡΕΙΑΚΟΝ ΜΕΓΑΝ ΔΙΔΑΣΚΑΛΟΝ' in d['body'], d
     assert 'ΔΙΑΤΑΓΜΑ ΠΡΩΗΝ' in app.text('main')
-    # κουμπιά: ΕΝ ΕΝΕΡΓΕΙΑ · ΠΡΩΗΝ · ΤΑΞΗ ΜΔ (και Γενικό Διάταγμα χωριστά)· ΠΡΩΗΝ ανοίγει με ΑΠΟΝΕΜΕΙ
     app.go('/decrees/new')
-    assert app.page.eval_on_selector_all('.dec-kinds .chip b', 'bs => bs.map((b) => b.textContent)') == ['ΕΝ ΕΝΕΡΓΕΙΑ', 'ΠΡΩΗΝ', 'ΤΑΞΗ ΜΔ']
-    assert app.page.locator('.dec-kinds-gen .chip', has_text='Γενικό Διάταγμα').count() == 1
+    assert 'ΓΕΝΙΚΟ ΔΙΑΤΑΓΜΑ' in app.page.locator('#dTemplate option').all_text_contents()
     app.go('/decrees/new?kind=decree-provincial')
-    assert app.page.input_value('#dAction') == 'award' and app.page.is_checked('[name=template_key][value=decree-provincial]')
+    assert app.page.input_value('#dAction') == 'award' and app.page.input_value('#dTemplate') == 'decree-provincial'
     # οι σελίδες: ΠΡΩΗΝ από το Γενικό, ΤΑΞΗ ΜΔ αντίγραφο του ΕΝ ΕΝΕΡΓΕΙΑ (ξεχωριστό πρότυπο)
     ks = app.page.evaluate("async () => (await import('./core/store.js')).db.all('letter_templates').filter((t) => t.kind === 'decree').map((t) => t.key)")
-    assert sorted(ks) == ['decree-appoint', 'decree-general', 'decree-provincial', 'decree-service'], ks
+    assert sorted(ks) == ['decree-appoint', 'decree-general', 'decree-lodge-affiliation', 'decree-provincial', 'decree-service'], ks
 
 
 def test_taxis_md_decree_shows_jewel_automatically(app):
@@ -4811,7 +4809,7 @@ def test_decree_former_kind_lists_all_former_offices(app):
     # Διάταγμα «ΠΡΩΗΝ»: η πράξη γίνεται «ΑΠΟΝΕΜΕΙ» και η λίστα έχει όλα τα πρώην αξιώματα, με σειρά προβαδίσματος
     app.connect_local()
     app.go('/decrees/new')
-    app.page.check('[name=template_key][value="decree-provincial"]')
+    app.page.select_option('#dTemplate', 'decree-provincial')
     assert app.page.input_value('#dAction') == 'award'
     assert app.page.input_value('[name=matter]') == 'Απονομής Αξιώματος Πρώην Μεγάλου Αξιωματικού'  # «Περί» του Πρώην
     app.page.select_option('#dAction', 'appoint')
@@ -4862,7 +4860,7 @@ def test_award_former_deacon_shows_dove_jewel(app):
     app.connect_local()
     add_member(app)
     app.go('/decrees/new')
-    app.page.check('[name=template_key][value="decree-provincial"]')
+    app.page.select_option('#dTemplate', 'decree-provincial')
     app.pick('.registry-search', 'Παπαδ')
     for office in ['Πρώτος Μέγας Διάκονος', 'Δεύτερος Μέγας Διάκονος']:
         app.page.select_option('#dOffice', office)
@@ -4876,7 +4874,7 @@ def test_award_former_deacon_shows_dove_jewel(app):
     assert app.page.locator('#dprev img[src="img/jewels/diakonos-peristeri.jpg"]').count() == 0
     # και στον διορισμό εν ενεργεία Πρώτου / Δευτέρου Μεγάλου Διακόνου (στο live preview)
     app.page.select_option('#dAction', 'appoint')
-    app.page.check('[name=template_key][value="decree-appoint"]')
+    app.page.select_option('#dTemplate', 'decree-appoint')
     for office in ['Πρώτος Μέγας Διάκονος', 'Δεύτερος Μέγας Διάκονος']:
         app.page.select_option('#dOffice', office)
         app.page.wait_for_selector('#dprev img.dec-jewel[src="img/jewels/diakonos-peristeri.jpg"]')
@@ -4891,7 +4889,7 @@ def test_award_former_worshipful_master(app):
     app.connect_local()
     add_member(app)
     app.go('/decrees/new')
-    app.page.check('[name=template_key][value="decree-provincial"]')
+    app.page.select_option('#dTemplate', 'decree-provincial')
     opts = app.page.locator('#dOffice option').all_inner_texts()
     assert opts[-1] == 'Πρώην Σεβάσμιος Διδάσκαλος', opts
     app.pick('.registry-search', 'Παπαδ')
@@ -4989,7 +4987,7 @@ def test_deacon_dove_wins_over_template_office_image(app):
       const t = tx.all('letter_templates').find((x) => x.key === 'decree-appoint'); tx.putFile('decrees/office-test.png', new Uint8Array([137,80,78,71]));
       tx.update('letter_templates', t.id, { layout: JSON.stringify({ office: { file: 'decrees/office-test.png', size: 90, x: 150, dy: 0 } }) }); }); }""")
     app.go('/decrees/new')
-    app.page.check('[name=template_key][value="decree-appoint"]')
+    app.page.select_option('#dTemplate', 'decree-appoint')
     app.pick('.registry-search', 'Παπαδ')
     app.page.select_option('#dOffice', 'Πρώτος Μέγας Διάκονος')
     app.page.wait_for_selector('#dprev img.dec-jewel[src="img/jewels/diakonos-peristeri.jpg"]')
@@ -5572,3 +5570,63 @@ def test_corfu_bus_seats_counter(browser, base_url):
     assert '❓ Δεν δηλώθηκε' in r[4] and r[4].count('🚌 Λεωφορείο') == 2, r
     assert not errors, errors
     page.close()
+
+
+def test_decree_catalog_affiliation_logo_and_edit(app):
+    app.connect_local()
+    seeded = app.page.evaluate("""async () => {
+      const { db } = await import('./core/store.js');
+      const bytes = new Uint8Array(await (await fetch('./img/seal.png')).arrayBuffer());
+      return db.save('test', (tx) => {
+        tx.insert('letter_templates', { name: 'Επιστολή σχετικά με διατάγματα', active: 1 });
+        tx.insert('letter_templates', { name: 'Ανενεργό διάταγμα', active: 0 });
+        const tpl = tx.insert('letter_templates', { name: 'Διάταγμα δοκιμής', active: 1, subject: 'Για {Κωδικός}', body: '{Περί}: {Κωδικός}' });
+        tx.putFile('lodges/test-logo.png', bytes);
+        const lodge = tx.insert('lodges', { name: 'Δοκιμαστική', number: '998', orient: 'Αθηνών', email: 'lodge@example.com', logo_file: 'lodges/test-logo.png' });
+        return { tpl: tpl.id, lodge: lodge.id };
+      });
+    }""")
+    app.go('/decrees/new?kind=decree-general')
+    options = app.page.locator('#dTemplate option').all_text_contents()
+    assert 'Διάταγμα δοκιμής' in options
+    assert 'Ανενεργό διάταγμα' not in options and 'Επιστολή σχετικά με διατάγματα' not in options
+    app.page.select_option('#dTemplate', f'template-{seeded["tpl"]}')
+    app.page.fill('[data-decree-field="Κωδικός"]', 'ΚΔ-10')
+    app.page.wait_for_function("document.querySelector('#dprev').textContent.includes('Για ΚΔ-10: ΚΔ-10')")
+    app.page.select_option('#dTemplate', label='ΔΙΑΤΑΓΜΑ ΥΠΑΓΩΓΗΣ ΣΤΟΑΣ')
+    app.page.select_option('#dLodge', str(seeded['lodge']))
+    app.page.fill('[data-decree-field="Νέα υπαγωγή"]', 'Επαρχία Δοκιμής')
+    assert app.page.input_value('[name=g_to_email]') == 'lodge@example.com'
+    app.page.wait_for_selector('#dprev img.decree-lodge-logo[src]')
+    logo = app.page.locator('#dprev .decree-lodge-logo')
+    logo.scroll_into_view_if_needed()
+    box = logo.bounding_box()
+    x, y = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
+    app.page.mouse.move(x, y)
+    app.page.mouse.down()
+    app.page.mouse.move(x - 15, y + 10, steps=3)
+    app.page.mouse.up()
+    left = float(app.page.input_value('[name=logo_x]'))
+    top = float(app.page.input_value('[name=logo_y]'))
+    assert left < 170 and top > 15
+    app.page.select_option('#dLogoMode', 'upload')
+    app.page.set_input_files('#dLogoFile', 'img/header_emblem.png')
+    app.page.wait_for_selector('#dprev img.decree-lodge-logo[src^="data:"]')
+    app.click('Έκδοση Διατάγματος')
+    app.page.wait_for_url('**/#/decrees/1')
+    assert 'Δοκιμαστική» υπ’ αριθμ. 998' in app.text('.print-area')
+    saved_logo = app.page.locator('.print-area .decree-lodge-logo')
+    assert saved_logo.get_attribute('data-dfile').startswith('decrees/logos/')
+    with app.page.expect_download() as docx:
+        app.click('Word')
+    from zipfile import ZipFile
+    with ZipFile(docx.value.path()) as archive:
+        assert b'wp:anchor' in archive.read('word/document.xml')
+    app.go('/decrees/1/edit')
+    assert app.page.input_value('#dLodge') == str(seeded['lodge'])
+    assert float(app.page.input_value('[name=logo_x]')) == left
+    assert float(app.page.input_value('[name=logo_y]')) == top
+    app.page.fill('[data-decree-field="Νέα υπαγωγή"]', 'Διορθωμένη Επαρχία')
+    app.page.get_by_role('button', name='Αποθήκευση Διατάγματος').click()
+    app.page.wait_for_url('**/#/decrees/1')
+    assert 'Διορθωμένη Επαρχία' in app.text('.print-area')

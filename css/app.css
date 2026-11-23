@@ -287,9 +287,6 @@ input[type=file]{max-width:100%;min-width:0}
 .paper[style*="--pt"]{padding-top:var(--pt)}
 /* Είδος Διατάγματος */
 .plainfs{border:0;padding:0;margin:0;min-width:0}
-.dec-kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:6px 0}
-.dec-kinds .chip span{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 12px}
-.dec-kinds small{font-weight:400;opacity:.8}
 /* Σχεδίαση σελίδας */
 .dz-split{display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:16px;align-items:start}
 .dz-page{position:sticky;top:70px;overflow:auto;max-height:calc(100vh - 90px);background:#e9ecf2;border-radius:12px;padding:12px}
@@ -509,8 +506,6 @@ input[type=file]{max-width:100%;min-width:0}
 .dip-sheet{zoom:1!important;box-shadow:none}.dip-edit .dip-box{outline:0}.dip-tag,.dip-rs{display:none!important}}
 @media print{.dz-split:has(.dip-view){display:block!important}}
 .dip-box[data-box^=date] .dip-txt{white-space:nowrap}
-.dec-kinds-gen{margin:2px 0 6px}.dec-kinds-gen .chip span{min-height:30px;padding:4px 12px;border-style:dashed;font-size:.9em;flex-direction:row;gap:8px}
-.dec-kinds{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .decbody .evarest{display:inline-block;width:70mm;height:26mm;vertical-align:bottom}
 .decbody .evarest img{width:100%;height:100%;object-fit:contain}
 .inv-qr{margin-top:10px;text-align:center}.inv-qr svg{display:block;margin:10px auto;width:min(320px,100%);height:auto;background:#fff}
@@ -800,3 +795,5 @@ dialog.lodgenos::backdrop { background: rgba(11, 31, 58, .45); }
 .gs-set select:focus,.gs-set input:focus{outline:2px solid #7b1e2b!important;outline-offset:1px}
 .btn.gs-btn{background:#7b1e2b!important;border-color:#7b1e2b!important;color:#fff!important}
 .btn.gs-btn:hover{background:#5e1520!important}
+.decree-lodge-logo{position:absolute;z-index:3;height:auto;object-fit:contain}
+.dec-live .decree-lodge-logo{cursor:move;touch-action:none;user-select:none}

@@ -23,9 +23,9 @@ export const keyFor = (action, office = '') => (action === 'general' ? 'decree-g
   : action === 'award' || PROVINCIAL_OFFICES.includes(office) ? 'decree-provincial' : 'decree-appoint');
 export const DECREE_PLACEHOLDERS = [['Περί', 'το θέμα του Διατάγματος'], ['ημερομηνία', 'π.χ. «8ην Οκτωβρίου 2026»'], ['Μέγας Διδάσκαλος', 'όνομα του Μεγάλου Διδασκάλου (Ρυθμίσεις)'], ['Αρ. Διατάγματος', 'π.χ. 514/2026']];
 
-export const decreeKey = (d) => (d && DECREE_KINDS[d.template_key] ? d.template_key : 'decree-appoint');
+export const decreeKey = (d) => (d && (Object.hasOwn(DECREE_KINDS, d.template_key) || /^template-\d+$/.test(d.template_key || '')) ? d.template_key : 'decree-appoint');
 export const isDecreeTemplate = (t) => !!t && t.kind === 'decree';
-export const decreeTemplate = (key) => db.all('letter_templates').find((t) => t.key === key) || { key, kind: 'decree', ...DECREE_KINDS[key], layout: {} };
+export const decreeTemplate = (key) => (/^template-\d+$/.test(key) ? db.get('letter_templates', key.slice(9)) : db.all('letter_templates').find((t) => t.key === key)) || { key, kind: 'decree', ...DECREE_KINDS[key], layout: {} };
 export function layoutOf(t) {
   let L = t && t.layout;
   if (typeof L === 'string') { try { L = JSON.parse(L); } catch { L = {}; } }
@@ -73,4 +73,29 @@ db.migrate('decree-service-katothi-2026-10', (tx) => {
     const b = String(d.body || ''), nb = b.replace('Τεκτονικήν, στον κάτωθι Αδελφόν:', 'Τεκτονικήν, στον Αδελφόν:').replace('Τεκτονικήν, στους κάτωθι Αδελφούς:', 'Τεκτονικήν, στους Αδελφούς:');
     if (nb !== b) tx.update('decree_documents', d.id, { body: nb });
   }
+});
+
+// Τα παλιά κλειδιά διατηρούνται. Τα υπόλοιπα πρότυπα συνδέονται με το σταθερό ID του καταλόγου.
+export const templateKey = (t) => Object.hasOwn(DECREE_KINDS, t.key) ? t.key : 'template-' + t.id;
+const fold = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('el');
+export const hasDecreeTitle = (t) => /(?<!\p{L})διαταγμα(?!\p{L})/u.test(fold(t.name));
+export const isAffiliation = (t) => /υπαγωγ/.test(fold(t.name)) || t.key === 'decree-lodge-affiliation';
+export const decreeChoices = () => db.all('letter_templates').filter((t) => Number(t.active) && hasDecreeTitle(t));
+export const decreeProfile = (t) => Object.hasOwn(DECREE_KINDS, t.key) ? t.key
+  : Object.hasOwn(DECREE_KINDS, t.decree_profile) ? t.decree_profile : 'decree-general';
+export const isGeneralDecree = (d) => {
+  if (typeof d.rules === 'string') {
+    try { const { action } = JSON.parse(d.rules) || {}; if (action) return action === 'general'; } catch { /* παλαιό διάταγμα */ }
+  } else if (d.rules?.action) return d.rules.action === 'general';
+  return decreeProfile(decreeTemplate(decreeKey(d))) === 'decree-general';
+};
+
+db.migrate('decree-lodge-affiliation-template', (tx) => {
+  if (tx.all('letter_templates').some((t) => hasDecreeTitle(t) && isAffiliation(t))) return;
+  tx.insert('letter_templates', {
+    key: 'decree-lodge-affiliation', kind: 'decree', active: 1, layout: {},
+    name: 'ΔΙΑΤΑΓΜΑ ΥΠΑΓΩΓΗΣ ΣΤΟΑΣ',
+    subject: 'Υπαγωγής της Στοάς «{Στοά}» υπ’ αριθμ. {Αρ. Στοάς}',
+    body: GENERAL_BODY.replace('ΑΠΟΦΑΣΙΖΟΜΕΝ\n\n……', 'ΑΠΟΦΑΣΙΖΟΜΕΝ\n\nΤην υπαγωγή της Στοάς «{Στοά}» υπ’ αριθμ. {Αρ. Στοάς}, Ανατολής {Ανατολή}, στην {Νέα υπαγωγή}.'),
+  });
 });

@@ -6,13 +6,14 @@ import { esc, today, fmtDate, matches, sortBy, safeFileName, parseIso, MONTHS_GE
 import { makeDocx, letterBlocks } from '../core/docx.js';
 import { richHtml } from '../core/rich.js';
 import { docTitle, driveBox, saveDocToDrive } from '../core/drive.js';
-import { letterhead, IMG, printPaper, pageLayers, layoutTop, customHead, defaultHead, headOn, HEAD_COLORS } from '../core/paper.js';
+import { letterhead, IMG, printPaper, pageLayers, layoutTop, customHead, defaultHead, headOn, HEAD_COLORS, resolveFileImages, dfileUrl } from '../core/paper.js';
 import { senderBanner } from '../core/mail.js';
 import { mailSheet } from '../core/gmail.js';
 import { attachPicker, memberItems, contactItems } from '../core/pickers.js';
-import { DECREE_KINDS, DECREE_PLACEHOLDERS, GENERAL_BODY, PROVINCIAL_OFFICES, keyFor, decreeKey, decreeTemplate, layoutOf } from './decree-templates.js';
+import { DECREE_KINDS, DECREE_PLACEHOLDERS, GENERAL_BODY, PROVINCIAL_OFFICES, keyFor, decreeKey, decreeTemplate, layoutOf, decreeChoices, templateKey, decreeProfile, isAffiliation, isGeneralDecree, hasDecreeTitle } from './decree-templates.js';
 import { planDecreeSync, planChanges, planText, applyDecreeSync, revertDecreeSync, syncInfo, EP_LABEL, decreePeople } from './decree-sync.js';
-import { gmName } from './letter-fill.js';
+import { lodgesAll, lodgeTitle } from './lodges.js';
+import { gmName, lodgeRecipients } from './letter-fill.js';
 import { nextProtocol, askProtocol, claimProtocol, suggestedProtocol, formProtocol, setProtocol } from './protocol.js';
 import { findMember, insertMember } from './members.js';
 import { identify } from '../core/people.js';
@@ -95,7 +96,12 @@ async function layerPng(path) {
   const bytes = await db.file(path);
   if (!bytes) return null;
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return bytes;
-  const bmp = await createImageBitmap(new Blob([bytes]));
+  const bmp = await createImageBitmap(new Blob([bytes])).catch(async () => {
+    const img = new Image();
+    img.src = await dfileUrl(path);
+    await img.decode();
+    return img;
+  });
   const c = Object.assign(document.createElement('canvas'), { width: bmp.width, height: bmp.height });
   c.getContext('2d').drawImage(bmp, 0, 0);
   return new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/png'))).arrayBuffer());
@@ -123,10 +129,19 @@ async function decreeDocxBlob(d) {
     const bytes = await layerPng(x.file);
     if (bytes) anchors.push({ bytes, x: +x.x || 0, y: +x.y || 0, w: +x.w || 210, h: +x.h || 297, behind: k === 'bg', opacity: k === 'bg' ? (x.opacity ?? 1) : null });
   }
+  const logo = storedForm(d).logo;
+  if (logo?.file) {
+    const bytes = await layerPng(logo.file);
+    if (bytes) {
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      anchors.push({ bytes, x: logo.x, y: logo.y, w: logo.w, h: logo.w * bmp.height / bmp.width });
+      bmp.close();
+    }
+  }
   const PT = 72 / 25.4, MARGIN_TOP = 1000 / 1440 * 25.4; // περιθώριο σελίδας (mm)
   const blocks = letterBlocks({ noHead: top != null, topSpace: top != null ? (top - MARGIN_TOP) * PT : 0, org: S('organization_name'), founded: S('founded_year'), gmTitle: S('grand_master_title'), gmName: S('grand_master_name'),
     number: d.protocol_seq ? String(d.protocol_seq) : (d.protocol_no || ''), date: fmtDate(d.decree_date), place: 'Εν Αθήναις', title: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${decreeNo(d)}${protoPhrase(d)}`,
-    paragraphs: (decreeKey(d) === 'decree-general' ? String(d.body || '') : markNames(tightPeri(d.body), (n) => `[b][size=15]${n}[/size][/b]`)).split(/\n\s*\n/).map((t) => ({ text: t.trim(), align: 'center', bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()) })),
+    paragraphs: (isGeneralDecree(d) ? String(d.body || '') : markNames(tightPeri(d.body), (n) => `[b][size=15]${n}[/size][/b]`)).split(/\n\s*\n/).map((t) => ({ text: t.trim(), align: 'center', bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()) })),
     artwork: Object.fromEntries(Object.entries(DECREE_ARTWORK).map(([w, a]) => [w, w === 'ΔΙΟΡΙΖΟΜΕΝ' ? { img: dioImg, width: +(Math.max(5, +dio.w) / 10).toFixed(2) } : { img: a.img, width: a.word }])),
     signature: IMG.signature, signer: 'Δημήτριος Σκιαδόπουλος', signerTitle: 'Ο ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΑΣ',
     head: headOn(L.head) ? { ...L.head, lines: L.head.lines.map((l) => ({ ...l, hex: (HEAD_COLORS[l.color] || HEAD_COLORS.navy).slice(1).toUpperCase() })) } : null });
@@ -153,7 +168,7 @@ function formDecreeNo(tx, data, d) {
 // Έντυπο Διατάγματος· η σελίδα (φόντο/κεφαλίδα) από τη «Σχεδίαση σελίδας» του προτύπου του
 // opts: { layout, urls } για ζωντανή προβολή στη σχεδίαση πριν την αποθήκευση
 export function decreePaper(d, opts = {}) {
-  const action = meta(d).action, general = decreeKey(d) === 'decree-general';
+  const action = meta(d).action, general = isGeneralDecree(d);
   const L = opts.layout || layoutOf(decreeTemplate(decreeKey(d))), urls = opts.urls || {}, layers = pageLayers(L, urls), top = layoutTop(L, urls);
   const bodyHtml = general ? richHtml(d.body, { links: false }).replace(/^([Α-ΩΆ-Ώ][Α-ΩΆ-ΏΪΫ ’'΄-]{3,})$/gm, '<b>$1</b>')
     : markNames(richHtml(tightPeri(d.body), { links: false }).replace(/^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ ΝΑ ΑΠΟΝΕΙΜΩΜΕΝ)$/gm, '<b>$1</b>'), (n) => `<span class="dec-name">${n}</span>`);
@@ -161,8 +176,11 @@ export function decreePaper(d, opts = {}) {
   // η γραμμή μόνο με τη λέξη (ό,τι μορφοποίηση κι αν έχει: έντονα, μέγεθος, κενά) γίνεται εικόνα
   const hmeisHtml = Object.entries(DECREE_ARTWORK).reduce((h, [w, a]) => h.replace(new RegExp(`^(?:<[^>]+>|[ \\t])*${w}(?:</[^>]+>|[ \\t])*$`, 'm'),
     w === 'ΔΙΟΡΙΖΟΜΕΝ' ? diorHtml(L, urls) : `<span class="${a.cls}" role="img" aria-label="${w}"><img src="${a.img}" alt=""></span>`), bodyHtml);
+  const logo = storedForm(d).logo;
+  const logoSrc = urls.lodgeLogo ? ` src="${esc(urls.lodgeLogo)}"` : logo?.file ? ` data-dfile="${esc(logo.file)}"` : '';
+  const logoHtml = logo && logoSrc ? `<img class="decree-lodge-logo" alt="Λογότυπο Στοάς" draggable="false"${logoSrc} style="left:${+logo.x}mm;top:${+logo.y}mm;width:${+logo.w}mm">` : '';
   const withOffice = officeImage(hmeisHtml, L, urls);
-  return `<article class="paper decree${layers ? ' has-layers' : ''}"${top != null ? ` style="--pt:${top}mm"` : ''}>${layers}${top != null ? '' : headOn(L.head) ? customHead(L.head) : letterhead()}<div class="dec-title">ΔΙΑΤΑΓΜΑ</div>
+  return `<article class="paper decree${layers ? ' has-layers' : ''}"${top != null ? ` style="--pt:${top}mm"` : ''}>${layers}${logoHtml}${top != null ? '' : headOn(L.head) ? customHead(L.head) : letterhead()}<div class="dec-title">ΔΙΑΤΑΓΜΑ</div>
 <div class="dec-no official-number">${action === 'service_award' ? 'υπ’ αριθ. ' : 'υπ’ αριθμ. '}${esc(decreeNo(d))}, ημερ. ${esc(fmtDate(d.decree_date))}${esc(protoPhrase(d))}</div>
 <div class="decbody">${withOffice}</div>
 <div class="decsig"><div><div class="t">ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΑΣ</div><img class="signature-img" src="${IMG.signature}" alt=""><div class="signature-line"></div><b>Δημήτριος Σκιαδόπουλος</b></div>
@@ -200,7 +218,7 @@ export function officeImage(html, L, urls = {}) {
 // Εφάπαξ: όσα Διατάγματα (απονομής / διορισμού / ΤΜΔ) δεν είχαν περάσει ποτέ στην Επετηρίδα περνούν τώρα, με χρονολογική σειρά.
 // Μόνο αναβαθμίσεις (ανώτερο αξίωμα / Προσφώνηση· «Εν ενεργεία» από το νεότερο διορισμό) και με καταγραφή στο Διάταγμα (αναίρεση από τη σελίδα του).
 db.migrate('decrees-to-epeteirida-all-2026-11', (tx) => {
-  const ds = tx.all('decree_documents').filter((d) => decreeKey(d) !== 'decree-general' && !syncInfo(d))
+  const ds = tx.all('decree_documents').filter((d) => !isGeneralDecree(d) && !syncInfo(d))
     .sort((a, b) => (Number(a.decree_year) || 0) - (Number(b.decree_year) || 0) || (Number(a.decree_no) || 0) - (Number(b.decree_no) || 0));
   for (const d of ds) if (planChanges(planDecreeSync(d, decreePeople(d), tx, d.id)).length) applyDecreeSync(tx, d);
 });
@@ -250,26 +268,193 @@ ${table(['Προβάδισμα', 'Αξίωμα / Διορισμός', 'Κανό�
 <details class="card fold"><summary><b>Τάξις και προβάδισμα των μελών της Μεγάλης Στοάς (άρθρο 5)</b></summary><ol style="margin-top:10px">${PRECEDENCE.map((t) => `<li>${esc(t)}</li>`).join('')}</ol></details>`;
 }
 
+function storedForm(d) {
+  try { return (typeof d?.rules === 'string' ? JSON.parse(d.rules) : d?.rules) || {}; }
+  catch { return {}; }
+}
+
+const LOGO_DEFAULT = { x: 170, y: 15, w: 25 };
+const TOKENS = /\{([^{}\n]+)\}/g;
+const lodgeFields = (l) => ({
+  'Στοά': l?.name, 'Αρ. Στοάς': l?.number, 'Ανατολή': l?.orient,
+  'Επαρχία': l?.provincial, 'Email Στοάς': l?.secretary_email || l?.email,
+});
+
+function mountTemplateFields(f, source, key) {
+  const fields = f.querySelector('#decreeFields'), lodgeBox = f.querySelector('#decreeLodge');
+  const { g_body: body, g_matter: matter, lodge_id: lodgeSelect, logo_mode: logoMode } = f.elements;
+  const fileInput = f.querySelector('#dLogoFile'), uploadLabel = f.querySelector('#dLogoUpload');
+  const details = f.querySelector('#dLodgeDetails');
+  const saved = storedForm(source);
+  let affiliation, lodge, upload, savedLogo, preview = () => {};
+  const logoInputs = Object.fromEntries(Object.keys(LOGO_DEFAULT).map((k) => [k, f.elements['logo_' + k]]));
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+  const position = () => {
+    const w = clamp(logoInputs.w.valueAsNumber || LOGO_DEFAULT.w, 5, 210);
+    return { w, x: clamp(logoInputs.x.valueAsNumber || 0, 0, 210 - w), y: clamp(logoInputs.y.valueAsNumber || 0, 0, 292) };
+  };
+  const refreshLogo = () => { uploadLabel.hidden = logoMode.value !== 'upload'; };
+  const showLodge = () => { details.textContent = lodge ? [lodge.provincial, lodge.secretary_email || lodge.email].filter(Boolean).join(' · ') : ''; };
+  const loadTemplate = (keep = false) => {
+    const tpl = decreeTemplate(key());
+    affiliation = isAffiliation(tpl) || (keep && Boolean(saved.lodge));
+    lodgeBox.hidden = !affiliation;
+    if (!keep) {
+      body.value = tpl.body || GENERAL_BODY;
+      matter.value = tpl.subject || '';
+      if (lodge) {
+        const previous = lodgeRecipients({ lodge: lodge.name, lodge_number: lodge.number, lodgeRec: lodge });
+        if (f.g_to_name.value === previous.toName) f.g_to_name.value = '';
+        if (f.g_to_email.value === previous.to) f.g_to_email.value = '';
+      }
+    }
+    const automatic = new Set(DECREE_PLACEHOLDERS.map(([k]) => k));
+    if (affiliation) for (const k of Object.keys(lodgeFields())) automatic.add(k);
+    const names = [...new Set([...(`${body.value}\n${matter.value}`).matchAll(TOKENS)].map((m) => m[1].trim()))];
+    fields.innerHTML = names.filter((n) => !automatic.has(n)).map((n) =>
+      `<label>${esc(n)}<input data-decree-field="${esc(n)}" value="${esc(keep && Object.hasOwn(saved.fields || {}, n) ? saved.fields[n] : '')}" required></label>`).join('');
+    lodge = affiliation && keep ? saved.lodge || null : null;
+    if (lodge && ![...lodgeSelect.options].some((o) => o.value === String(lodge.id))) lodgeSelect.add(new Option(lodgeTitle(lodge), lodge.id));
+    lodgeSelect.value = lodge?.id || '';
+    savedLogo = affiliation && keep ? saved.logo : null;
+    logoMode.value = savedLogo?.mode || 'lodge';
+    for (const [k, input] of Object.entries(logoInputs)) input.value = savedLogo?.[k] ?? LOGO_DEFAULT[k];
+    upload = null;
+    fileInput.value = '';
+    refreshLogo();
+    showLodge();
+  };
+  lodgeSelect.addEventListener('change', () => {
+    const previous = lodge ? lodgeRecipients({ lodge: lodge.name, lodge_number: lodge.number, lodgeRec: lodge }) : null;
+    const l = db.get('lodges', lodgeSelect.value);
+    lodge = l && { id: l.id, name: l.name, number: l.number, orient: l.orient, provincial: l.provincial,
+      email: l.email, secretary_email: l.secretary_email, logo_file: l.logo_file };
+    const next = lodge ? lodgeRecipients({ lodge: lodge.name, lodge_number: lodge.number, lodgeRec: lodge }) : null;
+    for (const [name, prop] of [['g_to_name', 'toName'], ['g_to_email', 'to']]) {
+      const input = f.elements[name];
+      if (!input.value || input.value === previous?.[prop]) input.value = next?.[prop] || '';
+    }
+    if (savedLogo?.mode === 'lodge') savedLogo = null;
+    showLodge();
+  });
+  logoMode.addEventListener('change', refreshLogo);
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    upload = null;
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 5 * 1024 * 1024) {
+      toast('Επιλέξτε εικόνα PNG, JPG ή WEBP έως 5 MB.');
+      fileInput.value = '';
+      return;
+    }
+    const chosen = upload = { file };
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const img = new Image();
+      img.src = reader.result;
+      try {
+        await img.decode();
+        if (upload === chosen) { chosen.url = reader.result; preview(); }
+      } catch { if (upload === chosen) toast('Το αρχείο λογοτύπου δεν ανοίγει ως εικόνα.'); }
+    };
+    reader.readAsDataURL(file);
+  });
+  if ((source ? isGeneralDecree(source) : decreeProfile(decreeTemplate(key())) === 'decree-general')) loadTemplate(Boolean(source));
+
+  const validate = async () => {
+    if (affiliation && !lodge) throw new Error('Επιλέξτε Στοά από τη βάση.');
+    if (!affiliation || logoMode.value !== 'upload') return;
+    if (!upload && savedLogo?.mode !== 'upload') throw new Error('Επιλέξτε αρχείο λογοτύπου.');
+    if (upload && !upload.url) {
+      const bitmap = await createImageBitmap(upload.file);
+      bitmap.close();
+    }
+  };
+
+  const row = (data, no, year, date, tx) => {
+    const values = Object.fromEntries([...fields.querySelectorAll('input')].map((input) => [input.dataset.decreeField, input.value.trim()]));
+    const extras = affiliation ? { ...values, ...lodgeFields(lodge) } : values;
+    const fill = (text, ctx) => String(text || '').replace(TOKENS, (all, name) => {
+      const k = name.trim();
+      return Object.hasOwn(extras, k) ? extras[k] || '……' : fillGeneral(all, ctx);
+    });
+    const matterSrc = String(data.g_matter || '').trim(), src = String(data.g_body || '').trim();
+    const ctx = { date, no: `${no}/${year}` }, subject = fill(matterSrc, ctx);
+    let logo;
+    if (affiliation) {
+      const mode = logoMode.value;
+      let file = mode === 'upload' ? (savedLogo?.mode === mode ? savedLogo.file : '') : mode === 'lodge' ? (savedLogo?.mode === mode ? savedLogo.file : lodge?.logo_file) : '';
+      if (mode === 'upload' && upload?.bytes && tx) {
+        file = `decrees/logos/${crypto.randomUUID()}.${upload.file.type.split('/')[1].replace('jpeg', 'jpg')}`;
+        tx.putFile(file, upload.bytes);
+      }
+      logo = { ...position(), file, mode };
+    }
+    return { template_key: key(), decree_no: no, decree_year: year, decree_date: date, matter: subject,
+      subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${subject}`, body: fill(src, { ...ctx, matter: subject }), body_src: src,
+      rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge: affiliation ? lodge : undefined, logo }), appointments: '[]' };
+  };
+  return {
+    loadTemplate, row, previewUrl: () => affiliation && logoMode.value === 'upload' ? upload?.url : '',
+    async validate() {
+      await validate();
+      if (affiliation && logoMode.value === 'upload' && upload) upload.bytes = new Uint8Array(await upload.file.arrayBuffer());
+    },
+    onPreview(render, root) {
+      preview = render;
+      root.addEventListener('pointerdown', (e) => {
+        const img = e.target.closest('.decree-lodge-logo');
+        if (!img || e.button !== 0) return;
+        e.preventDefault();
+        const start = position(), rect = img.getBoundingClientRect(), mm = start.w / rect.width;
+        img.setPointerCapture(e.pointerId);
+        const move = (event) => {
+          logoInputs.x.value = clamp(start.x + (event.clientX - e.clientX) * mm, 0, 210 - start.w).toFixed(1);
+          logoInputs.y.value = clamp(start.y + (event.clientY - e.clientY) * mm, 0, 292).toFixed(1);
+          const { x, y } = position();
+          img.style.left = x + 'mm'; img.style.top = y + 'mm';
+        };
+        img.addEventListener('pointermove', move);
+        img.addEventListener('lostpointercapture', () => { img.removeEventListener('pointermove', move); preview(); }, { once: true });
+      });
+    },
+  };
+}
+
 function decreeForm(d, query = {}) {
   const m = d ? meta(d) : { action: ['appoint', 'award', 'service_award'].includes(query.action) ? query.action : { 'decree-provincial': 'award', 'decree-service': 'service_award' }[query.kind] || 'appoint', award_office: '', decree_office: '', period: `${new Date().getFullYear()} - ${new Date().getFullYear() + 1}` };
   const list = d ? apps(d) : [];
   if (m.action === 'appoint' && !m.decree_office && list.length) m.decree_office = list[0].office || '';
-  const key = d ? decreeKey(d) : DECREE_KINDS[query.kind] ? query.kind : keyFor(m.action), gen = key === 'decree-general';
-  const gBody = d && gen ? d.body_src || d.body : decreeTemplate('decree-general').body || GENERAL_BODY;
-  m.key = key;
+  const choices = decreeChoices(), available = new Set(choices.map(templateKey));
+  const preferred = query.kind || keyFor(m.action);
+  const key = d ? decreeKey(d) : available.has(preferred) ? preferred : available.has('decree-general') ? 'decree-general' : templateKey(choices[0] || { id: '' });
+  const tpl = decreeTemplate(key), gen = d ? isGeneralDecree(d) : decreeProfile(tpl) === 'decree-general';
+  if (d && !available.has(key)) choices.unshift({ ...tpl, name: tpl.name || d.template_key, formKey: key });
+  if (!choices.length) return { html: '<p>Δεν υπάρχουν ενεργά πρότυπα με τη λέξη «Διάταγμα». <a href="#/templates">Πρότυπα</a></p>' };
+  const gBody = d && gen ? d.body_src || d.body : tpl.body || GENERAL_BODY;
+  m.source = d;
   return { m, html: `<div class="dec-split"><div class="dec-formcol"><form id="df">
-<div class="card dec-kind"><label>Είδος Διατάγματος (Πρότυπο)</label>${(() => { const chip = ([k, v]) => `<label class="chip${k === 'decree-general' ? ' dec-kind-gen' : ''}"><input type="radio" name="template_key" value="${k}"${k === key ? ' checked' : ''}${d && d.id ? ' disabled' : ''}><span><b>${esc(v.chip)}</b><small>${esc(v.short)}</small></span></label>`;
-  const ks = Object.entries(DECREE_KINDS); return `<div class="dec-kinds">${ks.filter(([k]) => k !== 'decree-general').map(chip).join('')}</div><div class="dec-kinds-gen">${ks.filter(([k]) => k === 'decree-general').map(chip).join('')}</div>`; })()}
+<div class="card dec-kind"><label for="dTemplate">Είδος Διατάγματος (Πρότυπο)</label><select id="dTemplate" name="template_key"${d?.id ? ' disabled' : ''}>
+${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option value="${esc(k)}"${k === key ? ' selected' : ''}>${esc(t.name)}</option>`; }).join('')}</select>
 <small class="muted">${d && d.id ? 'Το είδος δεν αλλάζει σε εκδομένο Διάταγμα. ' : ''}Σελίδα (φόντο, κεφαλίδα): <a href="#/templates">Πρότυπα</a> → «🎨 Σχεδίαση σελίδας».</small>
 <div class="dec-noedit"><label>Αρ. Διατάγματος</label><div class="dec-norow"><input name="decree_no" type="number" min="1" step="1" inputmode="numeric" value="${esc(d && d.id ? d.decree_no : suggestDecreeNo())}" required>
 <span>/</span><input name="decree_year" type="number" min="1900" max="2999" inputmode="numeric" value="${esc(d && d.id ? d.decree_year : new Date().getFullYear())}" required></div>
 <label style="margin-top:10px">Ημερομηνία Διατάγματος</label><input name="decree_date" type="date" class="dec-date-in" value="${esc(d && d.id ? d.decree_date || today() : today())}" required>
 <small class="muted">${d && d.id ? 'Μπορείτε να διορθώσετε τον αριθμό.' : 'Προτείνεται ο επόμενος· μπορείτε να τον αλλάξετε.'} Το επόμενο Διάταγμα θα προταθεί αμέσως μετά τον μεγαλύτερο αριθμό.</small>
 <label style="margin-top:14px">Αρ. Πρωτοκόλλου</label><div class="dec-norow"><input name="protocol_seq" type="number" min="1" step="1" inputmode="numeric" value="${esc((d && d.id && d.protocol_seq) || suggestedProtocol())}" required></div>
-<small class="muted">${d && d.id && d.protocol_seq ? 'Ο αριθμός του Διατάγματος στο Βιβλίο Πρωτοκόλλου· μπορείτε να τον διορθώσετε.' : 'Προτείνεται ο επόμενος ελεύθερος του Βιβλίου Πρωτοκόλλου· γράψτε τον τελικό αριθμό.'} Ενιαία αρίθμηση Επιστολών και Διαταγμάτων: η αρίθμηση συνεχίζει από τον αριθμό που γράφετε.</small></div>${d && d.id ? `<input type="hidden" name="template_key" value="${key}">` : ''}</div>
+<small class="muted">${d && d.id && d.protocol_seq ? 'Ο αριθμός του Διατάγματος στο Βιβλίο Πρωτοκόλλου· μπορείτε να τον διορθώσετε.' : 'Προτείνεται ο επόμενος ελεύθερος του Βιβλίου Πρωτοκόλλου· γράψτε τον τελικό αριθμό.'} Ενιαία αρίθμηση Επιστολών και Διαταγμάτων: η αρίθμηση συνεχίζει από τον αριθμό που γράφετε.</small></div></div>
 <fieldset class="plainfs" id="generalPart"${gen ? '' : ' disabled hidden'}><div class="card"><div class="grid">
-<div class="full"><label>Περί</label><input name="g_matter" value="${esc(d && gen ? d.matter : '')}" placeholder="π.χ. ιδρύσεως της Στοάς «……»"></div>
-<div class="full"><label>Κείμενο Διατάγματος</label><textarea name="g_body" style="min-height:320px">${esc(gBody)}</textarea><small class="muted">Από το πρότυπο «ΓΕΝΙΚΟ ΔΙΑΤΑΓΜΑ». Πεδία: ${DECREE_PLACEHOLDERS.map(([k, h]) => `{${esc(k)}} = ${esc(h)}`).join(' · ')}. Γραμμές με ΚΕΦΑΛΑΙΑ τυπώνονται έντονα.</small></div>
+<div class="full" id="decreeLodge" hidden><label for="dLodge">Στοά από τη βάση</label><select id="dLodge" name="lodge_id"><option value="">— Επιλογή Στοάς —</option>${lodgesAll().map((l) => `<option value="${l.id}">${esc(lodgeTitle(l))}</option>`).join('')}</select>
+<div id="dLodgeDetails" class="muted"></div>
+<label for="dLogoMode">Λογότυπο Στοάς</label><select id="dLogoMode" name="logo_mode"><option value="lodge">Από τη βάση της Στοάς</option><option value="upload">Από αρχείο για το Διάταγμα</option><option value="none">Χωρίς λογότυπο</option></select>
+<label id="dLogoUpload" hidden>Αρχείο λογοτύπου (PNG, JPG, WEBP)<input type="file" id="dLogoFile" accept="image/png,image/jpeg,image/webp"></label>
+<div class="grid"><label>Οριζόντια θέση (mm)<input type="number" name="logo_x" min="0" max="205" step="any" value="170"></label>
+<label>Κάθετη θέση (mm)<input type="number" name="logo_y" min="0" max="292" step="any" value="15"></label>
+<label>Πλάτος (mm)<input type="number" name="logo_w" min="5" max="210" step="any" value="25"></label></div>
+<small class="muted">Μετακινήστε το λογότυπο στην προεπισκόπηση ή ορίστε τη θέση του σε χιλιοστά.</small></div>
+<div id="decreeFields" class="full grid"></div>
+<div class="full"><label>Περί</label><input name="g_matter" value="${esc(d && gen ? storedForm(d).matter_src ?? d.matter : tpl.subject || '')}" placeholder="π.χ. ιδρύσεως της Στοάς «……»"></div>
+<div class="full"><label>Κείμενο Διατάγματος</label><textarea name="g_body" style="min-height:320px">${esc(gBody)}</textarea><small class="muted">Αυτόματα πεδία: ${DECREE_PLACEHOLDERS.map(([k, h]) => `{${esc(k)}} = ${esc(h)}`).join(' · ')}. Γραμμές με ΚΕΦΑΛΑΙΑ τυπώνονται έντονα.</small></div>
 <div class="full"><label>🔎 Παραλήπτες από τον Κατάλογο (Στοές, Επαρχίες, μέλη)</label><input id="gPick" placeholder="Στοά, Επαρχία, όνομα…" autocomplete="off"></div>
 <div><label>Προς (για το email)</label><input name="g_to_name" value="${esc(d && gen ? d.recipient_name : '')}"></div><div><label>Email παραληπτών</label><input name="g_to_email" value="${esc(d && gen ? d.recipient_email : '')}" placeholder="πολλά με κόμμα"></div>
 </div></div></fieldset>
@@ -289,15 +474,23 @@ function decreeForm(d, query = {}) {
 }
 
 function mountDecreeForm(el, d, m0) {
-  const f = el.querySelector('#df'), sel = el.querySelector('#dOffice'), act = el.querySelector('#dAction');
+  const f = el.querySelector('#df');
+  if (!f) return;
+  const sel = el.querySelector('#dOffice'), act = el.querySelector('#dAction');
   let mode = null;
-  const kindNow = () => (f.querySelector('[name=template_key]:checked') || f.querySelector('[name=template_key][type=hidden]') || {}).value || m0.key;
-  // Πράξη → πρότυπο: αν η πράξη δεν ανήκει στο επιλεγμένο πρότυπο, επιλέγεται αυτόματα το σωστό
-  const setKind = (k) => { const r = f.querySelector(`[name=template_key][value="${k}"]`); if (r && r.type === 'radio') r.checked = true; const h = f.querySelector('[name=template_key][type=hidden]'); if (h) h.value = k; };
+  const templateSelect = f.elements.template_key;
+  const kindNow = () => templateSelect.value;
+  const initialKey = kindNow();
+  const profileNow = () => {
+    const tpl = decreeTemplate(kindNow());
+    if (m0.source && kindNow() === initialKey && !tpl.id) {
+      return keyFor(isGeneralDecree(m0.source) ? 'general' : m0.action, m0.decree_office);
+    }
+    return decreeProfile(tpl);
+  };
   const sync = () => {
     const a = act.value, service = a === 'service_award', award = a === 'award';
-    if (kindNow() !== 'decree-general' && !DECREE_KINDS[kindNow()].actions.includes(a)) setKind(keyFor(a));
-    const k = kindNow(), mk = `${a}|${k}`;
+    const k = profileNow(), mk = `${a}|${k}`;
     if (mode !== mk && !service) { sel.innerHTML = award ? awardOpts(mode === null ? m0.award_office : '') : officeOpts(mode === null ? m0.decree_office : '', k === 'decree-general' ? 'decree-appoint' : k); }
     mode = mk;
     el.querySelector('#officeCard').hidden = service;
@@ -319,18 +512,29 @@ function mountDecreeForm(el, d, m0) {
     row.querySelector('.em').value = mm.email || ''; row.querySelector('.mob').value = mm.mobile || ''; syncHon();
   });
   el.querySelectorAll('.dec-person').forEach(wire);
-  act.addEventListener('change', sync); sel.addEventListener('change', syncHon);
-  sync();
+  act.addEventListener('change', () => {
+    if (!DECREE_KINDS[profileNow()].actions.includes(act.value) && !d) {
+      const next = keyFor(act.value);
+      if ([...templateSelect.options].some((option) => option.value === next)) templateSelect.value = next;
+    }
+    syncKind();
+  });
+  sel.addEventListener('change', syncHon);
   // Είδος Διατάγματος: Γενικό (ελεύθερο κείμενο) ή Διορισμού ΜΑΞ (πρόσωπα)
-  const isGen = () => kindNow() === 'decree-general';
+  const isGen = () => profileNow() === 'decree-general';
   // Είδος (πρότυπο) → επιτρεπτές πράξεις και αξιώματα
   const syncKind = () => {
     const g = isGen(), gp = el.querySelector('#generalPart'), ap = el.querySelector('#appointPart');
     gp.disabled = gp.hidden = !g; ap.disabled = ap.hidden = g; el.querySelector('[data-act=addPerson]').hidden = g;
-    if (!g) { const allowed = DECREE_KINDS[kindNow()].actions; if (!allowed.includes(act.value)) act.value = allowed[0]; sync(); }
+    if (!g) { const allowed = DECREE_KINDS[profileNow()].actions; if (!allowed.includes(act.value)) act.value = allowed[0]; sync(); }
   };
   // «ΠΡΩΗΝ» → πράξη «ΑΠΟΝΕΜΕΙ» με όλα τα πρώην αξιώματα (ο διορισμός Επαρχιακού/Περιφερειακού Μ.Δ. επιλέγεται από την «Πράξη»)
-  f.querySelectorAll('[name=template_key]').forEach((r) => r.addEventListener('change', () => { if (kindNow() === 'decree-provincial') act.value = 'award'; syncKind(); }));
+  const extra = mountTemplateFields(f, m0.source, kindNow);
+  templateSelect.addEventListener('change', () => {
+    if (profileNow() === 'decree-provincial') act.value = 'award';
+    syncKind();
+    if (isGen()) extra.loadTemplate();
+  });
   syncKind();
   attachPicker(el.querySelector('#gPick'), contactItems, (c) => {
     if (c.email) f.g_to_email.value = [...new Set([...splitEmails(f.g_to_email.value), c.email])].join(', ');
@@ -345,9 +549,9 @@ function mountDecreeForm(el, d, m0) {
   const draft = () => {
     const data = Object.fromEntries(new FormData(f)), action = data.action, service = action === 'service_award';
     if (isGen()) {
-      const date = data.decree_date || (d ? d.decree_date : today()), year = Number(data.decree_year) || (d ? d.decree_year : new Date().getFullYear());
-      const no = Number(data.decree_no) || (d ? d.decree_no : suggestDecreeNo());
-      return { template_key: 'decree-general', decree_no: no, decree_year: year, decree_date: date, protocol_seq: Number(data.protocol_seq) || 0, body: fillGeneral(data.g_body, { matter: String(data.g_matter || '').trim(), date, no: `${no}/${year}` }), rules: JSON.stringify({ action: 'general' }) };
+      const date = data.decree_date || today(), year = Number(data.decree_year) || new Date().getFullYear();
+      const no = Number(data.decree_no) || suggestDecreeNo();
+      return { ...extra.row(data, no, year, date), protocol_seq: Number(data.protocol_seq) || 0 };
     }
     const office = service ? '' : data.office || '', period = String(data.period || '').trim() || DOTS;
     const matter = service ? SERVICE_MATTER : String(data.matter || '').trim() || DOTS;
@@ -359,20 +563,23 @@ function mountDecreeForm(el, d, m0) {
     const date = data.decree_date || (d ? d.decree_date : today()), year = Number(data.decree_year) || (d ? d.decree_year : new Date().getFullYear());
     const no = Number(data.decree_no) || (d ? d.decree_no : suggestDecreeNo());
     const { body } = decreeBody(matter, people.length ? people : [{ first_name: DOTS, last_name: DOTS }], date, action, action === 'award' ? office || DOTS : '', period);
-    return { template_key: keyFor(action, office), decree_no: no, decree_year: year, decree_date: date, protocol_seq: Number(data.protocol_seq) || 0, body, rules: JSON.stringify({ action }) };
+    return { template_key: kindNow(), decree_no: no, decree_year: year, decree_date: date, protocol_seq: Number(data.protocol_seq) || 0, body, rules: JSON.stringify({ action }) };
   };
   // αλλαγή ημερομηνίας → το έτος του αριθμού ακολουθεί (αλλάζει και χωριστά)
   const dIn = f.querySelector('[name=decree_date]'), yIn = f.querySelector('[name=decree_year]');
   if (dIn && yIn) dIn.addEventListener('change', () => { const y = String(dIn.value).slice(0, 4); if (/^\d{4}$/.test(y)) yIn.value = y; });
   const pv = el.querySelector('#dprev');
   let tmr;
-  const preview = () => { clearTimeout(tmr); tmr = setTimeout(() => { try { pv.innerHTML = decreePaper(draft()); } catch (e) { console.warn(e); } }, 120); };
+  const preview = () => { clearTimeout(tmr); tmr = setTimeout(() => { try { pv.innerHTML = decreePaper(draft(), { urls: { lodgeLogo: extra.previewUrl() } }); resolveFileImages(pv).catch(console.warn); } catch (e) { console.warn(e); } }, 120); };
   f.addEventListener('input', preview); f.addEventListener('change', preview);
   el.addEventListener('click', (e) => { if (e.target.closest('[data-act], .picker-list button')) setTimeout(preview, 50); });
+  extra.onPreview(preview, pv);
   preview();
   onSubmit(f, async (data) => {
     if (isGen()) {
-      const matter = String(data.g_matter || '').trim(), src = String(data.g_body || '').trim(), emails = splitEmails(data.g_to_email), bad = emails.filter((e) => !EMAIL_RE.test(e));
+      const emails = splitEmails(data.g_to_email), bad = emails.filter((e) => !EMAIL_RE.test(e));
+      const { matter, body_src: src } = extra.row(data, data.decree_no, data.decree_year, data.decree_date || today());
+      await extra.validate();
       if (!matter) throw new Error('Συμπληρώστε το «Περί».');
       if (!src) throw new Error('Συμπληρώστε το κείμενο του Διατάγματος.');
       if (bad.length) throw new Error('Μη έγκυρο email: ' + bad.join(', '));
@@ -380,9 +587,9 @@ function mountDecreeForm(el, d, m0) {
       if (proto === null) return;
       const id = await db.save(d ? `Διάταγμα ${decreeNo(d)}: ενημέρωση` : `Νέο Γενικό Διάταγμα: ${matter}`, (tx) => {
         const date = formDecreeDate(data, d), { no, year } = formDecreeNo(tx, data, d);
-        const row = { template_key: 'decree-general', decree_no: no, decree_year: year, decree_date: date, subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${matter}`, matter,
-          body: fillGeneral(src, { matter, date, no: `${no}/${year}` }), body_src: src, rules: JSON.stringify({ action: 'general' }), appointments: '[]',
-          recipient_name: String(data.g_to_name || '').trim(), recipient_email: emails.join(', ') };
+        const row = extra.row(data, no, year, date, tx);
+        row.recipient_name = String(data.g_to_name || '').trim();
+        row.recipient_email = emails.join(', ');
         const r = d ? tx.update('decree_documents', d.id, row) : tx.insert('decree_documents', { ...row, status: 'draft' });
         setProtocol(tx, 'decree_documents', r.id, proto);
         tx.remove('member_degrees_offices', (o) => o.decree_id === r.id);
@@ -418,7 +625,7 @@ function mountDecreeForm(el, d, m0) {
       if (d && doSync) revertDecreeSync(tx, d); // οι προηγούμενες αλλαγές του ίδιου Διατάγματος, πριν από τις νέες
       const date = formDecreeDate(data, d), { no, year } = formDecreeNo(tx, data, d);
       const { body, rules } = decreeBody(matter, people, date, action, action === 'award' ? office : '', period);
-      const row = { template_key: keyFor(action, office), decree_no: no, decree_year: year, decree_date: date, subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${matter}`, body, matter,
+      const row = { template_key: kindNow(), decree_no: no, decree_year: year, decree_date: date, subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${matter}`, body, matter,
         rules: JSON.stringify({ rules, action, award_office: action === 'award' ? office : '', decree_office: action === 'appoint' ? office : '', period: action === 'appoint' ? period : '' }),
         appointments: JSON.stringify(people), recipient_name: people.map((a) => a.full_name).join(', '), recipient_email: [...new Set(people.map((a) => a.email.toLowerCase()))].join(', ') };
       let r;
@@ -458,17 +665,17 @@ export const sentBadge = (d) => (d.sent_at ? `<span class="vok">✓ Στάλθη
 function viewDecree({ params }) {
   const d = db.get('decree_documents', params.id);
   if (!d) return '<h1>Δεν βρέθηκε το Διάταγμα</h1>';
-  const to = decreeKey(d) === 'decree-general' ? splitEmails(d.recipient_email) : apps(d).map((a) => a.email).filter(Boolean);
+  const to = isGeneralDecree(d) ? splitEmails(d.recipient_email) : apps(d).map((a) => a.email).filter(Boolean);
   const wa = 'https://wa.me/?text=' + encodeURIComponent(`Παρακαλώ να ελέγξετε το email σας και στα spam.\n\nΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${decreeNo(d)}\n${d.matter}`);
   return {
     title: d.subject,
-    html: `<section class="card send-panel noprint"><h3>${esc(DECREE_KINDS[decreeKey(d)].name)} — Αποστολή & Αποθήκευση</h3>${senderBanner('official')}
+    html: `<section class="card send-panel noprint"><h3>${esc(decreeTemplate(decreeKey(d)).name || d.template_key)} — Αποστολή & Αποθήκευση</h3>${senderBanner('official')}
 <p class="noprint decree-sent">${sentBadge(d)}${d.sent_at ? ' <button class="btn small" data-act="unsent">↺ Αναίρεση «Στάλθηκε»</button>' : ' <button class="btn small" data-act="markSent" title="Για email που στάλθηκε εκτός εφαρμογής (π.χ. «Άνοιγμα στο Gmail»)">✓ Σημείωση ως σταλμένο</button>'}</p><div class="mailsheet"></div>
 <div class="toolbar"><button class="btn primary" data-act="pdf">⬇ PDF / Εκτύπωση</button>
 <a class="btn" target="_blank" rel="noopener" href="${wa}">WhatsApp μήνυμα</a>${d.status === 'ready' ? '' : '<button class="btn primary" data-act="ready">✅ Έτοιμο: απόδοση αρ. πρωτοκόλλου</button>'}</div>
 <p class="send-help">Αρ. Πρωτ.: <b>${esc(d.protocol_no || 'δεν έχει δοθεί')}</b>${d.protocol_seq ? ' <button class="btn small" data-act="protocol">✏ Αλλαγή αρ. πρωτοκόλλου</button>' : ' <button class="btn small" data-act="addproto">➕ Αρ. πρωτοκόλλου</button>'} · Κοινοποίηση: ${esc(db.setting('decree_cc'))} (αλλαγή στις Ρυθμίσεις).</p>${driveBox(d, fileName(d))}
 <div class="toolbar"><button class="btn" data-act="word">⬇ Word</button></div></section>
-<div class="toolbar noprint">${decreeKey(d) !== 'decree-general' && apps(d).length ? `<a class="btn" href="#/decrees/${d.id}/intent">📨 Πρόθεση Διορισμού – Απονομής</a>` : ''}${decreeKey(d) !== 'decree-general' && apps(d).length === 1 ? `<a class="btn" href="#/decrees/${d.id}/dress">👔 Ενδυμασία</a>` : ''}<a class="btn" href="#/decrees/${d.id}/edit">Επεξεργασία Διατάγματος</a><a class="btn" href="#/decrees/new?copy_from=${d.id}">Νέο πάνω σε αυτό</a><a class="btn" href="#/decrees">Αρχείο Διαταγμάτων</a>
+<div class="toolbar noprint">${!isGeneralDecree(d) && apps(d).length ? `<a class="btn" href="#/decrees/${d.id}/intent">📨 Πρόθεση Διορισμού – Απονομής</a>` : ''}${!isGeneralDecree(d) && apps(d).length === 1 ? `<a class="btn" href="#/decrees/${d.id}/dress">👔 Ενδυμασία</a>` : ''}<a class="btn" href="#/decrees/${d.id}/edit">Επεξεργασία Διατάγματος</a><a class="btn" href="#/decrees/new?copy_from=${d.id}">Νέο πάνω σε αυτό</a><a class="btn" href="#/decrees">Αρχείο Διαταγμάτων</a>
 <button class="btn danger" data-act="del">Διαγραφή</button></div>${syncCard(d)}<div class="print-area">${decreePaper(d)}</div>`,
     mount(el) {
       // Αποστολή email με το PDF του Διατάγματος: μετά την αποστολή σημειώνεται «✓ Στάλθηκε» (φαίνεται και στο Αρχείο Διαταγμάτων)
@@ -522,14 +729,14 @@ export const APPOINT_MATTER = 'Διορισμού Μεγάλων Αξιωματ�
 export const AWARD_MATTER = 'Απονομής Αξιώματος Πρώην Μεγάλου Αξιωματικού'; // «Περί» όταν η πράξη είναι ΑΠΟΝΕΜΕΙ (Πρώην)
 function sampleDecree(key) {
   const date = today(), year = new Date().getFullYear(), no = Math.max(db.all('decree_documents').reduce((x, y) => Math.max(x, Number(y.decree_no) || 0), 0) + 1, Number(db.setting('decree_first_no')) || 513);
-  if (key === 'decree-general') return { template_key: key, decree_no: no, decree_year: year, decree_date: date, rules: '{"action":"general"}', body: fillGeneral(decreeTemplate(key).body || GENERAL_BODY, { matter: 'ιδρύσεως της Στοάς «Δείγμα»', date, no: `${no}/${year}` }) };
+  if (decreeProfile(decreeTemplate(key)) === 'decree-general') return { template_key: key, decree_no: no, decree_year: year, decree_date: date, rules: '{"action":"general"}', body: fillGeneral(decreeTemplate(key).body || GENERAL_BODY, { matter: 'ιδρύσεως της Στοάς «Δείγμα»', date, no: `${no}/${year}` }) };
   const office = key === 'decree-provincial' ? PROVINCIAL_OFFICES[0] : 'Μέγας Γραμματεύς', action = key === 'decree-service' ? 'service_award' : 'appoint';
   const { body } = decreeBody(action === 'appoint' ? APPOINT_MATTER : SERVICE_MATTER, [{ first_name: 'Ιωάννης', last_name: 'Παπαδόπουλος', office, honorific: (OFFICE_FORMS[office] || [])[2] || 'Πσεβ. Αδ.', rule: (DEC_MAP[office] || {}).rule || '' }], date, action, '', `${year} - ${year + 1}`);
   return { template_key: key, decree_no: no, decree_year: year, decree_date: date, rules: JSON.stringify({ action, decree_office: office }), body };
 }
 function designPage({ params }) {
   const t = db.get('letter_templates', params.id);
-  if (!t || t.kind !== 'decree') return '<h1>Δεν βρέθηκε πρότυπο Διατάγματος</h1>';
+  if (!t || (t.kind !== 'decree' && !hasDecreeTitle(t))) return '<h1>Δεν βρέθηκε πρότυπο Διατάγματος</h1>';
   const num = (k, f, label, step = 0.5) => `<label>${label}<input type="number" step="${step}" data-k="${k}" data-f="${f}"></label>`;
   const card = (k) => `<div class="card dz-layer" data-layer="${k}"><h3 style="margin-top:0">${esc(LAYER_LABEL[k])}</h3>
 <label class="dz-file">🖼 Ανέβασμα εικόνας (PNG, JPG, WEBP)<input type="file" accept="image/png,image/jpeg,image/webp" data-up="${k}"></label>
@@ -566,7 +773,7 @@ ${k === 'bg' ? '<label>Διαφάνεια<input type="range" min="0.05" max="1" 
 <div class="dz-page"><div class="dz-wrap" id="dzp"></div></div></div>`,
     mount(el) {
       const L = JSON.parse(JSON.stringify(layoutOf(t))), urls = {}, pending = {}, ratio = {};
-      const sample = sampleDecree(t.key);
+      const sample = sampleDecree(templateKey(t));
       const box = el.querySelector('#dzp');
       const r1 = (v) => Math.round(v * 10) / 10;
       const syncInputs = () => {
@@ -778,7 +985,7 @@ ${k === 'bg' ? '<label>Διαφάνεια<input type="range" min="0.05" max="1" 
 
 // Κάρτα «Επετηρίδα & Μητρώο» στη σελίδα του Διατάγματος: τι ενημερώθηκε (υπενθύμιση) ή τι εκκρεμεί, με ενέργεια
 function syncCard(d) {
-  if (decreeKey(d) === 'decree-general') return '';
+  if (isGeneralDecree(d)) return '';
   const s = syncInfo(d), pend = planChanges(planDecreeSync(d, apps(d), db, d.id));
   const list = (t) => `<pre class="sync-list">${esc(t)}</pre>`;
   if (s) return `<section class="card sync-card ok noprint"><h3>✓ Επετηρίδα & Μητρώο ενημερώθηκαν από αυτό το Διάταγμα</h3><p class="muted">${esc(fmtDate(String(s.at).slice(0, 10)))} · Ο Τίτλος των μελών στο Μητρώο ακολουθεί την Επετηρίδα.</p>${list(s.text || '')}
@@ -789,7 +996,7 @@ ${pend.length ? `${list(planText(pend))}<div class="toolbar"><button class="btn 
 }
 // Διατάγματα (διορισμού/απονομής/ΤΜΔ) που δεν έχουν περάσει ακόμη στην Επετηρίδα — για υπενθύμιση
 export const pendingDecreeSync = (year = new Date().getFullYear()) => db.all('decree_documents')
-  .filter((d) => decreeKey(d) !== 'decree-general' && !syncInfo(d) && Number(d.decree_year) >= year - 1 && planChanges(planDecreeSync(d, apps(d), db, d.id)).length);
+  .filter((d) => !isGeneralDecree(d) && !syncInfo(d) && Number(d.decree_year) >= year - 1 && planChanges(planDecreeSync(d, apps(d), db, d.id)).length);
 
 // Οριστική διαγραφή Διατάγματος, μετά από επαλήθευση· σβήνονται και οι εγγραφές του στην Επετηρίδα των Διαταγμάτων (αξιώματα μελών)
 // Διαγραφή Διατάγματος: 1) επιβεβαίωση διαγραφής· 2) χωριστή ερώτηση αν θα αναιρεθούν οι αλλαγές του στην Επετηρίδα / Μητρώο
@@ -833,7 +1040,7 @@ function archive({ query }) {
 <form class="filters" id="flt"><input name="q" value="${esc(query.q || '')}" placeholder="Αριθμός, περί, όνομα" autofocus><input type="date" name="from" value="${esc(query.from || '')}"><input type="date" name="to" value="${esc(query.to || '')}"><button>Αναζήτηση</button></form>
 ${pend.length ? `<div class="card sync-card warn"><b>⚠ ${pend.length} Διατάγματα δεν έχουν περάσει στην Επετηρίδα και στο Μητρώο:</b> ${pend.map((d) => `<a href="#/decrees/${d.id}">${esc(decreeNo(d))}</a>`).join(', ')} — ανοίξτε το καθένα και πατήστε «🔄 Ενημέρωση Επετηρίδας & Μητρώου».</div>` : ''}
 ${table(['Αρ. Διατάγματος', 'Αρ. Πρωτ.', 'Ημερομηνία', 'Περί', 'Αδελφοί', 'Email', 'Ενέργειες'], xs.slice(0, 500).map((d) => [`<span class="official-number">${esc(decreeNo(d))}</span>${syncInfo(d) ? '<br><small class="vok" title="Η Επετηρίδα και το Μητρώο ενημερώθηκαν">✓ Επετηρίδα</small>' : pendIds.has(d.id) ? '<br><small class="vwarn">⚠ Επετηρίδα</small>' : ''}`, d.protocol_seq ? `<span class="official-number">${esc(String(d.protocol_seq))}</span>` : `<button type="button" class="btn small" data-act="addproto" data-id="${d.id}">➕ Αρ. πρωτοκόλλου</button>`, esc(fmtDate(d.decree_date)), esc(d.matter), esc(d.recipient_name), sentBadge(d) + (d.sent_at ? '' : ` <button type="button" class="btn small" data-act="markSent" data-id="${d.id}" title="Για email που στάλθηκε εκτός εφαρμογής">✓ Στάλθηκε</button>`),
-  `<a href="#/decrees/${d.id}">Άνοιγμα</a> · ${decreeKey(d) !== 'decree-general' && apps(d).length ? `<a class="btn small intent-link" href="#/decrees/${d.id}/intent" title="Πρόθεση Διορισμού – Απονομής: μία επιστολή για κάθε Αδελφό του Διατάγματος">📨 Πρόθεση${d.protocol_seq ? ` <span class="official-number">${esc(String(d.protocol_seq))}</span>` : ''}</a> ${freeBox(d)} · ` : ''}${apps(d).length === 1 && decreeKey(d) !== 'decree-general' ? `<a class="btn small" href="#/decrees/${d.id}/dress" title="Η ενδυμασία του τίτλου / αξιώματος του Διατάγματος">👔 Ενδυμασία</a> · ` : ''}<a href="#/decrees/${d.id}/edit">Επεξεργασία</a> · <a href="#/decrees/new?copy_from=${d.id}">Νέο πάνω σε αυτό</a> <button type="button" class="btn small danger" data-act="del" data-id="${d.id}">🗑 Διαγραφή</button>`]), 'Δεν βρέθηκαν Διατάγματα.')}`,
+  `<a href="#/decrees/${d.id}">Άνοιγμα</a> · ${!isGeneralDecree(d) && apps(d).length ? `<a class="btn small intent-link" href="#/decrees/${d.id}/intent" title="Πρόθεση Διορισμού – Απονομής: μία επιστολή για κάθε Αδελφό του Διατάγματος">📨 Πρόθεση${d.protocol_seq ? ` <span class="official-number">${esc(String(d.protocol_seq))}</span>` : ''}</a> ${freeBox(d)} · ` : ''}${apps(d).length === 1 && !isGeneralDecree(d) ? `<a class="btn small" href="#/decrees/${d.id}/dress" title="Η ενδυμασία του τίτλου / αξιώματος του Διατάγματος">👔 Ενδυμασία</a> · ` : ''}<a href="#/decrees/${d.id}/edit">Επεξεργασία</a> · <a href="#/decrees/new?copy_from=${d.id}">Νέο πάνω σε αυτό</a> <button type="button" class="btn small danger" data-act="del" data-id="${d.id}">🗑 Διαγραφή</button>`]), 'Δεν βρέθηκαν Διατάγματα.')}`,
     mount(el) {
       onSubmit(el.querySelector('#flt'), (q) => go('/decrees', q));
       el.querySelectorAll('input[data-free]').forEach((c) => c.addEventListener('change', async () => {

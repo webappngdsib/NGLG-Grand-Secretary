@@ -116,17 +116,20 @@ const FORM_ART = {
 };
 const REGULATIONS_END = /(?<!\p{L})και\s+Κανονισμών(?:[ \t]*[,.;·:])?(?!\p{L})/iu;
 function decreeArtwork(d, previews = {}) {
-  const { artwork = {}, characterize } = storedForm(d);
-  return Object.fromEntries(Object.entries(FORM_ART).filter(([k]) => k === 'characterize' ? characterize : characterize || artwork[k] || previews[k])
-    .map(([k, art]) => [k, { ...art, file: artwork[k], url: previews[k] || (!artwork[k] ? art.img : '') }]));
+  const { artwork = {}, characterize, hmeisWidth } = storedForm(d);
+  return Object.fromEntries(Object.entries(FORM_ART).filter(([k]) => k === 'characterize' ? characterize : characterize || hmeisWidth || artwork[k] || previews[k])
+    .map(([k, art]) => [k, { ...art, word: k === 'hmeis' && hmeisWidth ? hmeisWidth / 10 : art.word, file: artwork[k], url: previews[k] || (!artwork[k] ? art.img : '') }]));
 }
-function characterizeBody(body) {
+function characterizeBody(body, lodge) {
   const text = body.replace(/^[ \t]*(?:\[b\])?(?:ΑΠΟΦΑΣΙΖΟΜΕΝ|ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ)(?:\[\/b\])?[ \t]*$/gmi, '')
     .replace(/\n{3,}/g, '\n\n');
   const end = REGULATIONS_END.exec(text);
   if (!end) return body;
   const index = end.index + end[0].length;
-  return [text.slice(0, index), 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', text.slice(index).trimStart()].filter(Boolean).join('\n\n');
+  const rest = text.slice(index).trimStart();
+  const sentence = lodge ? `την Στοάν ${lodge.name || '……'} υπ’ αρ. ${lodge.number || '……'} με έδραν την πόλιν των Αθηνών, ως\n\nΣτοάν Κέντρου.` : '';
+  return [text.slice(0, index), 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', sentence, sentence && rest.startsWith(sentence) ? rest.slice(sentence.length).trimStart() : rest]
+    .filter(Boolean).join('\n\n');
 }
 function artworkBody(body, art) {
   let text = String(body || '');
@@ -358,7 +361,7 @@ function mountDecreeArtwork(f, source, preview) {
   return {
     saved: () => ({ ...saved }),
     previews: () => Object.fromEntries(Object.entries(pending).filter(([, a]) => a.url).map(([k, a]) => [k, a.url])),
-    async prepare(body, characterize) {
+    async prepare(body, characterize, width) {
       const artwork = { ...saved }, files = [], chosen = Object.entries(pending);
       if (characterize && !REGULATIONS_END.test(body)) {
         throw new Error('Στο κείμενο χρειάζεται η φράση «και Κανονισμών» για τη θέση του ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ.');
@@ -373,7 +376,7 @@ function mountDecreeArtwork(f, source, preview) {
         artwork[k] = path;
         files.push({ path, bytes: new Uint8Array(await a.file.arrayBuffer()) });
       }
-      return { artwork, files, characterize };
+      return { artwork, files, characterize, hmeisWidth: Number(width) || undefined };
     },
   };
 }
@@ -389,7 +392,19 @@ function mountTemplateFields(f, source, key) {
   const fields = f.querySelector('#decreeFields'), lodgeBox = f.querySelector('#decreeLodge');
   const { g_body: body, g_matter: matter, lodge_id: lodgeSelect, logo_mode: logoMode } = f.elements;
   const fileInput = f.querySelector('#dLogoFile'), uploadLabel = f.querySelector('#dLogoUpload');
-  const details = f.querySelector('#dLodgeDetails');
+  const details = f.querySelector('#dLodgeDetails'), logoBox = f.querySelector('#dLodgeLogo');
+  const isCharacterize = () => f.elements.action.value === 'characterize';
+  const syncLodge = () => {
+    const visible = affiliation || isCharacterize();
+    lodgeBox.hidden = !visible;
+    lodgeSelect.required = visible;
+    logoBox.hidden = !affiliation;
+    const automatic = lodgeFields();
+    for (const input of fields.querySelectorAll('[data-decree-field]')) {
+      input.disabled = isCharacterize() && Object.hasOwn(automatic, input.dataset.decreeField);
+      input.parentElement.hidden = input.disabled;
+    }
+  };
   const saved = storedForm(source);
   let affiliation, lodge, upload, savedLogo, preview = () => {};
   const logoInputs = Object.fromEntries(Object.keys(LOGO_DEFAULT).map((k) => [k, f.elements['logo_' + k]]));
@@ -402,8 +417,7 @@ function mountTemplateFields(f, source, key) {
   const showLodge = () => { details.textContent = lodge ? [lodge.provincial, lodge.secretary_email || lodge.email].filter(Boolean).join(' · ') : ''; };
   const loadTemplate = (keep = false) => {
     const tpl = decreeTemplate(key());
-    affiliation = isAffiliation(tpl) || (keep && Boolean(saved.lodge));
-    lodgeBox.hidden = !affiliation;
+    affiliation = isAffiliation(tpl) || (keep && Boolean(saved.logo));
     if (!keep) {
       body.value = tpl.body || GENERAL_BODY;
       matter.value = tpl.subject || '';
@@ -418,8 +432,8 @@ function mountTemplateFields(f, source, key) {
     const names = [...new Set([...(`${body.value}\n${matter.value}`).matchAll(TOKENS)].map((m) => m[1].trim()))];
     fields.innerHTML = names.filter((n) => !automatic.has(n)).map((n) =>
       `<label>${esc(n)}<input data-decree-field="${esc(n)}" value="${esc(keep && Object.hasOwn(saved.fields || {}, n) ? saved.fields[n] : '')}" required></label>`).join('');
-    lodge = affiliation && keep ? saved.lodge || null : null;
-    if (lodge && ![...lodgeSelect.options].some((o) => o.value === String(lodge.id))) lodgeSelect.add(new Option(lodgeTitle(lodge), lodge.id));
+    lodge = keep ? saved.lodge || null : null;
+    if (lodge && ![...lodgeSelect.options].some((o) => o.value === String(lodge.id))) lodgeSelect.add(new Option(lodgeTitle(lodge, 'Συμβολική Στοά'), lodge.id));
     lodgeSelect.value = lodge?.id || '';
     savedLogo = affiliation && keep ? saved.logo : null;
     logoMode.value = savedLogo?.mode || 'lodge';
@@ -428,6 +442,7 @@ function mountTemplateFields(f, source, key) {
     fileInput.value = '';
     refreshLogo();
     showLodge();
+    syncLodge();
   };
   lodgeSelect.addEventListener('change', () => {
     const previous = lodge ? lodgeRecipients({ lodge: lodge.name, lodge_number: lodge.number, lodgeRec: lodge }) : null;
@@ -471,7 +486,7 @@ function mountTemplateFields(f, source, key) {
     const mode = logoMode.value;
     const file = mode === 'none' ? '' : savedLogo?.mode === mode ? savedLogo.file : mode === 'lodge' ? lodge?.logo_file : '';
     return {
-      key: key(), values, affiliation, lodge,
+      key: key(), values, affiliation, lodge: affiliation || isCharacterize() ? lodge : undefined,
       logo: affiliation ? { ...position(), file, mode } : undefined,
       upload: affiliation && mode === 'upload' ? upload : null,
     };
@@ -479,19 +494,21 @@ function mountTemplateFields(f, source, key) {
 
   const row = (data, no, year, date, form) => {
     const { values, affiliation, lodge, logo } = form;
-    const extras = affiliation ? { ...values, ...lodgeFields(lodge) } : values;
+    const extras = affiliation || data.action === 'characterize' ? { ...values, ...lodgeFields(lodge) } : values;
     const fill = (text, ctx) => String(text || '').replace(TOKENS, (all, name) => {
       const k = name.trim();
       return Object.hasOwn(extras, k) ? extras[k] || '……' : fillGeneral(all, ctx);
     });
     const matterSrc = String(data.g_matter || '').trim(), src = String(data.g_body || '').trim();
     const ctx = { date, no: `${no}/${year}` }, subject = fill(matterSrc, ctx);
+    const text = fill(src, { ...ctx, matter: subject });
+    const bodyText = data.action === 'characterize' ? characterizeBody(text, lodge || {}) : text;
     return { template_key: form.key, decree_no: no, decree_year: year, decree_date: date, matter: subject,
-      subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${subject}`, body: fill(src, { ...ctx, matter: subject }), body_src: src,
-      rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge: affiliation ? lodge : undefined, logo }), appointments: '[]' };
+      subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${subject}`, body: bodyText, body_src: src,
+      rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge, logo }), appointments: '[]' };
   };
   return {
-    loadTemplate, row, capture,
+    loadTemplate, row, capture, syncLodge,
     previewUrl: () => affiliation && logoMode.value === 'upload' ? upload?.url : '',
     async prepare(form) {
       if (form.affiliation && !form.lodge) throw new Error('Επιλέξτε Στοά από τη βάση.');
@@ -555,17 +572,18 @@ ${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option va
 <select name="action" id="dAction">${Object.entries({ ...ACTIONS, general: 'Γενική πράξη', characterize: 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ' }).map(([k, v]) =>
   `<option value="${k}"${k === (gen ? (storedForm(d).characterize || query.action === 'characterize' ? 'characterize' : 'general') : m.action) ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
 <div class="card"><div class="grid">${Object.entries(FORM_ART).map(([k, a]) =>
-  `<div data-art-field="${k}"><label>Εικόνα «${a.label}»<input type="file" data-decree-art="${k}" accept="image/png,image/jpeg,image/webp"></label><button type="button" class="btn small" hidden>Αφαίρεση εικόνας «${a.label}»</button></div>`).join('')}</div>
+  `<div data-art-field="${k}"><label>Εικόνα «${a.label}»<input type="file" data-decree-art="${k}" accept="image/png,image/jpeg,image/webp"></label><button type="button" class="btn small" hidden>Αφαίρεση εικόνας «${a.label}»</button></div>`).join('')}
+<label>Πλάτος «ΗΜΕΙΣ» (mm)<input name="hmeis_width" type="number" min="5" max="175" step="any" placeholder="Προεπιλογή" value="${esc(storedForm(d).hmeisWidth ?? '')}"></label></div>
 <small class="muted">Το ΗΜΕΙΣ κεντράρεται κάτω από τον τίτλο. Το ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ ακολουθεί τη φράση «και Κανονισμών».</small></div>
 <fieldset class="plainfs" id="generalPart"${gen ? '' : ' disabled hidden'}><div class="card"><div class="grid">
-<div class="full" id="decreeLodge" hidden><label for="dLodge">Στοά από τη βάση</label><select id="dLodge" name="lodge_id"><option value="">— Επιλογή Στοάς —</option>${lodgesAll().map((l) => `<option value="${l.id}">${esc(lodgeTitle(l))}</option>`).join('')}</select>
-<div id="dLodgeDetails" class="muted"></div>
+<div class="full" id="decreeLodge" hidden><label for="dLodge">Στοά από τη βάση</label><select id="dLodge" name="lodge_id"><option value="">— Επιλογή Στοάς —</option>${lodgesAll().map((l) => `<option value="${l.id}">${esc(lodgeTitle(l, 'Συμβολική Στοά'))}</option>`).join('')}</select>
+<div id="dLodgeDetails" class="muted"></div><div id="dLodgeLogo" hidden>
 <label for="dLogoMode">Λογότυπο Στοάς</label><select id="dLogoMode" name="logo_mode"><option value="lodge">Από τη βάση της Στοάς</option><option value="upload">Από αρχείο για το Διάταγμα</option><option value="none">Χωρίς λογότυπο</option></select>
 <label id="dLogoUpload" hidden>Αρχείο λογοτύπου (PNG, JPG, WEBP)<input type="file" id="dLogoFile" accept="image/png,image/jpeg,image/webp"></label>
 <div class="grid"><label>Οριζόντια θέση (mm)<input type="number" name="logo_x" min="0" max="205" step="any" value="170"></label>
 <label>Κάθετη θέση (mm)<input type="number" name="logo_y" min="0" max="292" step="any" value="15"></label>
 <label>Πλάτος (mm)<input type="number" name="logo_w" min="5" max="210" step="any" value="25"></label></div>
-<small class="muted">Μετακινήστε το λογότυπο στην προεπισκόπηση ή ορίστε τη θέση του σε χιλιοστά.</small></div>
+<small class="muted">Μετακινήστε το λογότυπο στην προεπισκόπηση ή ορίστε τη θέση του σε χιλιοστά.</small></div></div>
 <div id="decreeFields" class="full grid"></div>
 <div class="full"><label>Περί</label><input name="g_matter" value="${esc(d && gen ? storedForm(d).matter_src ?? d.matter : tpl.subject || '')}" placeholder="π.χ. ιδρύσεως της Στοάς «……»"></div>
 <div class="full"><label>Κείμενο Διατάγματος</label><textarea name="g_body" style="min-height:320px">${esc(gBody)}</textarea><small class="muted">Αυτόματα πεδία: ${DECREE_PLACEHOLDERS.map(([k, h]) => `{${esc(k)}} = ${esc(h)}`).join(' · ')}. Γραμμές με ΚΕΦΑΛΑΙΑ τυπώνονται έντονα.</small></div>
@@ -652,6 +670,7 @@ function mountDecreeForm(el, d, m0) {
     }
     if (g && !['general', 'characterize'].includes(act.value)) act.value = 'general';
     if (!g) { const allowed = DECREE_KINDS[profileNow()].actions; if (!allowed.includes(act.value)) act.value = allowed[0]; sync(); }
+    extra.syncLodge();
     f.querySelector('[data-art-field=characterize]').hidden = act.value !== 'characterize';
   };
   // «ΠΡΩΗΝ» → πράξη «ΑΠΟΝΕΜΕΙ» με όλα τα πρώην αξιώματα (ο διορισμός Επαρχιακού/Περιφερειακού Μ.Δ. επιλέγεται από την «Πράξη»)
@@ -701,7 +720,7 @@ function mountDecreeForm(el, d, m0) {
     tmr = setTimeout(() => {
       try {
         const doc = draft();
-        doc.rules = JSON.stringify({ ...storedForm(doc), artwork: artwork.saved(), characterize: act.value === 'characterize' });
+        doc.rules = JSON.stringify({ ...storedForm(doc), artwork: artwork.saved(), characterize: act.value === 'characterize', hmeisWidth: f.elements.hmeis_width.valueAsNumber || undefined });
         pv.innerHTML = decreePaper(doc, { urls: { lodgeLogo: extra.previewUrl(), formArtwork: artwork.previews() } });
         resolveFileImages(pv).catch(console.warn);
       } catch (e) { console.warn(e); }
@@ -709,8 +728,7 @@ function mountDecreeForm(el, d, m0) {
   };
   const artwork = mountDecreeArtwork(f, m0.source, preview);
   const saveArtwork = (tx, row, art) => {
-    if (art.characterize) row.body = characterizeBody(row.body);
-    row.rules = JSON.stringify({ ...storedForm(row), artwork: art.artwork, characterize: art.characterize });
+    row.rules = JSON.stringify({ ...storedForm(row), artwork: art.artwork, characterize: art.characterize, hmeisWidth: art.hmeisWidth });
     for (const file of art.files) tx.putFile(file.path, file.bytes);
   };
   f.addEventListener('input', preview); f.addEventListener('change', preview);
@@ -726,7 +744,7 @@ function mountDecreeForm(el, d, m0) {
       if (!matter) throw new Error('Συμπληρώστε το «Περί».');
       if (!src) throw new Error('Συμπληρώστε το κείμενο του Διατάγματος.');
       if (bad.length) throw new Error('Μη έγκυρο email: ' + bad.join(', '));
-      const art = await artwork.prepare(body, data.action === 'characterize');
+      const art = await artwork.prepare(body, data.action === 'characterize', data.hmeis_width);
       const upload = await extra.prepare(form);
       const proto = askFormProtocol(data, d);
       if (proto === null) return;
@@ -763,7 +781,7 @@ function mountDecreeForm(el, d, m0) {
     });
     if (!people.length) throw new Error('Συμπληρώστε τουλάχιστον έναν Αδελφό.');
     const sample = decreeBody(matter, people, data.decree_date || today(), action, action === 'award' ? office : '', period);
-    const art = await artwork.prepare(sample.body, false);
+    const art = await artwork.prepare(sample.body, false, data.hmeis_width);
     const proto = askFormProtocol(data, d);
     if (proto === null) return;
     // Διάταγμα → Επετηρίδα → Μητρώο: ερώτηση πριν από την αυτόματη ενημέρωση, με ό,τι θα αλλάξει

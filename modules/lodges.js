@@ -60,9 +60,9 @@ export const cleanLodgeName = (v) => String(v || '').replace(/\s+/g, ' ').trim()
   .map((w) => (/[A-Za-z]/.test(w) ? w.replace(/[ΑΒΕΖΗΙΚΜΝΟΡΤΥΧ]/g, (c) => 'ABEZHIKMNOPTYX'['ΑΒΕΖΗΙΚΜΝΟΡΤΥΧ'.indexOf(c)]) : w)).join(' ');
 const sortKey = (x) => (/^\d+$/.test(String(x.number)) ? Number(x.number) : 1e9);
 export const lodgesAll = (activeOnly = false) => sortBy(db.all('lodges').filter((x) => !activeOnly || (x.status || 'Ενεργή') !== 'Ανενεργή'), sortKey, 'number');
-export function lodgeTitle(x) {
+export function lodgeTitle(x, prefix = 'Σεβ. Στοά') {
   const n = String(x.number || '').trim();
-  let t = `Σεβ. Στοά «${String(x.name || '').trim()}»`;
+  let t = `${prefix} «${String(x.name || '').trim()}»`;
   if (/^\d+$/.test(n)) t += ` υπ’ αριθμ. ${n}`;
   if (String(x.orient || '').trim()) t += `, Αν. ${x.orient.trim()}`;
   return t;

@@ -5554,3 +5554,21 @@ def test_officers_notify_groups_and_editable_send_preview(app):
     assert r['subject'] == 'Νέο θέμα' and r['body'] == 'Νέο κείμενο' and r['cc'] == 'xeirografo@example.com', r
     assert 'epim@example.com' in r['bcc'] and 'kyrio@example.com' in r['bcc'] and r['to'] == 'info@example.com', r
     assert not app.errors, app.errors
+
+
+def test_corfu_bus_seats_counter(browser, base_url):
+    """Κέρκυρα: μετρητής «🚌 Θέσεις λεωφορείου» στην κορυφή — χωρίς ιδιωτικά μέσα, κατοίκους και όσους δεν δήλωσαν μέσο."""
+    page = browser.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(base_url + 'corfu-2026/')
+    page.wait_for_selector('#mainTable td.name')
+    r = page.evaluate("""() => { records = [{ name: 'Α Α', travel: '18–20/12/2026' }, { name: 'Β Β', travel: '18–20/12/2026' },
+        { name: 'Γ Γ', travel: 'Ιδιωτικό όχημα (όχι πούλμαν)' }, { name: 'Δ Δ', travel: 'Κάτοικος Κέρκυρας' },
+        { name: 'Ε Ε', travel: 'Δεν δηλώθηκε τρόπος μετακίνησης' }]; render();
+      return [document.querySelector('#nBus').textContent, document.querySelector('#nCar').textContent, document.querySelector('#nUnknown').textContent,
+              document.querySelector('#mUnknown').hidden, [...document.querySelectorAll('#mainTable td.tr')].map(td => td.textContent)] }""")
+    assert r[:4] == ['2', '1', '1', False], r
+    assert '❓ Δεν δηλώθηκε' in r[4] and r[4].count('🚌 Λεωφορείο') == 2, r
+    assert not errors, errors
+    page.close()

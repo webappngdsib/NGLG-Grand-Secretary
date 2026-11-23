@@ -15,7 +15,7 @@ h1{font-size:clamp(19px,2.4vw,25px);line-height:1.2;margin:3px 0 2px;font-weight
 main{max-width:1320px;margin:0 auto;padding:12px 16px 36px}
 .stats{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
 .metric{background:white;border:1px solid var(--line);border-radius:9px;padding:6px 12px;display:flex;align-items:baseline;gap:7px}
-.metric strong{font-size:20px;color:var(--navy);line-height:1.2}.metric span{color:var(--muted);font-size:12.5px}
+.metric strong{font-size:20px;color:var(--navy);line-height:1.2}.metric.bus{border:2px solid var(--navy);background:#eef4ff}.metric.bus strong{font-size:24px}.metric span{color:var(--muted);font-size:12.5px}
 .panel{background:#fff;border:1px solid var(--line);border-radius:11px;overflow:hidden;box-shadow:0 2px 10px #0a18300a;margin-bottom:12px}
 .top{padding:10px 14px;display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:end;border-bottom:1px solid var(--line)}
 h2{font-size:17px;margin:0 0 1px}.sub{font-size:12px;color:var(--muted);margin:0}
@@ -76,7 +76,10 @@ span.nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 </div></header>
 <main>
 <div class="stats">
+<div class="metric bus" title="Όσοι δήλωσαν μετακίνηση με το λεωφορείο (χωρίς ιδιωτικά μέσα, κατοίκους Κέρκυρας και όσους δεν δήλωσαν τρόπο)"><strong id="nBus">—</strong><span>🚌 Θέσεις λεωφορείου</span></div>
 <div class="metric"><strong id="nTotal">—</strong><span>Δηλώσεις</span></div>
+<div class="metric"><strong id="nCar">—</strong><span>🚗 Ιδιωτικά μέσα</span></div>
+<div class="metric" id="mUnknown" hidden><strong id="nUnknown">—</strong><span>❓ Χωρίς δήλωση μέσου</span></div>
 <div class="metric"><strong id="nDouble">—</strong><span>Δίκλινα</span></div>
 <div class="metric"><strong id="nPending">—</strong><span>Εκκρεμείς κρατήσεις</span></div>
 </div>
@@ -139,6 +142,10 @@ const isDouble=r=>/^Δίκλινο/.test(r.room||"");
 // no_charge: true (overrides.json) → χωρίς 45€, π.χ. δύο Μεγάλοι Αξιωματικοί που μοιράζονται το δίκλινο (μία κλίνη ο καθένας)
 // Δίπλα στο όνομα: «45€» για δίκλινο — ή η ένδειξη της Γραμματείας (overrides.json → price_label), π.χ. «Ιδιοκτήτης Ξενοδοχείου»
 const isResident=r=>/Κάτοικος/i.test(r.travel||"");
+// Μέσο μετακίνησης: «Δεν δηλώθηκε» (overrides.json) → ούτε λεωφορείο ούτε ιδιωτικό· αλλιώς ό,τι δεν είναι ιδιωτικό/κάτοικος = λεωφορείο
+const isUnknownTravel=r=>/Δεν δηλώθηκε/i.test(r.travel||"");
+const isPrivate=r=>!isResident(r)&&/Ιδιωτικ/i.test(r.travel||"");
+const isBus=r=>!isResident(r)&&!isPrivate(r)&&!isUnknownTravel(r);
 const nameHtml=r=>'<span class="nm"><span>'+esc(r.display_name||r.name)+'</span>'+(r.price_label?'<b class="price lbl">'+esc(r.price_label)+'</b>':isDouble(r)&&!r.no_charge?'<b class="price">'+DOUBLE_PRICE+'</b>':"")+'</span>';
 const shortDate=v=>{const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"/"+m[2]:""};
 
@@ -202,7 +209,7 @@ async function loadOfficers(){
 // ── Πινάκιο δηλωσάντων ──
 const LABELS=["Α/Α","Ονοματεπώνυμο","Αξίωμα","Μετακίνηση","Δωμάτιο","Ξενοδοχείο","Email"];
 // Σύντομη μετακίνηση (οι ημερομηνίες 18–20/12 είναι κοινές και φαίνονται στην επικεφαλίδα)
-const travelShort=r=>isResident(r)?"🏠 Κάτοικος Κέρκυρας":/Ιδιωτικ/i.test(r.travel||"")?"🚗 Ιδιωτικό":"🚌 Λεωφορείο";
+const travelShort=r=>isResident(r)?"🏠 Κάτοικος Κέρκυρας":isPrivate(r)?"🚗 Ιδιωτικό":isUnknownTravel(r)?"❓ Δεν δηλώθηκε":"🚌 Λεωφορείο";
 // Αξίωμα + έλεγχος σε μία στήλη: ✓ πράσινο όταν επαληθεύεται από την Επετηρίδα
 // Μέγας Επιμελητής: δίπλα στο αξίωμα και η Στοά του (πεδίο lodge, από το Μητρώο/Επετηρίδα μέσω overrides.json)
 const lodgeHtml=v=>v.lodge?' <span class="lodge">· Στ. '+esc(v.lodge)+'</span>':'';
@@ -215,6 +222,9 @@ function render(){
  const q=plain(el("searchBox").value),list=records.filter(x=>plain(x.name).includes(q)),table=el("mainTable");
  table.querySelectorAll("tbody").forEach(t=>t.remove());
  el("nTotal").textContent=records.length;
+ el("nBus").textContent=records.filter(isBus).length;
+ el("nCar").textContent=records.filter(isPrivate).length;
+ const unk=records.filter(isUnknownTravel).length;el("nUnknown").textContent=unk;el("mUnknown").hidden=!unk;
  el("nDouble").textContent=records.filter(isDouble).length;
  el("nPending").textContent=records.filter(x=>!isResident(x)&&x.hotel_status!=="Επιβεβαιωμένη κράτηση").length;
  el("countShown").textContent="Εμφανίζονται "+list.length+" από "+records.length+" δηλώσεις";
@@ -287,7 +297,7 @@ function requestGmailSync(){
  }
  const initial=lastPayload&&lastPayload.last_sync||"";
  window.open(syncWebAppUrl+"?action=sync","_blank");
- syncStatus("Άνοιξε νέα προστατευμένη καρτέλα για ανάγνωση Gmail. Ακολουθήστε τυχόν αίτημα σύνδεσης στον λογαριασμό Μεγάλης Γραμματείας. Ελέγχεται αυτόματα πότε θα δημοσιευτεί η ενημέρωση.");
+ syncStatus("Άνοιξε νέα προστατευμένη καρτέλα για ανάγνωση Gmail. Ακολουθήστε τυχόν αίτημα σύνδεσης στον λογαριασμό Μεγάλης Γραμματείας. Ελέγχεται αυτόματα πότε θα δημοσιευτεί η ενημέρωση. Αν η καρτέλα δείξει σφάλμα («δεν έχετε πρόσβαση»): ανοίξτε τη με τον λογαριασμό grand.secretary@nglgreece.gr (όχι με προσωπικό Gmail). Ο έλεγχος Gmail γίνεται και αυτόματα κάθε 3 ώρες.");
  let n=0;
  const monitor=setInterval(async()=>{
   n++;await load();
@@ -376,7 +386,7 @@ function pdfReady(btn,blob,filename,error){
  if(window.matchMedia&&matchMedia("(pointer:fine)").matches){const a=document.createElement("a");a.href=pdfUrl;a.download=filename;document.body.appendChild(a);a.click();a.remove()}
 }
 function exportPDF(){
- const s=`<div class="sum"><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(isDouble).length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>!isResident(x)&&x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
+ const s=`<div class="sum"><span>🚌 Θέσεις λεωφορείου: <b>${records.filter(isBus).length}</b></span><span>Δηλώσεις: <b>${records.length}</b></span><span>Δίκλινα: <b>${records.filter(isDouble).length}</b></span><span>Εκκρεμείς κρατήσεις: <b>${records.filter(x=>!isResident(x)&&x.hotel_status!=="Επιβεβαιωμένη κράτηση").length}</b></span><span>Τελευταίος συγχρονισμός: <b>${esc(dateFmt(lastPayload&&lastPayload.last_sync))}</b></span></div>`;
  return makePdf({btn:el("pdfBtn"),title:"Κατάσταση Μετακίνησης &amp; Διαμονής Μεγάλων Αξιωματικών",sum:s,filename:"Kerkyra-2026-Metakinisi-Diamoni.pdf",
   cols:[["Α/Α",4],["Ονοματεπώνυμο",23],["Αξίωμα (Επετηρίδα)",22],["Μετακίνηση",11],["Δωμάτιο",13],["Ξενοδοχείο",9],["Email",18]],
   items:records.map((r,i)=>{const v=view(r);return {cells:[i+1,nameHtml(r),(v.verified?"✓ ":"")+esc(v.title)+(v.lodge?" · Στ. "+esc(v.lodge):""),esc(travelShort(r).replace(/^\S+\s/,"")),esc(r.room||"Δεν δηλώθηκε"),esc(r.hotel_status||"Εκκρεμεί"),esc(r.email||"—")],comment:r.comments||""}})});

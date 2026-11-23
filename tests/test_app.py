@@ -5645,6 +5645,15 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     labels = app.page.locator('#dLodge option').all_text_contents()
     assert all(label.startswith('Συμβολική Στοά') for label in labels[1:])
     app.page.select_option('#dLodge', str(lodge_id))
+    assert 'ΔΟΚΙΜΗ · αρ. 998' == app.text('#dCharacterizationLodge')
+    wording = app.page.input_value('#dCharacterizationText')
+    assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in wording
+    wording = wording.replace('ΔΟΚΙΜΗ υπ’ αρ. 998', '{Στοά} υπ’ αρ. {Αρ. Στοάς}').replace('Στοάν Κέντρου.', 'Στοάν Κέντρου για τη δοκιμή.')
+    app.page.fill('#dCharacterizationText', wording)
+    app.page.select_option('#dLogoMode', 'upload')
+    app.page.set_input_files('#dLogoFile', 'img/seal.png')
+    app.page.fill('[name=logo_x]', '150')
+    app.page.fill('[name=logo_w]', '45')
     app.page.fill('[name=hmeis_width]', '25')
     app.page.fill('[name=hmeis_offset]', '-4')
     app.page.fill('[name=g_matter]', 'Δοκιμής χαρακτηρισμού')
@@ -5659,7 +5668,12 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
       return el.firstChild === opening && act.previousSibling.textContent.trimEnd().endsWith('και Κανονισμών,');
     }""")
     assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998 με έδραν την πόλιν των Αθηνών, ως' in preview.inner_text()
-    assert 'Στοάν Κέντρου.' in preview.inner_text()
+    assert 'Στοάν Κέντρου για τη δοκιμή.' in preview.inner_text()
+    sentence = preview.locator('.decree-characterization')
+    assert 'max-width:82mm' in sentence.get_attribute('style')
+    assert sentence.evaluate("el => getComputedStyle(el).textAlign") == 'center'
+    app.page.fill('[name=logo_x]', '15')
+    app.page.wait_for_function("document.querySelector('#dprev .decree-characterization')?.style.maxWidth === '82mm' && document.querySelector('#dprev .decree-lodge-logo')?.style.left === '15mm'")
     assert '2.5cm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
     assert 'top:-4mm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
     app.click('Έκδοση Διατάγματος')
@@ -5673,11 +5687,13 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
         xml = archive.read('word/document.xml').decode()
         assert 'Κανονισμών,' in xml and 'ΑΠΟΦΑΣΙΖΟΜΕΝ' not in xml
         assert xml.index('<w:drawing', xml.index('Κανονισμών,')) < xml.index('περί Δοκιμής')
-        assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in xml and 'Στοάν Κέντρου.' in xml
+        assert 'την Στοάν ΔΟΚΙΜΗ υπ’ αρ. 998' in xml and 'Στοάν Κέντρου για τη δοκιμή.' in xml
+        assert '<w:ind w:left=' in xml
         assert 'cx="900000"' in xml
         assert '<wp:positionV relativeFrom="paragraph"><wp:posOffset>-144000</wp:posOffset>' in xml
     app.go('/decrees/1/edit')
     assert app.page.input_value('#dLodge') == str(lodge_id)
+    assert app.page.input_value('#dCharacterizationText') == wording
     assert app.page.input_value('[name=hmeis_width]') == '25'
     assert app.page.input_value('[name=hmeis_offset]') == '-4'
     assert app.page.input_value('#dAction') == 'characterize'

@@ -17,7 +17,7 @@ function pngSize(u8) { // IHDR: πλάτος/ύψος
 
 function para(b) { // σειρά στοιχείων κατά το σχήμα OOXML: pBdr → spacing → jc, b → i → color → sz
   const ppr = (b.rule ? '<w:pBdr><w:bottom w:val="single" w:sz="8" w:space="4" w:color="B18A43"/></w:pBdr>' : '')
-    + `<w:spacing w:before="${Math.round((b.before || 0) * 20)}" w:after="${Math.round((b.after ?? 6) * 20)}"/><w:jc w:val="${b.align || 'left'}"/>`;
+    + `<w:spacing w:before="${Math.round((b.before || 0) * 20)}" w:after="${Math.round((b.after ?? 6) * 20)}"/>${b.indent ? `<w:ind w:left="${Math.round(b.indent * 1440 / 25.4)}" w:right="${Math.round(b.indent * 1440 / 25.4)}"/>` : ''}<w:jc w:val="${b.align || 'left'}"/>`;
   const rpr = (b.bold ? '<w:b/>' : '') + (b.italic ? '<w:i/>' : '') + (b.color ? `<w:color w:val="${b.color}"/>` : '') + (b.size ? `<w:sz w:val="${b.size * 2}"/><w:szCs w:val="${b.size * 2}"/>` : '');
   // Μορφοποίηση [b] [i] [size=N] του κειμένου → ξεχωριστά runs
   const rp = (r) => ((b.bold || r.bold) ? '<w:b/>' : '') + ((b.italic || r.italic) ? '<w:i/>' : '') + (b.color ? `<w:color w:val="${b.color}"/>` : '')

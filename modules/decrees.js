@@ -120,22 +120,42 @@ function decreeArtwork(d, previews = {}) {
   return Object.fromEntries(Object.entries(FORM_ART).filter(([k]) => k === 'characterize' ? characterize : characterize || hmeisWidth || hmeisOffset || artwork[k] || previews[k])
     .map(([k, art]) => [k, { ...art, word: k === 'hmeis' && hmeisWidth ? hmeisWidth / 10 : art.word, offset: k === 'hmeis' ? Number(hmeisOffset) || 0 : 0, file: artwork[k], url: previews[k] || (!artwork[k] ? art.img : '') }]));
 }
-function characterizeBody(body, lodge) {
+function defaultCharacterization(lodge) {
+  return lodge ? `την Στοάν ${lodge.name || '……'} υπ’ αρ. ${lodge.number || '……'} με έδραν την πόλιν των Αθηνών, ως\n\nΣτοάν Κέντρου.` : '';
+}
+function characterizeBody(body, sentence = '', previous = sentence) {
   const text = body.replace(/^[ \t]*(?:\[b\])?(?:ΑΠΟΦΑΣΙΖΟΜΕΝ|ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ)(?:\[\/b\])?[ \t]*$/gmi, '')
     .replace(/\n{3,}/g, '\n\n');
   const end = REGULATIONS_END.exec(text);
   if (!end) return body;
   const index = end.index + end[0].length;
   const rest = text.slice(index).trimStart();
-  const sentence = lodge ? `την Στοάν ${lodge.name || '……'} υπ’ αρ. ${lodge.number || '……'} με έδραν την πόλιν των Αθηνών, ως\n\nΣτοάν Κέντρου.` : '';
-  return [text.slice(0, index), 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', sentence, sentence && rest.startsWith(sentence) ? rest.slice(sentence.length).trimStart() : rest]
-    .filter(Boolean).join('\n\n');
+  const remainder = previous && rest.startsWith(previous) ? rest.slice(previous.length).trimStart() : rest;
+  return [text.slice(0, index), 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ', sentence, remainder].filter(Boolean).join('\n\n');
 }
 function artworkBody(body, art) {
   let text = String(body || '');
   if (art.hmeis) text = 'ΗΜΕΙΣ\n\n' + text.replace(/^\s*(?:\[b\])?ΗΜΕΙΣ(?:\[\/b\])?\s*(?:\n|$)/i, '').trimStart();
   return art.characterize ? characterizeBody(text) : text;
 }
+function characterizationSection(d, body) {
+  const form = storedForm(d);
+  if (!form.characterize) return null;
+  const text = form.characterizationText ?? defaultCharacterization(form.lodge);
+  const marker = 'ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ\n\n';
+  const index = body.indexOf(marker + text);
+  if (!text || index < 0) return null;
+  const start = index + marker.length;
+  return { text, before: body.slice(0, start), after: body.slice(start + text.length) };
+}
+
+function characterizationWidth(logo) {
+  if (!logo) return null;
+  const right = Number(logo.x) + Number(logo.w);
+  const edge = right <= 105 ? right : Number(logo.x) >= 105 ? 210 - Number(logo.x) : null;
+  return edge === null ? null : Math.max(20, Math.min(115, 210 - 2 * (edge + 4)));
+}
+
 // «ΔΙΟΡΙΖΟΜΕΝ» (εικόνα της πράξης): πλάτος/ύψος σε mm, πάντα στο κέντρο, κάθετη μετατόπιση dy (mm)·
 // προαιρετικά δική του εικόνα ανά πρότυπο (Σχεδίαση σελίδας → layout.dior.file)
 export const DIOR_DEFAULT = { w: 45, h: 20.7, dy: 0 }, DIOR_RATIO = 0.4608;
@@ -176,10 +196,19 @@ async function decreeDocxBlob(d) {
     wordArt[a.label] = { img, width: a.word, offset: a.offset };
   }
   const body = artworkBody(d.body, art);
+  const section = characterizationSection(d, body), width = characterizationWidth(logo?.file ? logo : null);
+  const sections = section ? [[section.before], [section.text, width], [section.after]] : [[body]];
+  const paragraphs = sections.flatMap(([text, narrow]) => {
+    const formatted = isGeneralDecree(d) ? text : markNames(tightPeri(text), (n) => `[b][size=15]${n}[/size][/b]`);
+    return formatted.split(/\n\s*\n/).map((t) => ({
+      text: t.trim(), align: 'center', indent: narrow ? (210 - 2 * (1250 / 1440 * 25.4) - narrow) / 2 : 0,
+      bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()),
+    }));
+  });
   const PT = 72 / 25.4, MARGIN_TOP = 1000 / 1440 * 25.4; // περιθώριο σελίδας (mm)
   const blocks = letterBlocks({ noHead: top != null, topSpace: top != null ? (top - MARGIN_TOP) * PT : 0, org: S('organization_name'), founded: S('founded_year'), gmTitle: S('grand_master_title'), gmName: S('grand_master_name'),
     number: d.protocol_seq ? String(d.protocol_seq) : (d.protocol_no || ''), date: fmtDate(d.decree_date), place: 'Εν Αθήναις', title: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${decreeNo(d)}${protoPhrase(d)}`,
-    paragraphs: (isGeneralDecree(d) ? body : markNames(tightPeri(body), (n) => `[b][size=15]${n}[/size][/b]`)).split(/\n\s*\n/).map((t) => ({ text: t.trim(), align: 'center', bold: /^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ)/.test(t.trim()) })),
+    paragraphs,
     artwork: wordArt,
     signature: IMG.signature, signer: 'Δημήτριος Σκιαδόπουλος', signerTitle: 'Ο ΜΕΓΑΣ ΓΡΑΜΜΑΤΕΑΣ',
     head: headOn(L.head) ? { ...L.head, lines: L.head.lines.map((l) => ({ ...l, hex: (HEAD_COLORS[l.color] || HEAD_COLORS.navy).slice(1).toUpperCase() })) } : null });
@@ -210,15 +239,20 @@ export function decreePaper(d, opts = {}) {
   const action = meta(d).action, general = isGeneralDecree(d);
   const L = opts.layout || layoutOf(decreeTemplate(decreeKey(d))), urls = opts.urls || {}, layers = pageLayers(L, urls), top = layoutTop(L, urls);
   const art = decreeArtwork(d, urls.formArtwork), body = artworkBody(d.body, art);
-  const bodyHtml = general ? richHtml(body, { links: false }).replace(/^([Α-ΩΆ-Ώ][Α-ΩΆ-ΏΪΫ ’'΄-]{3,})$/gm, '<b>$1</b>')
-    : markNames(richHtml(tightPeri(body), { links: false }).replace(/^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ ΝΑ ΑΠΟΝΕΙΜΩΜΕΝ)$/gm, '<b>$1</b>'), (n) => `<span class="dec-name">${n}</span>`);
+  const toHtml = (text) => general ? richHtml(text, { links: false }).replace(/^([Α-ΩΆ-Ώ][Α-ΩΆ-ΏΪΫ ’'΄-]{3,})$/gm, '<b>$1</b>')
+    : markNames(richHtml(tightPeri(text), { links: false }).replace(/^(ΗΜΕΙΣ|ΔΙΟΡΙΖΟΜΕΝ|ΑΠΟΝΕΜΕΙ|ΕΥΑΡΕΣΤΟΥΜΕΘΑ ΝΑ ΑΠΟΝΕΙΜΩΜΕΝ)$/gm, '<b>$1</b>'), (n) => `<span class="dec-name">${n}</span>`);
+  const logo = storedForm(d).logo;
+  const section = characterizationSection(d, body);
+  const width = characterizationWidth(logo?.file || urls.lodgeLogo ? logo : null);
+  const bodyHtml = section
+    ? `${toHtml(section.before.trimEnd())}\n<span class="decree-characterization"${width ? ` style="max-width:${width}mm"` : ''}>${toHtml(section.text)}</span>\n${toHtml(section.after.trimStart())}`
+    : toHtml(body);
   // «ΗΜΕΙΣ» / «ΔΙΟΡΙΖΟΜΕΝ»: καλλιγραφικές εικόνες, μεγάλες και πίσω από το κείμενο (πιάνουν λίγο ύψος — το κεφαλαίο απλώνεται προς τα πάνω)
   // η γραμμή μόνο με τη λέξη (ό,τι μορφοποίηση κι αν έχει: έντονα, μέγεθος, κενά) γίνεται εικόνα
   const custom = Object.fromEntries(Object.entries(art).map(([k, a]) => [a.label, { ...a, cls: k }]));
   const hmeisHtml = Object.entries({ ...DECREE_ARTWORK, ...custom }).reduce((h, [w, a]) => h.replace(new RegExp(`^(?:<[^>]+>|[ \\t])*${w}(?:</[^>]+>|[ \\t])*$`, 'm'),
     custom[w] ? `<span class="dec-form-art" role="img" aria-label="${w}"><img alt="" ${a.url ? `src="${esc(a.url)}"` : `data-dfile="${esc(a.file)}"`} style="width:${a.word}cm${a.offset ? `;position:relative;top:${a.offset}mm` : ''}"></span>`
       : w === 'ΔΙΟΡΙΖΟΜΕΝ' ? diorHtml(L, urls) : `<span class="${a.cls}" role="img" aria-label="${w}"><img src="${a.img}" alt=""></span>`), bodyHtml);
-  const logo = storedForm(d).logo;
   const logoSrc = urls.lodgeLogo ? ` src="${esc(urls.lodgeLogo)}"` : logo?.file ? ` data-dfile="${esc(logo.file)}"` : '';
   const logoHtml = logo && logoSrc ? `<img class="decree-lodge-logo" alt="Λογότυπο Στοάς" draggable="false"${logoSrc} style="left:${+logo.x}mm;top:${+logo.y}mm;width:${+logo.w}mm">` : '';
   const withOffice = officeImage(hmeisHtml, L, urls);
@@ -393,12 +427,18 @@ function mountTemplateFields(f, source, key) {
   const { g_body: body, g_matter: matter, lodge_id: lodgeSelect, logo_mode: logoMode } = f.elements;
   const fileInput = f.querySelector('#dLogoFile'), uploadLabel = f.querySelector('#dLogoUpload');
   const details = f.querySelector('#dLodgeDetails'), logoBox = f.querySelector('#dLodgeLogo');
+  const phrasing = f.elements.characterization_text, phrasingBox = f.querySelector('#dCharacterization');
+  const lodgeValue = f.querySelector('#dCharacterizationLodge');
   const isCharacterize = () => f.elements.action.value === 'characterize';
   const syncLodge = () => {
     const visible = affiliation || isCharacterize();
     lodgeBox.hidden = !visible;
     lodgeSelect.required = visible;
-    logoBox.hidden = !affiliation;
+    logoBox.hidden = !visible;
+    phrasingBox.hidden = phrasing.disabled = !isCharacterize();
+    phrasing.required = isCharacterize();
+    lodgeValue.textContent = lodge ? `${lodge.name} · αρ. ${lodge.number}` : '—';
+    if (isCharacterize() && !phrasing.value) phrasing.value = defaultCharacterization(lodge || {});
     const automatic = lodgeFields();
     for (const input of fields.querySelectorAll('[data-decree-field]')) {
       input.disabled = isCharacterize() && Object.hasOwn(automatic, input.dataset.decreeField);
@@ -417,7 +457,7 @@ function mountTemplateFields(f, source, key) {
   const showLodge = () => { details.textContent = lodge ? [lodge.provincial, lodge.secretary_email || lodge.email].filter(Boolean).join(' · ') : ''; };
   const loadTemplate = (keep = false) => {
     const tpl = decreeTemplate(key());
-    affiliation = isAffiliation(tpl) || (keep && Boolean(saved.logo));
+    affiliation = isAffiliation(tpl) || (keep && !saved.characterize && Boolean(saved.logo));
     if (!keep) {
       body.value = tpl.body || GENERAL_BODY;
       matter.value = tpl.subject || '';
@@ -435,7 +475,8 @@ function mountTemplateFields(f, source, key) {
     lodge = keep ? saved.lodge || null : null;
     if (lodge && ![...lodgeSelect.options].some((o) => o.value === String(lodge.id))) lodgeSelect.add(new Option(lodgeTitle(lodge, 'Συμβολική Στοά'), lodge.id));
     lodgeSelect.value = lodge?.id || '';
-    savedLogo = affiliation && keep ? saved.logo : null;
+    savedLogo = keep ? saved.logo : null;
+    phrasing.value = keep ? saved.characterizationSource ?? saved.characterizationText ?? defaultCharacterization(lodge) : '';
     logoMode.value = savedLogo?.mode || 'lodge';
     for (const [k, input] of Object.entries(logoInputs)) input.value = savedLogo?.[k] ?? LOGO_DEFAULT[k];
     upload = null;
@@ -445,6 +486,7 @@ function mountTemplateFields(f, source, key) {
     syncLodge();
   };
   lodgeSelect.addEventListener('change', () => {
+    const old = lodge;
     const previous = lodge ? lodgeRecipients({ lodge: lodge.name, lodge_number: lodge.number, lodgeRec: lodge }) : null;
     const l = db.get('lodges', lodgeSelect.value);
     lodge = l && { id: l.id, name: l.name, number: l.number, orient: l.orient, provincial: l.provincial,
@@ -455,7 +497,15 @@ function mountTemplateFields(f, source, key) {
       if (!input.value || input.value === previous?.[prop]) input.value = next?.[prop] || '';
     }
     if (savedLogo?.mode === 'lodge') savedLogo = null;
+    if (isCharacterize()) {
+      if (!phrasing.value || phrasing.value === defaultCharacterization(old || {})) {
+        phrasing.value = defaultCharacterization(lodge || {});
+      } else if (old && lodge) {
+        phrasing.value = phrasing.value.replace(`${old.name} υπ’ αρ. ${old.number}`, () => `${lodge.name} υπ’ αρ. ${lodge.number}`);
+      }
+    }
     showLodge();
+    syncLodge();
   });
   logoMode.addEventListener('change', refreshLogo);
   fileInput.addEventListener('change', () => {
@@ -483,12 +533,12 @@ function mountTemplateFields(f, source, key) {
 
   const capture = () => {
     const values = Object.fromEntries([...fields.querySelectorAll('input')].map((input) => [input.dataset.decreeField, input.value.trim()]));
-    const mode = logoMode.value;
+    const mode = logoMode.value, useLogo = affiliation || isCharacterize();
     const file = mode === 'none' ? '' : savedLogo?.mode === mode ? savedLogo.file : mode === 'lodge' ? lodge?.logo_file : '';
     return {
       key: key(), values, affiliation, lodge: affiliation || isCharacterize() ? lodge : undefined,
-      logo: affiliation ? { ...position(), file, mode } : undefined,
-      upload: affiliation && mode === 'upload' ? upload : null,
+      logo: useLogo ? { ...position(), file, mode } : undefined,
+      upload: useLogo && mode === 'upload' ? upload : null,
     };
   };
 
@@ -502,14 +552,18 @@ function mountTemplateFields(f, source, key) {
     const matterSrc = String(data.g_matter || '').trim(), src = String(data.g_body || '').trim();
     const ctx = { date, no: `${no}/${year}` }, subject = fill(matterSrc, ctx);
     const text = fill(src, { ...ctx, matter: subject });
-    const bodyText = data.action === 'characterize' ? characterizeBody(text, lodge || {}) : text;
+    const characterizationSource = data.action === 'characterize' ? String(data.characterization_text || '').trim() : undefined;
+    const characterizationText = characterizationSource === undefined ? undefined
+      : fill(characterizationSource, ctx).replace(/\n{3,}/g, '\n\n').trim();
+    const bodyText = characterizationText === undefined ? text
+      : characterizeBody(text, characterizationText, storedForm(source).characterizationText ?? defaultCharacterization(storedForm(source).lodge));
     return { template_key: form.key, decree_no: no, decree_year: year, decree_date: date, matter: subject,
       subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${subject}`, body: bodyText, body_src: src,
-      rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge, logo }), appointments: '[]' };
+      rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge, logo, characterizationSource, characterizationText }), appointments: '[]' };
   };
   return {
     loadTemplate, row, capture, syncLodge,
-    previewUrl: () => affiliation && logoMode.value === 'upload' ? upload?.url : '',
+    previewUrl: () => (affiliation || isCharacterize()) && logoMode.value === 'upload' ? upload?.url : '',
     async prepare(form) {
       if (form.affiliation && !form.lodge) throw new Error('Επιλέξτε Στοά από τη βάση.');
       if (form.logo?.mode !== 'upload') return null;
@@ -585,6 +639,10 @@ ${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option va
 <label>Κάθετη θέση (mm)<input type="number" name="logo_y" min="0" max="292" step="any" value="15"></label>
 <label>Πλάτος (mm)<input type="number" name="logo_w" min="5" max="210" step="any" value="25"></label></div>
 <small class="muted">Μετακινήστε το λογότυπο στην προεπισκόπηση ή ορίστε τη θέση του σε χιλιοστά.</small></div></div>
+<div id="dCharacterization" class="full" hidden>
+<label for="dCharacterizationText">Διατύπωση κάτω από το «ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ»</label>
+<small class="muted">Ποια Στοά: <output id="dCharacterizationLodge"></output>. Μπορείτε επίσης να γράψετε {Στοά} και {Αρ. Στοάς} για αυτόματη συμπλήρωση.</small>
+<textarea name="characterization_text" id="dCharacterizationText" rows="4" disabled></textarea></div>
 <div id="decreeFields" class="full grid"></div>
 <div class="full"><label>Περί</label><input name="g_matter" value="${esc(d && gen ? storedForm(d).matter_src ?? d.matter : tpl.subject || '')}" placeholder="π.χ. ιδρύσεως της Στοάς «……»"></div>
 <div class="full"><label>Κείμενο Διατάγματος</label><textarea name="g_body" style="min-height:320px">${esc(gBody)}</textarea><small class="muted">Αυτόματα πεδία: ${DECREE_PLACEHOLDERS.map(([k, h]) => `{${esc(k)}} = ${esc(h)}`).join(' · ')}. Γραμμές με ΚΕΦΑΛΑΙΑ τυπώνονται έντονα.</small></div>

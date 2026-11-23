@@ -642,7 +642,8 @@ ${choices.map((t) => { const k = t.formKey || templateKey(t); return `<option va
 <div id="dCharacterization" class="full" hidden>
 <label for="dCharacterizationText">Διατύπωση κάτω από το «ΧΑΡΑΚΤΗΡΙΖΟΜΕΝ»</label>
 <small class="muted">Ποια Στοά: <output id="dCharacterizationLodge"></output>. Μπορείτε επίσης να γράψετε {Στοά} και {Αρ. Στοάς} για αυτόματη συμπλήρωση.</small>
-<textarea name="characterization_text" id="dCharacterizationText" rows="4" data-rich disabled></textarea></div>
+<textarea name="characterization_text" id="dCharacterizationText" rows="4" data-rich disabled></textarea>
+<div class="toolbar"><button type="button" id="saveCharacterization" class="btn primary">Αποθήκευση διατάγματος</button></div></div>
 <div id="decreeFields" class="full grid"></div>
 <div class="full"><label>Περί</label><input name="g_matter" value="${esc(d && gen ? storedForm(d).matter_src ?? d.matter : tpl.subject || '')}" placeholder="π.χ. ιδρύσεως της Στοάς «……»"></div>
 <div class="full"><label>Κείμενο Διατάγματος</label><textarea name="g_body" style="min-height:320px">${esc(gBody)}</textarea><small class="muted">Αυτόματα πεδία: ${DECREE_PLACEHOLDERS.map(([k, h]) => `{${esc(k)}} = ${esc(h)}`).join(' · ')}. Γραμμές με ΚΕΦΑΛΑΙΑ τυπώνονται έντονα.</small></div>
@@ -794,6 +795,7 @@ function mountDecreeForm(el, d, m0) {
   el.addEventListener('click', (e) => { if (e.target.closest('[data-act], .picker-list button')) setTimeout(preview, 50); });
   extra.onPreview(preview, pv);
   preview();
+  f.querySelector('#saveCharacterization').addEventListener('click', () => f.requestSubmit());
   onSubmit(f, async (data) => {
     const template = kindNow();
     if (isGen()) {
@@ -819,7 +821,7 @@ function mountDecreeForm(el, d, m0) {
         tx.remove('member_degrees_offices', (o) => o.decree_id === r.id);
         return r.id;
       });
-      flash(d ? 'Το Διάταγμα αποθηκεύτηκε.' : 'Το Γενικό Διάταγμα εκδόθηκε.'); go(`/decrees/${id}`); return;
+      flash(d || data.action === 'characterize' ? 'Το Διάταγμα αποθηκεύτηκε.' : 'Το Γενικό Διάταγμα εκδόθηκε.'); go(`/decrees/${id}`); return;
     }
     const action = data.action, service = action === 'service_award';
     const matter = service ? SERVICE_MATTER : String(data.matter || '').trim();

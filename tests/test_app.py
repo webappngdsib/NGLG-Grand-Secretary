@@ -5694,7 +5694,7 @@ def test_decree_characterize_artwork_positions_and_persistence(app):
     app.page.wait_for_function("document.querySelector('#dprev .decree-characterization')?.style.maxWidth === '82mm' && document.querySelector('#dprev .decree-lodge-logo')?.style.left === '15mm'")
     assert '2.5cm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
     assert 'top:-4mm' in preview.locator('[aria-label=ΗΜΕΙΣ] img').get_attribute('style')
-    app.click('Έκδοση Διατάγματος')
+    app.page.locator('#saveCharacterization').click()
     app.page.wait_for_url('**/#/decrees/1')
     images = app.page.locator('.print-area .dec-form-art img[data-dfile]')
     assert images.count() == 2

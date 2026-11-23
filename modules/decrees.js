@@ -361,18 +361,19 @@ function mountTemplateFields(f, source, key) {
   });
   if ((source ? isGeneralDecree(source) : decreeProfile(decreeTemplate(key())) === 'decree-general')) loadTemplate(Boolean(source));
 
-  const validate = async () => {
-    if (affiliation && !lodge) throw new Error('Επιλέξτε Στοά από τη βάση.');
-    if (!affiliation || logoMode.value !== 'upload') return;
-    if (!upload && savedLogo?.mode !== 'upload') throw new Error('Επιλέξτε αρχείο λογοτύπου.');
-    if (upload && !upload.url) {
-      const bitmap = await createImageBitmap(upload.file);
-      bitmap.close();
-    }
+  const capture = () => {
+    const values = Object.fromEntries([...fields.querySelectorAll('input')].map((input) => [input.dataset.decreeField, input.value.trim()]));
+    const mode = logoMode.value;
+    const file = mode === 'none' ? '' : savedLogo?.mode === mode ? savedLogo.file : mode === 'lodge' ? lodge?.logo_file : '';
+    return {
+      key: key(), values, affiliation, lodge,
+      logo: affiliation ? { ...position(), file, mode } : undefined,
+      upload: affiliation && mode === 'upload' ? upload : null,
+    };
   };
 
-  const row = (data, no, year, date, tx) => {
-    const values = Object.fromEntries([...fields.querySelectorAll('input')].map((input) => [input.dataset.decreeField, input.value.trim()]));
+  const row = (data, no, year, date, form) => {
+    const { values, affiliation, lodge, logo } = form;
     const extras = affiliation ? { ...values, ...lodgeFields(lodge) } : values;
     const fill = (text, ctx) => String(text || '').replace(TOKENS, (all, name) => {
       const k = name.trim();
@@ -380,25 +381,27 @@ function mountTemplateFields(f, source, key) {
     });
     const matterSrc = String(data.g_matter || '').trim(), src = String(data.g_body || '').trim();
     const ctx = { date, no: `${no}/${year}` }, subject = fill(matterSrc, ctx);
-    let logo;
-    if (affiliation) {
-      const mode = logoMode.value;
-      let file = mode === 'upload' ? (savedLogo?.mode === mode ? savedLogo.file : '') : mode === 'lodge' ? (savedLogo?.mode === mode ? savedLogo.file : lodge?.logo_file) : '';
-      if (mode === 'upload' && upload?.bytes && tx) {
-        file = `decrees/logos/${crypto.randomUUID()}.${upload.file.type.split('/')[1].replace('jpeg', 'jpg')}`;
-        tx.putFile(file, upload.bytes);
-      }
-      logo = { ...position(), file, mode };
-    }
-    return { template_key: key(), decree_no: no, decree_year: year, decree_date: date, matter: subject,
+    return { template_key: form.key, decree_no: no, decree_year: year, decree_date: date, matter: subject,
       subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${subject}`, body: fill(src, { ...ctx, matter: subject }), body_src: src,
       rules: JSON.stringify({ action: 'general', matter_src: matterSrc, fields: values, lodge: affiliation ? lodge : undefined, logo }), appointments: '[]' };
   };
   return {
-    loadTemplate, row, previewUrl: () => affiliation && logoMode.value === 'upload' ? upload?.url : '',
-    async validate() {
-      await validate();
-      if (affiliation && logoMode.value === 'upload' && upload) upload.bytes = new Uint8Array(await upload.file.arrayBuffer());
+    loadTemplate, row, capture,
+    previewUrl: () => affiliation && logoMode.value === 'upload' ? upload?.url : '',
+    async prepare(form) {
+      if (form.affiliation && !form.lodge) throw new Error('Επιλέξτε Στοά από τη βάση.');
+      if (form.logo?.mode !== 'upload') return null;
+      if (!form.upload && !form.logo.file) throw new Error('Επιλέξτε αρχείο λογοτύπου.');
+      if (!form.upload) return null;
+      const { file, url } = form.upload;
+      if (!url) {
+        const bitmap = await createImageBitmap(file);
+        bitmap.close();
+      }
+      const ext = file.type.split('/')[1].replace('jpeg', 'jpg');
+      const path = `decrees/logos/${crypto.randomUUID()}.${ext}`;
+      form.logo.file = path;
+      return { path, bytes: new Uint8Array(await file.arrayBuffer()) };
     },
     onPreview(render, root) {
       preview = render;
@@ -551,7 +554,7 @@ function mountDecreeForm(el, d, m0) {
     if (isGen()) {
       const date = data.decree_date || today(), year = Number(data.decree_year) || new Date().getFullYear();
       const no = Number(data.decree_no) || suggestDecreeNo();
-      return { ...extra.row(data, no, year, date), protocol_seq: Number(data.protocol_seq) || 0 };
+      return { ...extra.row(data, no, year, date, extra.capture()), protocol_seq: Number(data.protocol_seq) || 0 };
     }
     const office = service ? '' : data.office || '', period = String(data.period || '').trim() || DOTS;
     const matter = service ? SERVICE_MATTER : String(data.matter || '').trim() || DOTS;
@@ -576,18 +579,21 @@ function mountDecreeForm(el, d, m0) {
   extra.onPreview(preview, pv);
   preview();
   onSubmit(f, async (data) => {
+    const template = kindNow();
     if (isGen()) {
       const emails = splitEmails(data.g_to_email), bad = emails.filter((e) => !EMAIL_RE.test(e));
-      const { matter, body_src: src } = extra.row(data, data.decree_no, data.decree_year, data.decree_date || today());
-      await extra.validate();
+      const form = extra.capture();
+      const { matter, body_src: src } = extra.row(data, data.decree_no, data.decree_year, data.decree_date || today(), form);
       if (!matter) throw new Error('Συμπληρώστε το «Περί».');
       if (!src) throw new Error('Συμπληρώστε το κείμενο του Διατάγματος.');
       if (bad.length) throw new Error('Μη έγκυρο email: ' + bad.join(', '));
+      const upload = await extra.prepare(form);
       const proto = askFormProtocol(data, d);
       if (proto === null) return;
       const id = await db.save(d ? `Διάταγμα ${decreeNo(d)}: ενημέρωση` : `Νέο Γενικό Διάταγμα: ${matter}`, (tx) => {
         const date = formDecreeDate(data, d), { no, year } = formDecreeNo(tx, data, d);
-        const row = extra.row(data, no, year, date, tx);
+        const row = extra.row(data, no, year, date, form);
+        if (upload) tx.putFile(upload.path, upload.bytes);
         row.recipient_name = String(data.g_to_name || '').trim();
         row.recipient_email = emails.join(', ');
         const r = d ? tx.update('decree_documents', d.id, row) : tx.insert('decree_documents', { ...row, status: 'draft' });
@@ -625,7 +631,7 @@ function mountDecreeForm(el, d, m0) {
       if (d && doSync) revertDecreeSync(tx, d); // οι προηγούμενες αλλαγές του ίδιου Διατάγματος, πριν από τις νέες
       const date = formDecreeDate(data, d), { no, year } = formDecreeNo(tx, data, d);
       const { body, rules } = decreeBody(matter, people, date, action, action === 'award' ? office : '', period);
-      const row = { template_key: kindNow(), decree_no: no, decree_year: year, decree_date: date, subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${matter}`, body, matter,
+      const row = { template_key: template, decree_no: no, decree_year: year, decree_date: date, subject: `ΔΙΑΤΑΓΜΑ υπ’ αριθμ. ${no}/${year} – ${matter}`, body, matter,
         rules: JSON.stringify({ rules, action, award_office: action === 'award' ? office : '', decree_office: action === 'appoint' ? office : '', period: action === 'appoint' ? period : '' }),
         appointments: JSON.stringify(people), recipient_name: people.map((a) => a.full_name).join(', '), recipient_email: [...new Set(people.map((a) => a.email.toLowerCase()))].join(', ') };
       let r;

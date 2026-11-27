@@ -2,7 +2,7 @@
   "event": "Τακτική Μεγάλη Συνέλευση Κέρκυρα — 19 Δεκεμβρίου 2026",
   "source_mailbox": "grand.secretary@nglgreece.gr",
   "mode": "automatic",
-  "last_sync": "2026-11-27T17:11:21.357Z",
+  "last_sync": "2026-11-27T18:11:23.201Z",
   "refresh_hours": 2,
   "attendees": [
     {
@@ -310,6 +310,17 @@
       "declaration_date": "2026-11-21",
       "comments": "Δεν θα χρησιμοποιήσει το λεωφορείο (ίδιο μέσο). Μόνος σε δίκλινο, με το ήμισυ του κόστους δίκλινου. Καταχωρίστηκε από τη Μεγάλη Γραμματεία.",
       "locked": []
+    },
+    {
+      "name": "ΣΤΑΥΡΟΣ ΚΑΠΝΙΑΣ",
+      "email": "stavros@abberley.com",
+      "title": "Προς επαλήθευση",
+      "officer_status": "Δεν έχει επαληθευθεί",
+      "travel": "18–20/12/2026",
+      "room": "Δίκλινο",
+      "hotel_status": "Εκκρεμεί",
+      "declaration_date": "2026-11-27",
+      "comments": ""
     },
     {
       "name": "ΤΑΣΟΣ ΑΛΜΠΑΝΗΣ",
